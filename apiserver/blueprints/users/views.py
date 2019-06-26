@@ -10,8 +10,17 @@ def index():
 
     return jsonify({
         "status": 200,
-        "message": "Welcome. Basic stats of the endpoint database",
-        "data": odbserver.get_db_stats()
+        "message": '''Users Endpoint:\n
+        snapshot: Get sample data from the user file system
+        delete: Remove a user from the system
+        create: Register a new user with email and password
+        login: User authorization access into the application
+        logout: Blacklist a user's current session
+        get: User activitiy
+        message: Create a message from the user and a record of the transmission to other users
+        confirm_email: Send a message for the user to confirm account validity through email
+        confirm: Complete the process with the confirm_email token
+        '''
     })
 
 

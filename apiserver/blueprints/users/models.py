@@ -1,8 +1,8 @@
 from apiserver.blueprints.home.models import ODB, get_datetime
 from apiserver.utils import SECRET_KEY, SIGNATURE_EXPIRED, BLACK_LISTED, DB_ERROR, PROTECTED, send_mail, HOST_IP, HTTPS
 from werkzeug.security import generate_password_hash, check_password_hash
-from itsdangerous import URLSafeTimedSerializer, TimedJSONWebSignatureSerializer
-import click
+from itsdangerous import TimedJSONWebSignatureSerializer
+
 
 class userDB(ODB):
 

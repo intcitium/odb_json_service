@@ -83,12 +83,21 @@ def clean(content):
     :return:
     """
     try:
-        content = str(content.replace("'", "").replace('"', ''))
+        content = str(content.replace("'", "\\'").replace('"', ''))
     except Exception as e:
         click.echo('%s %s' % (get_datetime(), str(e)))
         content = None
 
     return content
+
+
+def change_if_number(number_string):
+
+    try:
+        return float(number_string)
+    except:
+        return None
+
 
 def change_if_date(date_string, fuzzy=False):
     """
