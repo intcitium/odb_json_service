@@ -77,7 +77,8 @@ def save():
                 r = request.get_data().decode("utf-8")
             except:
                 try:
-                    r = request.base_url
+                    click.echo("Trying FORM")
+                    r = request.form.to_dict()
                 except:
                     r = "Not sure"
                     return(jsonify(r))
