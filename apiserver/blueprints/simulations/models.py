@@ -398,7 +398,6 @@ class Pole(ODB):
         # Options are there for loops that re-run the function
         Family = {"lines": []}
 
-
         if not self.basebook:
             self.check_base_book()
 
@@ -426,7 +425,7 @@ class Pole(ODB):
         # Get the place of birth from the simulation base cities
         POB_A = self.get_random_city()
         # Create the person record and key
-        tPOB_A = self.get_node_att(POB_A, "title")
+        tPOB_A = "%s, %s" % (self.get_node_att(POB_A, "city"), self.get_node_att(POB_A, "country"))
         parentA = self.create_person(
             DateOfBirth=(datetime.datetime.now() - datetime.timedelta(days=core_age)).strftime('%Y-%m-%d %H:%M:%S'),
             PlaceOfBirth=tPOB_A,
@@ -478,7 +477,7 @@ class Pole(ODB):
         LastNameB = random.choice(self.LastNames)
 
         POB_B = self.get_random_city()
-        tPOB_B = self.get_node_att(POB_A, "title")
+        tPOB_B = "%s, %s" % (self.get_node_att(POB_A, "city"), self.get_node_att(POB_A, "country"))
         # Create the person record and key
         parentB = self.create_person(
             DateOfBirth=(datetime.datetime.now() - datetime.timedelta(days=b_core_age)).strftime('%Y-%m-%d %H:%M:%S'),
