@@ -58,7 +58,10 @@ def save():
     try:
         r = {"Request": request.get_json()}
     except:
-        r = request.content_type
-    click.echo(r)
+        try:
+            r = request.get_data()
+        except:
+            click.echo(r)
+
 
     return jsonify(r)
