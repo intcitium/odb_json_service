@@ -59,7 +59,7 @@ def save():
         r = {"Request": request.get_json()}
     except:
         try:
-            r = str(request.get_data())
+            r = request.data.decode("utf-8")
         except:
             try:
                 r = request.base_url
