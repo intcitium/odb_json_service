@@ -1,4 +1,4 @@
-from flask import jsonify, Blueprint, request
+from flask import jsonify, Blueprint, request, json
 from apiserver.blueprints.users.views import odbserver as OAuth
 from apiserver.blueprints.simulations.models import Pole
 import click
@@ -57,7 +57,11 @@ def save():
     click.echo(request)
     try:
         click.echo("Trying First")
-        r = {"Request": request.get_data()}
+        r = request.get_data()
+        click.echo(r)
+        r = json.loads(r)
+        click.echo(r)
+        r = {"Request": r}
     except:
         try:
             click.echo("Trying JSON")
