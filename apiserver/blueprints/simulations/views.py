@@ -56,15 +56,22 @@ def run():
 def save():
     click.echo(request)
     try:
+        click.echo("Trying JSON")
         r = {"Request": request.get_json()}
     except:
         try:
-            r = request.data.decode("utf-8")
+            click.echo("Trying DATA")
+            r = request.get_data().decode("utf-8")
         except:
             try:
                 r = request.base_url
             except:
                 r = "Not sure"
+                return(jsonify(r))
+    try:
+        click.echo(type(r))
+        click.echo(r)
+    except:
 
-    click.echo(r)
+        click.echo(r)
     return jsonify(r)
