@@ -60,29 +60,28 @@ def save():
         click.echo("Trying FORM")
         r = request.form.to_dict()
     except:
-        r = "Not sure"
-        return (jsonify(r))
-    try:
-        click.echo("Trying First")
-        r = request.get_data().decode('utf8')
-        click.echo(r)
-        click.echo("URL decoding")
-        r = urllib.parse.unquote(r)
-        click.echo(r)
-        click.echo("JSON LOADING")
-        r = json.loads(r)
-        click.echo(r)
-        r = {"Request": r}
-    except:
         try:
-            click.echo("Trying JSON")
-            r = {"Request": request.get_json()}
+            click.echo("Trying First")
+            r = request.get_data().decode('utf8')
+            click.echo(r)
+            click.echo("URL decoding")
+            r = urllib.parse.unquote(r)
+            click.echo(r)
+            click.echo("JSON LOADING")
+            r = json.loads(r)
+            click.echo(r)
+            r = {"Request": r}
         except:
             try:
-                click.echo("Trying DATA")
-                r = request.get_data().decode("utf-8")
+                click.echo("Trying JSON")
+                r = {"Request": request.get_json()}
             except:
-                print(r)
+                try:
+                    click.echo("Trying DATA")
+                    r = request.get_data().decode("utf-8")
+                except:
+                    print(r)
+
 
     try:
         click.echo(type(r))
