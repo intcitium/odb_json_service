@@ -66,5 +66,5 @@ def save():
             except:
                 r = "Not sure"
 
-
+    click.echo(r)
     return jsonify(r)
