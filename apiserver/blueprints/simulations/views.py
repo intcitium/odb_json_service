@@ -56,8 +56,8 @@ def run():
 def save():
     click.echo(request)
     try:
-        click.echo("Trying FORM")
-        r = request.form.to_dict()
+        click.echo("Trying First")
+        r = {"Request": request.get_data()}
     except:
         try:
             click.echo("Trying JSON")
