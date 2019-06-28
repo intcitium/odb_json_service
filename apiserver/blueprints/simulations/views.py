@@ -2,6 +2,7 @@ from flask import jsonify, Blueprint, request, json
 from apiserver.blueprints.users.views import odbserver as OAuth
 from apiserver.blueprints.simulations.models import Pole
 import click
+import urllib
 
 simulations = Blueprint('simulations', __name__)
 simserver = Pole()
@@ -57,10 +58,12 @@ def save():
     click.echo(request)
     try:
         click.echo("Trying First")
-        r = request.get_data().decode("utf-8").replace("'", '"')
+        r = request.get_data().decode('utf8')
         click.echo(r)
-        r = request.get_data().decode("ascii")
+        click.echo("URL decoding")
+        r = urllib.parse.unquote(r)
         click.echo(r)
+        click.echo("JSON LOADING")
         r = json.loads(r)
         click.echo(r)
         r = {"Request": r}
