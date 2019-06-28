@@ -55,7 +55,10 @@ def run():
 @simulations.route('/save', methods=['POST'])
 def save():
     click.echo(request)
-    r = {"Request": request.json}
+    try:
+        r = {"Request": request.get_json()}
+    except:
+        r = request.content_type
     click.echo(r)
 
     return jsonify(r)
