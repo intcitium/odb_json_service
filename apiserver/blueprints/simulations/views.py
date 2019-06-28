@@ -54,6 +54,7 @@ def run():
 
 @simulations.route('/save', methods=['POST'])
 def save():
+    click.echo(request)
     r = {"Request": request.json}
     click.echo(r)
 
