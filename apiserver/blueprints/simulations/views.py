@@ -59,6 +59,8 @@ def save():
         click.echo("Trying First")
         r = request.get_data().decode("utf-8").replace("'", '"')
         click.echo(r)
+        r = request.get_data().decode("ascii")
+        click.echo(r)
         r = json.loads(r)
         click.echo(r)
         r = {"Request": r}
