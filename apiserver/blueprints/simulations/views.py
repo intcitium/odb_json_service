@@ -38,6 +38,7 @@ def create_family():
 @simulations.route('/simulations/run', methods=['POST'])
 def run():
     auth = OAuth.auth_user(request.headers['Authorization'])
+    click.echo("SIMRUN")
     if auth:
         return jsonify(auth)
     else:
