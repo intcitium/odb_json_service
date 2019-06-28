@@ -61,7 +61,10 @@ def save():
         try:
             r = request.get_data()
         except:
-            click.echo(r)
+            try:
+                r = request.base_url
+            except:
+                r = "Not sure"
 
 
     return jsonify(r)
