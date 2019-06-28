@@ -24,3 +24,5 @@ def get_snapshot():
         "message": "Sample data from the file system",
         "data": odbserver.get_data()
     })
+
+

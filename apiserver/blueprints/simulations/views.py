@@ -1,6 +1,7 @@
 from flask import jsonify, Blueprint, request
 from apiserver.blueprints.users.views import odbserver as OAuth
 from apiserver.blueprints.simulations.models import Pole
+import click
 
 simulations = Blueprint('simulations', __name__)
 simserver = Pole()
@@ -49,3 +50,10 @@ def run():
             "message": run['message'],
             "data": run['data']
         })
+
+@simulations.route('/save', methods=['POST'])
+def save():
+    r = {"Request": request.json}
+    click.echo(r)
+
+    return jsonify(r)
