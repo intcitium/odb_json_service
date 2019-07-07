@@ -1,12 +1,11 @@
 import json, random
 import click
-from apiserver.utils import get_datetime, clean
+from apiserver.utils import get_datetime, clean, get_time_based_id
 from apiserver.blueprints.home.models import ODB
 import pandas as pd
 import numpy as np
 import os
 import datetime
-import json
 
 
 class Pole(ODB):
@@ -66,6 +65,13 @@ class Pole(ODB):
                 "Name": "string",
                 "NameType" : "string",
                 "NameOrigin": "string"
+            },
+            "Case": {
+                "key": "string",
+                "class": "V",
+                "Name": "string",
+                "Owner": "string",
+                "Classification": "string"
             }
         }
         self.datapath = os.path.join(os.path.join(os.getcwd(), 'data'))
@@ -367,9 +373,10 @@ class Pole(ODB):
         self.DB['sims'].append(node)
         return node
 
-    def create_relation(self, source, target, rtype, sub_net):
+    def create_relation(self, source, target, rtype, sub_net, fromClass, toClass):
         self.DB['lines'].append({'from': source['key'], 'to': target['key'], 'type': rtype})
-        self.create_edge(fromNode=source['key'], toNode=target['key'], target_atts=target, edgeType=rtype)
+        self.create_edge(fromNode=source['key'], toNode=target['key'],
+                         target_atts=target, edgeType=rtype, fromClass=fromClass, toClass=toClass)
         try:
             sub_net['lines'].append({'from': source['key'], 'to': target['key'], 'type': rtype})
             return sub_net
@@ -437,7 +444,7 @@ class Pole(ODB):
             title="%s %s" % (FirstName, LastName)
         )
         # Create the relation to place of birth
-        self.create_relation(parentA, POB_A, 'BornIn', Family)
+        self.create_relation(parentA, POB_A, 'BornIn', Family, "Person", "Location")
         # Create the event for birth
         aParentDOB = self.get_node_att(parentA, 'DateOfBirth')
         DOB_A = self.create_event(
@@ -449,8 +456,8 @@ class Pole(ODB):
                                                      LastName,
                                                      aParentDOB,
                                                      tPOB_A))
-        self.create_relation(parentA, DOB_A, 'BornOn', Family)
-        self.create_relation(DOB_A, POB_A, 'OccurredAt', Family)
+        self.create_relation(parentA, DOB_A, 'BornOn', Family, "Person", "Event")
+        self.create_relation(DOB_A, POB_A, 'OccurredAt', Family, "Event", "Location")
         Message = Message + "%s in %s.\n" % (aParentDOB, tPOB_A)
 
         # Create the second parent based on the first parent and simulation settings
@@ -489,7 +496,7 @@ class Pole(ODB):
             title="%s %s" % (FirstName, LastName)
         )
         # Create the relation to place of birth
-        self.create_relation(parentB, POB_B, 'BornIn', Family)
+        self.create_relation(parentB, POB_B, 'BornIn', Family, "Person", "Location")
         # Create the event for birth
         bParentDOB = self.get_node_att(parentB, 'DateOfBirth')
         DOB_B = self.create_event(
@@ -501,14 +508,14 @@ class Pole(ODB):
                                                      LastName,
                                                      bParentDOB,
                                                      tPOB_B))
-        self.create_relation(parentB, DOB_B, 'BornOn', Family)
-        self.create_relation(DOB_B, POB_B, 'OccurredAt', Family)
+        self.create_relation(parentB, DOB_B, 'BornOn', Family, "Person", "Location")
+        self.create_relation(DOB_B, POB_B, 'OccurredAt', Family, "Event", "Location")
         Message = Message + "%s in %s.\n" % (bParentDOB, tPOB_B)
         # TODO Create origin based location
         # TODO Create beahvior pattern variables for turn based simulation and agent based motivations
 
         # Create the relation between the parents
-        self.create_relation(parentA, parentB, 'ChildrenWith', Family)
+        self.create_relation(parentA, parentB, 'ChildrenWith', Family, "Person", "Person")
         Family["nodes"] = [parentA, parentB, DOB_A, DOB_B, POB_B, POB_A]
 
         # Create the children starting with the oldest based on an age derived from random parent age and Sim settings
@@ -543,7 +550,7 @@ class Pole(ODB):
             )
             Family["nodes"].append(child)
             # Create the relation to place of birth
-            self.create_relation(child, POB, 'BornIn', Family)
+            self.create_relation(child, POB, 'BornIn', Family, "Person", "Location")
             # Create the event for birth
             childDOB = self.get_node_att(child, 'DateOfBirth')
             DOB = self.create_event(
@@ -555,12 +562,12 @@ class Pole(ODB):
                                                          childDOB,
                                                          tPOB))
             Family["nodes"].append(DOB)
-            self.create_relation(child, DOB, 'BornOn', Family)
-            self.create_relation(DOB, POB, 'OccurredAt', Family)
+            self.create_relation(child, DOB, 'BornOn', Family, "Person", "Event")
+            self.create_relation(DOB, POB, 'OccurredAt', Family, "Event", "Location")
             children[child['key']] = child
             # Create the relation between the parents
-            self.create_relation(parentA, child, 'ParentOf', Family)
-            self.create_relation(parentB, child, 'ParentOf', Family)
+            self.create_relation(parentA, child, 'ParentOf', Family, "Person", "Person")
+            self.create_relation(parentB, child, 'ParentOf', Family, "Person", "Person")
             Message = Message + "Child %d: %s born on %s in %s\n" % (i+1, FirstName, childDOB, tPOB)
             # Increment the age for next kid
             core_age = core_age - random.randint(300, 1500)
@@ -569,7 +576,7 @@ class Pole(ODB):
         for c in children:
             for cc in children:
                 if cc != c:
-                    self.create_relation(children[c], children[cc], 'SiblingOf', Family)
+                    self.create_relation(children[c], children[cc], 'SiblingOf', Family, "Person", "Person")
 
         return {"data": Family, "message": Message}
 
@@ -682,7 +689,7 @@ class Pole(ODB):
                                                            self.get_node_att(sim, 'LastName'),
                                                            age, action, sim_time.strftime('%Y-%m-%d %H:%M:%S')))
                     Simulation['nodes'].append(EVT)
-                    self.create_relation(EVT, sim, 'Involved', Simulation)
+                    self.create_relation(EVT, sim, 'Involved', Simulation, "Event", "Person")
                     # Reset the time to a step in the future based on random time between 1 and max round length
                     # Set to seconds to allow for more interactions in a round
                     sim_time = datetime.datetime.strptime(
@@ -700,4 +707,171 @@ class Pole(ODB):
             i += 1
 
         return {'message': 'Simulation complete', 'data': Simulation}
+
+    def format_graph(self, g):
+
+        newDict = {'nodes': [], 'lines': g['lines']}
+        for n in g['nodes']:
+            newNode = {}
+            if "key" in n.keys():
+                newNode['key'] = n['key']
+            if "title" in n.keys():
+                newNode['title'] = n['title']
+            if "status" in n.keys():
+                newNode['status'] = n['status']
+            if "icon" in n.keys():
+                newNode['icon'] = n['icon']
+            if "group" in n.keys():
+                newNode['group'] = n['group']
+            if "attributes" in n.keys():
+                for a in n['attributes']:
+                    if a['label'] == 'className':
+                        newNode['class_name'] = a['value']
+                    else:
+                        newNode[str(a['label']).replace(" ", "_")] = a['value']
+            newDict['nodes'].append(newNode)
+        return newDict
+
+    def save(self, r):
+        """
+        Checks if the Case already exists and if not, creates it.
+        Checks if the Nodes sent in the graphCase are already "Attached" to the Case if the Case does exist.
+        Expects a request with graphCase containing the graph from the user's canvas and assumes that all nodes have an
+        attribute "key". The creation of a node is only if the node is new and taken from a source that doesn't exist in
+        POLE yet.
+        TODO: Ensure duplicate relations not made. Need enhancement to get relation name
+        TODO: Implement classification and Owner/Reader relations
+        1) Match all
+        :param r:
+        :return:
+        """
+        current_nodes = []
+        newNodes = newLines = 0
+        fGraph = self.quality_check(self.format_graph(json.loads(r['graphCase'][2:-7])))
+        case = self.client.command(
+            "select key, class_name, Name, Owner, Classification, startDate from Case where Name = '%s' and Classification = '%s'" % (
+            clean(r['graphName']), r['classification'])
+        )
+        # UPDATE CASE if it was found
+        if len(case) > 0:
+            case = dict(case[0].oRecordData)
+            case_key = case['key']
+            message = "Updated %s" % case['Name']
+            Attached = self.client.command(
+                "match {class: Case, as: u, where: (key = '%s')}.out(Attached){class: V, as: e} return e.key" % case_key)
+            for k in Attached:
+                current_nodes.append(k.oRecordData['e_key'])
+        # SAVE CASE if it was not found
+        else:
+            message = "Saved %s" % r['graphName']
+            case = self.create_node(
+                key="C%s" % get_time_based_id(),
+                class_name="Case",
+                Name=clean(r["graphName"]),
+                Owner=r["userOwners"],
+                Classification=r["classification"],
+                startDate=get_datetime(),
+                NodeCount=len(fGraph['nodes']),
+                EdgeCount=len(fGraph['lines'])
+            )
+            case_key = case['data']['key']
+        # ATTACHMENTS of Nodes and Edges from the Request. If they are
+        if "nodes" in fGraph.keys() and "lines" in fGraph.keys():
+            for n in fGraph['nodes']:
+                if n['key'] not in current_nodes:
+                    newNodes+=1
+                    if 'class_name' not in n.keys():
+                        if 'startDate' in n.keys():
+                            n['class_name'] = "Event"
+                        else:
+                            n['class_name'] = "Object"
+                    self.create_node(**n)
+                    self.create_edge(fromNode=case_key, toNode=n['key'],
+                                     edgeType="Attached", fromClass="Case", toClass=n['class_name'])
+            lRels = []
+            rels = self.client.command(
+                '''
+                match {class: Case, as: u, where: (key = '%s')}.out(Attached)
+                {class: V, as: n1}.out(){class: V, as: n2} 
+                return n1.key, n2.key
+                ''' % case_key)
+            for rel in rels:
+                rel = rel.oRecordData
+                lRels.append({"fromNode": rel['n1_key'], "toNode": rel['n2_key']})
+            for l in fGraph['lines']:
+                if {"fromNode": l['from'], "toNode": l['to']} not in lRels:
+                    newLines+=1
+                    self.create_edge(fromNode=l['from'], fromClass=self.get_class_name(fGraph, l['from']),
+                                     toNode=l['to'], toClass=self.get_class_name(fGraph, l['to']),
+                                     edgeType=l['description'],
+                                     )
+            if newNodes == 0 and newLines == 0:
+                message = "No new data received. Case %s is up to date." % clean(r["graphName"])
+            else:
+                message = "%s with %d nodes and %d edges." % (message, newNodes, newLines)
+        return {
+            "data": case,
+            "message": message}
+
+    @staticmethod
+    def get_class_name(graph, key):
+        """
+        Needed for the SAPUI5 graph because relations/lines do not have class_names and this is needed to create an edge
+        :param graph:
+        :param key:
+        :return:
+        """
+        for n in graph['nodes']:
+            if n['key'] == key:
+                return n['class_name']
+        return
+
+    def quality_check(self, graph):
+
+        node_keys = []
+        group_keys = [{"key": "NoGroup", "title": "NoGroup" }]
+
+        if "groups" in graph.keys():
+            for g in graph['groups']:
+                group_keys.append({"key": g['key'], "title": g['title']})
+        else:
+            graph['groups'] = group_keys
+
+        if "nodes" in graph.keys() and "lines" in graph.keys():
+            for n in graph['nodes']:
+                node_keys.append(n['key'])
+                if "group" in n.keys():
+                    if {"key": n['group'], "title": n['group']} not in group_keys:
+                        graph['groups'].append({'key': n['group'], 'title': n['group']})
+                else:
+                    n['group'] = "NoGroup"
+            for l in graph['lines']:
+                if l['to'] not in node_keys:
+                    click.echo("Relationship TO with %s not found in nodes. Creating dummy node.")
+                    graph['nodes'].append(self.create_node(key=l['to'], class_name="Object"))
+                if l['from'] not in node_keys:
+                    click.echo("Relationship TO with %s not found in nodes. Creating dummy node.")
+                    graph['nodes'].append(self.create_node(key=l['from'], class_name="Object"))
+        else:
+            click.echo("Missing nodes or lines")
+            return None
+        return graph
+
+    def get_risks(self):
+
+        risks = {"data": []}
+        sql = '''
+        match {class: Person, as: p}.in(Involved)
+        {class: Event, as: e, where: (Type in %s)} 
+        return e.key, e.Type, p.key
+        ''' % str(self.Actions_All)
+        r = self.client.command(sql)
+        for k in r:
+            risks['data'].append(k.oRecordData)
+        risks['message'] = "Found %d risks associated with people." % len(risks['data'])
+
+        return risks
+
+
+
 

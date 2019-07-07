@@ -47,11 +47,15 @@ def send_mail(**kwargs):
         message.attach(MIMEText(kwargs['hMessage'], "html"))
     context = ssl.create_default_context()
 
-    with smtplib.SMTP_SSL(MAIL_SERVER , MAIL_PORT, context=context) as server:
-        server.login(MAIL_USERNAME, MAIL_PASSWORD)
-        server.sendmail(MAIL_USERNAME, kwargs['Recipient'], message.as_string())
+    try:
+        with smtplib.SMTP_SSL(MAIL_SERVER , MAIL_PORT, context=context) as server:
+            server.login(MAIL_USERNAME, MAIL_PASSWORD)
+            server.sendmail(MAIL_USERNAME, kwargs['Recipient'], message.as_string())
+    except Exception as e:
+        click.echo(str(e))
 
     return True
+
 
 def get_datetime():
     """
@@ -59,6 +63,18 @@ def get_datetime():
     :return:
     """
     return datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+
+
+def get_time_based_id():
+    """
+    Create a time based ID with a random 16 digit tail in the case of many requests at the same time including micro-second
+    :return:
+    """
+    return int(
+        "%s%s" %
+        (datetime.now().strftime('%Y%m%d%H%M%S%f'),
+         random.randint(1000000000000000, 9999999999999999))
+    )
 
 
 def clean_concat(content):
@@ -78,23 +94,33 @@ def clean_concat(content):
 
 def clean(content):
     """
-    Utility function for returning cleaned strings into a normalized format for keys
+    Utility function for cleaning strings for inserting into sql
     :param content:
     :return:
     """
     try:
-        content = str(content.replace("'", "\\'").replace('"', ''))
+        clean_content = change_if_date(content)
+        if clean_content:
+            return clean_content
+        else:
+            clean_content = str(content.replace("'", "\\'").replace('"', ''))
     except Exception as e:
-        click.echo('%s %s' % (get_datetime(), str(e)))
-        content = None
+        try:
+            clean_content = change_if_number(content)
+        except Exception as ee:
+            click.echo('%s %s, %s' % (get_datetime(), str(e), str(ee)))
+            clean_content = None
 
-    return content
+    return clean_content
 
 
 def change_if_number(number_string):
 
     try:
-        return float(number_string)
+        if "." in str(number_string):
+            return float(number_string)
+        else:
+            return int(number_string)
     except:
         return None
 
@@ -109,7 +135,7 @@ def change_if_date(date_string, fuzzy=False):
     date_formats = [
         '%a, %d %b %Y %H:%M:%S %z', '%a, %d %b %Y %H:%M:%S %Z', '%A, %D %B %Y %H:%M:%S %z', '%A, %D %B %Y %H:%M:%S %Z',
         '%A, %D %B %y %h:%m:%s %z', '%a, %d %b %y %h:%m:%s %z', '%a, %d %b %y %h:%m:%s %Z','%a, %D %b %Y %H:%M:%S %Z',
-        '%m/%d/%y, %I:%M %p', '%M/%d/%y, %I:%M %p', '%M/%D/%y, %I:%M %p', '%M/%D/%Y, %I:%M %p',
+        '%m/%d/%y, %I:%M %p', '%M/%d/%y, %I:%M %p', '%M/%D/%y, %I:%M %p', '%M/%D/%Y, %I:%M %p', '%m/%d/%Y/%H:%M:%S',
         '%Y-%m-%d', '%Y/%m/%d', '%d-%m-%Y', '%d/%m/%Y', '%Y-%M-%D', '%Y/%M/%D', '%D-%M-%Y', '%D/%M/%Y',
         '%Y-%m-%d %H:%M:%S', '%Y/%m/%d %H:%M:%S', '%d-%m-%Y %H:%M:%S', '%d/%m/%Y %H:%M:%S',
         '%Y-%m-%d %H:%M', '%Y/%m/%d %H:%M', '%d-%m-%Y %H:%M', '%d/%m/%Y %H:%M',

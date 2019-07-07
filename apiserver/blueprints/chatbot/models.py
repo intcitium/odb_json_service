@@ -1,25 +1,28 @@
 import requests
 from apiserver.utils import COPILOT_AUTH, COPILOT_URL, COPILOT_DEV_TOKEN, COPILOT_POST
-
+import click
 
 class ChatServer():
 
     def __init__(self):
-        self.owner = requests.get(COPILOT_URL, headers={"Authorization": COPILOT_AUTH}).json()['results']['owner']
-        self.uuid = self.owner['id']
-        self.headers = {"Authorization": COPILOT_DEV_TOKEN, "x-uuid": self.uuid, "content-type": "application/json"}
-        self.payload = {
-            "message": {
-                "type": "text",
-                "content": str
-            },
-            "conversation_id": str,
-            "log_level": "info"
-        }
-        self.ICON_SESSION = "sap-icon://activities"
-        self.ICON_POST = "sap-icon://post"
-        self.ICON_USER = "sap-icon://customer"
-        self.ICON_BLACKLIST = "sap-icon://cancel"
+        try:
+            self.owner = requests.get(COPILOT_URL, headers={"Authorization": COPILOT_AUTH}).json()['results']['owner']
+            self.uuid = self.owner['id']
+            self.headers = {"Authorization": COPILOT_DEV_TOKEN, "x-uuid": self.uuid, "content-type": "application/json"}
+            self.payload = {
+                "message": {
+                    "type": "text",
+                    "content": str
+                },
+                "conversation_id": str,
+                "log_level": "info"
+            }
+            self.ICON_SESSION = "sap-icon://activities"
+            self.ICON_POST = "sap-icon://post"
+            self.ICON_USER = "sap-icon://customer"
+            self.ICON_BLACKLIST = "sap-icon://cancel"
+        except Exception as e:
+            click.echo(e)
 
     def send_message(self, **kwargs):
         """

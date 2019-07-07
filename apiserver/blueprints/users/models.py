@@ -85,9 +85,9 @@ class userDB(ODB):
         senderKey = self.get_user(userName=form['sender'])[0].oRecordData['key']
         receiverKey = self.get_user(userName=form['receiver'])[0].oRecordData['key']
         msgKey = msg['data']['key']
-        self.create_edge(fromNode=sessionId, toNode=msgKey, edgeType="Logged")
-        self.create_edge(fromNode=senderKey, toNode=msgKey, edgeType="Sent")
-        self.create_edge(fromNode=msgKey, toNode=receiverKey, edgeType="SentTo")
+        self.create_edge(fromNode=sessionId, fromClass="Session", toNode=msgKey, toClass="Message", edgeType="Logged")
+        self.create_edge(fromNode=senderKey, fromClass="User", toNode=msgKey, toClass="Message", edgeType="Sent")
+        self.create_edge(fromNode=msgKey, fromClass="Message", toNode=receiverKey, toClass="User", edgeType="SentTo")
         # for tag in tags create a new node and relate it
         return msg
 
@@ -138,7 +138,8 @@ class userDB(ODB):
                 if check_password_hash(password, form['passWord']):
                     token = self.serialize_token(userName=form['userName'])
                     session = self.create_session(form, ip_address, token)
-                    self.create_edge(fromNode=key, toNode=session['data']['key'], edgeType="UserSession")
+                    self.create_edge(fromNode=key, fromClass="User", toNode=session['data']['key'],
+                                     toClass="Session", edgeType="UserSession")
                     response["token"] = token
                     response["session"] = session["data"]["key"]
                     response["data"] = self.get_activity(userName=form['userName'])
@@ -172,7 +173,8 @@ class userDB(ODB):
             icon=self.ICON_BLACKLIST
         )
 
-        self.create_edge(edgeType="ClosedSession", fromNode=blackListNode['data']['key'], toNode=request.headers['SESSIONID'])
+        self.create_edge(edgeType="ClosedSession", fromNode=blackListNode['data']['key'], fromClass="Blacklist",
+                         toNode=request.headers['SESSIONID'], toClass="Session")
 
         return "User {userName} logged out from session {session} at {date}".format(
             userName=r['userName'], session=request.headers['SESSIONID'], date=dLOGOUT)
@@ -394,8 +396,8 @@ class userDB(ODB):
                 session='Email confirmation',
                 icon=self.ICON_BLACKLIST
             )
-            self.create_edge(edgeType="ConfirmedEmail", fromNode=blackListNode['data']['key'],
-                             toNode=userName[0].oRecordData['key'])
+            self.create_edge(edgeType="ConfirmedEmail", fromNode=blackListNode['data']['key'], fromClass="Blacklist",
+                             toNode=userName[0].oRecordData['key'], toClass="User")
 
             # Update user data with confirmed
             self.update(class_name="User", var="confirmed", val=True, key=userName[0].oRecordData['key'])
@@ -404,8 +406,8 @@ class userDB(ODB):
             token = self.serialize_token(userName[0].oRecordData['userName'])
             session = self.create_session({"userName": userName[0].oRecordData['userName']}, 'Email', token)
             self.create_edge(
-                fromNode=userName[0].oRecordData['key'],
-                toNode=session['data']['key'],
+                fromNode=userName[0].oRecordData['key'], fromClass="User",
+                toNode=session['data']['key'], toClass="Session",
                 edgeType="UserSession")
 
             return {

@@ -33,7 +33,7 @@ def create_family():
         return jsonify({
             "status": 200,
             "message": family['message'],
-            "data": family['data']
+            "data": simserver.quality_check(family['data'])
         })
 
 @simulations.route('/simulations/run', methods=['POST'])
@@ -50,43 +50,25 @@ def run():
         return jsonify({
             "status": 200,
             "message": run['message'],
-            "data": run['data']
+            "data": simserver.quality_check(run['data'])
         })
+
 
 @simulations.route('/save', methods=['POST'])
 def save():
-    click.echo(request)
-    try:
-        click.echo("Trying FORM")
-        r = request.form.to_dict()
-    except:
-        try:
-            click.echo("Trying First")
-            r = request.get_data().decode('utf8')
-            click.echo(r)
-            click.echo("URL decoding")
-            r = urllib.parse.unquote(r)
-            click.echo(r)
-            click.echo("JSON LOADING")
-            r = json.loads(r)
-            click.echo(r)
-            r = {"Request": r}
-        except:
-            try:
-                click.echo("Trying JSON")
-                r = {"Request": request.get_json()}
-            except:
-                try:
-                    click.echo("Trying DATA")
-                    r = request.get_data().decode("utf-8")
-                except:
-                    print(r)
+
+    r = request.form.to_dict()
+    if 'graphCase' in r.keys():
+        rt = simserver.save(r)
+    else:
+        rt = {"message": "No graph found in request.", "data": None}
+
+    return jsonify(rt)
 
 
-    try:
-        click.echo(type(r))
-        click.echo(r)
-    except:
+@simulations.route('/simulations/get_risks', methods=['GET'])
+def get_risks():
 
-        click.echo(r)
+    r = simserver.get_risks()
     return jsonify(r)
+

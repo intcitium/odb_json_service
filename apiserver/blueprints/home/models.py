@@ -33,9 +33,36 @@ class ODB:
                                  'OUser', '_studio' ]
 
     def create_edge(self, **kwargs):
-        sql = '''
-        create edge {edgeType} from (select from V where key = {fromNode}) to (select from V where key = {toNode})
-        '''.format(edgeType=kwargs['edgeType'], fromNode=kwargs['fromNode'], toNode=kwargs['toNode'])
+        if change_if_number(kwargs['fromNode']) and change_if_number(kwargs['toNode']):
+            sql = '''
+            create edge {edgeType} from 
+            (select from {fromClass} where key = {fromNode}) to 
+            (select from {toClass} where key = {toNode})
+            '''.format(edgeType=kwargs['edgeType'], fromNode=kwargs['fromNode'], toNode=kwargs['toNode'],
+                       fromClass=kwargs['fromClass'], toClass=kwargs['toClass'])
+
+        elif change_if_number(kwargs['fromNode']):
+            sql = '''
+            create edge {edgeType} from 
+            (select from {fromClass} where key = {fromNode}) to 
+            (select from {toClass} where key = '{toNode}')
+            '''.format(edgeType=kwargs['edgeType'], fromNode=kwargs['fromNode'], toNode=kwargs['toNode'],
+                       fromClass=kwargs['fromClass'], toClass=kwargs['toClass'])
+        elif change_if_number(kwargs['toNode']):
+            sql = '''
+            create edge {edgeType} from 
+            (select from {fromClass} where key = '{fromNode}') to 
+            (select from {toClass} where key = {toNode})
+            '''.format(edgeType=kwargs['edgeType'], fromNode=kwargs['fromNode'], toNode=kwargs['toNode'],
+                       fromClass=kwargs['fromClass'], toClass=kwargs['toClass'])
+        else:
+            sql = '''
+            create edge {edgeType} from 
+            (select from {fromClass} where key = '{fromNode}') to 
+            (select from {toClass} where key = '{toNode}')
+            '''.format(edgeType=kwargs['edgeType'], fromNode=kwargs['fromNode'], toNode=kwargs['toNode'],
+                       fromClass=kwargs['fromClass'], toClass=kwargs['toClass'])
+
         try:
             self.client.command(sql)
             return True
@@ -48,29 +75,53 @@ class ODB:
         Go through the properties and add a new piece to the sql statement for each using a label and values for insert
         Only insert statements return values and the key is needed
         While creating the sql, save attributes for formatting to a SAPUI5 node
+        If there is a key, set the key as the label but wait to determine if the key is a number or string before
+        adding to the values part of the sql insert statement
         :param kwargs: str(db_name), str(class_name), list(properties{property: str, value: str)
         :return:
         """
         attributes = []
         if 'class_name' in kwargs.keys():
-            labels = "(key"
-            values = "(sequence('idseq').next()"
+            if "key" in kwargs.keys():
+                labels = "(key"
+                values = "("
+                hadKey = True
+            else:
+                labels = "(key"
+                values = "(sequence('idseq').next()"
+                hadKey = False
             icon = title = status = None
 
             for k in kwargs.keys():
                 if list(kwargs.keys())[-1] == k:
                     # Close the labels and values with a ')'
-                    labels = labels + ", {label})".format(label=k)
-                    if change_if_number(kwargs[k]):
-                        values = values + ", {value})".format(value=kwargs[k])
+                    if hadKey:
+                        if change_if_number(kwargs[k]):
+                            values = values + "{value})".format(value=kwargs['key'])
+                        else:
+                            values = values + "'{value}')".format(value=clean(kwargs['key']))
+                        hadKey = False
                     else:
-                        values = values + ", '{value}')".format(value=clean(kwargs[k]))
+                        labels = labels + ", {label})".format(label=k)
+                        if change_if_number(kwargs[k]):
+                            values = values + ", {value})".format(value=kwargs[k])
+                        else:
+                            values = values + ", '{value}')".format(value=clean(kwargs[k]))
                 else:
-                    labels = labels + ", {label}".format(label=k)
-                    if change_if_number(kwargs[k]):
-                        values = values + ", {value}".format(value=kwargs[k])
+                    if hadKey:
+                        if change_if_number(kwargs[k]):
+                            values = values + "{value}".format(value=kwargs['key'])
+                        else:
+                            values = values + "'{value}'".format(value=clean(kwargs['key']))
+                        # Change key since after first pass, the sql statement is the same in either case
+                        hadKey = False
                     else:
-                        values = values + ", '{value}'".format(value=clean(kwargs[k]))
+                        labels = labels + ", {label}".format(label=k)
+                        if change_if_number(kwargs[k]):
+                            values = values + ", {value}".format(value=kwargs[k])
+                        else:
+                            values = values + ", '{value}'".format(value=clean(kwargs[k]))
+
                 if k == 'icon':
                     icon = kwargs[k]
                 if k == 'title':

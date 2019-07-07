@@ -6,8 +6,12 @@ from apiserver.blueprints.chatbot.models import ChatServer
 chatbot = Blueprint('chatbot', __name__)
 # Set up the Chatserver basing the DB storage on the User ODB
 CB = ChatServer()
+try:
+    CB_id = CB.uuid
+except:
+    CB_id = "None"
 odbserver.create_user({
-    'userName': CB.uuid,
+    'userName': CB_id,
     'email': 'Chatbot@email.com',
     'passWord': randomString(36)})
 
