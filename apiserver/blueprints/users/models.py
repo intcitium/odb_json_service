@@ -163,21 +163,30 @@ class userDB(ODB):
 
         r = request.form.to_dict(flat=True)
         dLOGOUT = get_datetime()
-        self.update(class_name="Session", var="endDate", val=dLOGOUT, key=int(request.headers['SESSIONID']))
-        blackListNode = self.create_node(
-            class_name="Blacklist",
-            createtDate=dLOGOUT,
-            token=request.headers['AUTHORIZATION'],
-            user=r['userName'],
-            session=request.headers['SESSIONID'],
-            icon=self.ICON_BLACKLIST
-        )
+        try:
+            self.update(class_name="Session", var="endDate", val=dLOGOUT, key=int(request.headers['SESSIONID']))
+            blackListNode = self.create_node(
+                class_name="Blacklist",
+                createtDate=dLOGOUT,
+                token=request.headers['AUTHORIZATION'],
+                user=r['userName'],
+                session=request.headers['SESSIONID'],
+                icon=self.ICON_BLACKLIST
+            )
 
-        self.create_edge(edgeType="ClosedSession", fromNode=blackListNode['data']['key'], fromClass="Blacklist",
-                         toNode=request.headers['SESSIONID'], toClass="Session")
+            self.create_edge(edgeType="ClosedSession", fromNode=blackListNode['data']['key'], fromClass="Blacklist",
+                             toNode=request.headers['SESSIONID'], toClass="Session")
 
-        return "User {userName} logged out from session {session} at {date}".format(
-            userName=r['userName'], session=request.headers['SESSIONID'], date=dLOGOUT)
+            return "User {userName} logged out from session {session} at {date}".format(
+                userName=r['userName'], session=request.headers['SESSIONID'], date=dLOGOUT)
+
+        except Exception as e:
+            if "ValueError" in str(e):
+                return "User {userName} session with id {session} for {date} is not valid".format(
+                    userName=r['userName'], session=request.headers['SESSIONID'], date=dLOGOUT)
+            if request.headers['SESSIONID'] == '':
+                return "User {userName} session is blank".format(
+                    userName=r['userName'])
 
     def check_blacklist(self, token):
         """
