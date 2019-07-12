@@ -672,11 +672,15 @@ class Pole(ODB):
             4. Insert the relation of event to person and to locations into the db based on event type
 
             '''
+
             for sim in self.DB['sims']:
                 try:
                     simclock = int(self.get_node_att(sim, 'simclock'))
                 except:
-                    simclock = int(self.get_node_att(sim, 'simaction'))
+                    try:
+                        simclock = int(self.get_node_att(sim, 'simaction'))
+                    except:
+                        simclock = random.randint(1, 9)
                 if simclock > random.randint(1, 9):
                     age = self.check_age(sim_time, self.get_node_att(sim, 'DateOfBirth'))
                     if age == 'Not born':
