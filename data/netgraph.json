@@ -4,7 +4,6 @@
 			"key": 0,
 			"title": "Cecilia Elsner",
 			"group": 1,
-			"status": "Error",
 			"icon": "sap-icon://person-placeholder",
 			"attributes": [
 				{
@@ -13,6 +12,12 @@
 				},{
 					"label": "className",
 					"value": "Person"
+				},{
+					"label": "FirstName",
+					"value": "Cecilia"
+				},{
+					"label": "LastName",
+					"value": "Elsner"
 				}
 			]
 		},{
@@ -27,6 +32,12 @@
 				},{
 					"label": "className",
 					"value": "Person"
+				},{
+					"label": "FirstName",
+					"value": "Rosamund"
+				},{
+					"label": "LastName",
+					"value": "Elsner"
 				}
 			]
 		},{
@@ -41,6 +52,12 @@
 				},{
 					"label": "className",
 					"value": "Person"
+				},{
+					"label": "FirstName",
+					"value": "Jumana"
+				},{
+					"label": "LastName",
+					"value": "Gyulai"
 				}
 			]
 		},{
@@ -52,10 +69,10 @@
 			"attributes": [
 				{
 					"label": "startDate",
-					"value": "05/19/2019/16:0:0"
+					"value": "04/19/2019/16:0:0"
 				},{
 					"label": "endDate",
-					"value": "05/19/2019/17:0:0"
+					"value": "04/19/2019/17:0:0"
 				},{
 					"label": "className",
 					"value": "Event"
@@ -70,10 +87,10 @@
 			"attributes": [
 				{
 					"label": "startDate",
-					"value": "05/20/2019/16:0:0"
+					"value": "04/30/2019/16:0:0"
 				},{
 					"label": "endDate",
-					"value": "05/20/2019/17:0:0"
+					"value": "04/30/2019/17:0:0"
 				},{
 					"label": "className",
 					"value": "Event"
@@ -142,10 +159,10 @@
 			"attributes": [
 				{
 					"label": "startDate",
-					"value": "05/24/2019/16:0:0"
+					"value": "01/24/2019/16:0:0"
 				},{
 					"label": "endDate",
-					"value": "05/24/2019/17:0:0"
+					"value": "01/24/2019/17:0:0"
 				},{
 					"label": "className",
 					"value": "Event"
@@ -159,10 +176,10 @@
 			"attributes": [
 				{
 					"label": "startDate",
-					"value": "05/25/2019/16:0:0"
+					"value": "07/15/2019/16:0:0"
 				},{
 					"label": "endDate",
-					"value": "05/25/2019/17:0:0"
+					"value": "07/15/2019/17:0:0"
 				},{
 					"label": "className",
 					"value": "Event"
@@ -233,6 +250,12 @@
 				},{
 					"label": "className",
 					"value": "Person"
+				},{
+					"label": "FirstName",
+					"value": "Şahin"
+				},{
+					"label": "LastName",
+					"value": "Kurita"
 				}
 			]
 		},{
@@ -244,10 +267,10 @@
 			"attributes": [
 				{
 					"label": "startDate",
-					"value": "05/29/2019/16:0:0"
+					"value": "05/28/2019/16:0:0"
 				},{
 					"label": "endDate",
-					"value": "05/29/2019/17:0:0"
+					"value": "05/28/2019/17:0:0"
 				},{
 					"label": "className",
 					"value": "Event"
@@ -265,20 +288,27 @@
 				},{
 					"label": "className",
 					"value": "Person"
+				},{
+					"label": "FirstName",
+					"value": "Abily"
+				},{
+					"label": "LastName",
+					"value": "Auerswald"
 				}
 			]
 		},{
 			"key": 16,
 			"title": "Education",
 			"group": 3,
+			"status": "Warning",
 			"icon": "sap-icon://tree",
 			"attributes": [
 				{
 					"label": "startDate",
-					"value": "05/30/2019/16:0:0"
+					"value": "05/29/2019/16:0:0"
 				},{
 					"label": "endDate",
-					"value": "05/30/2019/17:0:0"
+					"value": "05/29/2019/17:0:0"
 				},{
 					"label": "className",
 					"value": "Event"
@@ -294,10 +324,10 @@
 			"attributes": [
 				{
 					"label": "startDate",
-					"value": "05/31/2019/16:0:0"
+					"value": "05/30/2019/16:0:0"
 				},{
 					"label": "endDate",
-					"value": "05/31/2019/17:0:0"
+					"value": "05/30/2019/17:0:0"
 				}
 			]
 		},{
@@ -309,10 +339,10 @@
 			"attributes": [
 				{
 					"label": "startDate",
-					"value": "05/18/2019/16:0:0"
+					"value": "05/31/2019/16:0:0"
 				},{
 					"label": "endDate",
-					"value": "05/18/2019/17:0:0"
+					"value": "05/31/2019/17:0:0"
 				},{
 					"label": "className",
 					"value": "Event"
@@ -330,6 +360,12 @@
 				},{
 					"label": "className",
 					"value": "Person"
+				},{
+					"label": "FirstName",
+					"value": "Jasper"
+				},{
+					"label": "LastName",
+					"value": "Eskelinen"
 				}
 			]
 		},{
@@ -341,10 +377,10 @@
 			"attributes": [
 				{
 					"label": "startDate",
-					"value": "05/18/2019/16:0:0"
+					"value": "07/04/2019/16:0:0"
 				},{
 					"label": "endDate",
-					"value": "05/18/2019/17:0:0"
+					"value": "07/04/2019/17:0:0"
 				},{
 					"label": "className",
 					"value": "Event"
@@ -374,37 +410,137 @@
 					"value": "-2.244644"
 				}
 			]
+		},{
+			"key": 22,
+			"title": "Etihad Campus",
+			"icon": "sap-icon://map",
+			"group": 1,
+			"tooltip": "Etihad Campus",
+			"attributes": [
+				{
+					"label": "Type",
+					"value": "Stadium"
+				},{
+					"label": "Population",
+					"value": 500000
+				},{
+					"label": "className",
+					"value": "Location"
+				},{
+					"label": "Latitude",
+					"value": "53.483015"
+				},{
+					"label": "Longitude",
+					"value": "-2.200863"
+				}
+			]
+		},{
+			"key": 23,
+			"title": "Old Trafford School",
+			"icon": "sap-icon://map",
+			"group": 1,
+			"tooltip": "Old Trafford School",
+			"attributes": [
+				{
+					"label": "Type",
+					"value": "School"
+				},{
+					"label": "className",
+					"value": "Location"
+				},{
+					"label": "Latitude",
+					"value": "53.459823"
+				},{
+					"label": "Longitude",
+					"value": "-2.274164"
+				}
+			]
+		},{
+			"key": 24,
+			"title": "Royal Infirmary",
+			"icon": "sap-icon://map",
+			"group": 1,
+			"tooltip": "Royal Infirmary",
+			"attributes": [
+				{
+					"label": "Type",
+					"value": "Hosptial"
+				},{
+					"label": "className",
+					"value": "Location"
+				},{
+					"label": "Latitude",
+					"value": "53.462792"
+				},{
+					"label": "Longitude",
+					"value": "-2.226966"
+				}
+			]
+		},{
+			"key": 25,
+			"title": "Residence",
+			"icon": "sap-icon://map",
+			"group": 1,
+			"tooltip": "Wilbraham Rd",
+			"attributes": [
+				{
+					"label": "Type",
+					"value": "Residence"
+				},{
+					"label": "className",
+					"value": "Location"
+				},{
+					"label": "Latitude",
+					"value": "53.444503"
+				},{
+					"label": "Longitude",
+					"value": "-2.2244696"
+				}
+			]
 		}
 	],
 	"lines": [
-		{"from": 0, "to": 5, "description": "Involved", "title": "Event"},
-		{"from": 1, "to": 5, "description": "Involved", "title": "Event"},
-		{"from": 2, "to": 5, "description": "Involved", "title": "Event"},
-		{"from": 3, "to": 5, "description": "Related"},
-		{"from": 4, "to": 5, "description": "Related"},
-		{"from": 5, "to": 6, "description": "Related"},
-		{"from": 5, "to": 7, "description": "Related"},
-		{"from": 5, "to": 8, "description": "Related"},
-		{"from": 6, "to": 10, "description": "Related"},
-		{"from": 7, "to": 10, "description": "Related"},
-		{"from": 8, "to": 10, "description": "Friend", "title": "Friend"},
-		{"from": 9, "to": 12, "description": "Related"},
-		{"from": 10, "to": 12, "description": "Related"},
-		{"from": 10, "to": 13, "description": "Involved", "title": "Event"},
-		{"from": 13, "to": 11, "description": "Involved", "title": "Event"},
-		{"from": 10, "to": 14, "description": "Involved"},
-		{"from": 13, "to": 14, "description": "Involved", "title": "Event"},
-		{"from": 14, "to": 16, "description": "Friend"},
-		{"from": 14, "to": 17, "description": "Friend"},
-		{"from": 12, "to": 20, "description": "Involved"},
-		{"from": 16, "to": 20, "description": "Involved"},
-		{"from": 17, "to": 20, "description": "Involved"},
-		{"from": 15, "to": 18, "description": "Involved", "title": "Event"},
-		{"from": 18, "to": 20, "description": "OccurredAt", "title": "Event"},
-		{"from": 5, "to": 19, "description": "OccurredAt", "title": "Event"},
-		{"from": 10, "to": 19, "description": "OccurredAt", "title": "Event"},
-		{"from": 20, "to": 19, "description": "OccurredAt", "title": "Event"},
-		{"from": 21, "to": 10, "description": "OccurredAt", "title": "Event"}
+		{"from": 10, "to": 0, "description": "Involved"},
+		{"from": 3, "to": 0, "description": "Involved"},
+		{"from": 20, "to": 0, "description": "Involved"},
+		{"from": 0, "to": 1, "description": "ParentOf"},
+		{"from": 15, "to": 1, "description": "ParentOf"},
+		{"from": 1, "to": 0, "description": "ChildOf"},
+		{"from": 1, "to": 15, "description": "ChildOf"},
+		{"from": 19, "to": 6, "description": "Conducted"},
+		{"from": 6, "to": 0, "description": "Involved"},
+		{"from": 6, "to": 1, "description": "Involved"},
+		{"from": 9, "to": 15, "description": "Involved"},
+		{"from": 12, "to": 15, "description": "Involved"},
+		{"from": 8, "to": 15, "description": "Involved"},
+		{"from": 5, "to": 15, "description": "Involved"},
+		{"from": 15, "to": 2, "description": "ParentOf"},
+		{"from": 13, "to": 2, "description": "ParentOf"},
+		{"from": 2, "to": 15, "description": "ChildOf"},
+		{"from": 2, "to": 13, "description": "ChildOf"},
+		{"from": 7, "to": 15, "description": "Charged"},
+		{"from": 7, "to": 13, "description": "VictimOf"},
+		{"from": 4, "to": 15, "description": "Charged"},
+		{"from": 4, "to": 13, "description": "VictimOf"},
+		{"from": 11, "to": 13, "description": "Involved"},
+		{"from": 14, "to": 2, "description": "Involved"},
+		{"from": 16, "to": 2, "description": "Involved"},
+		{"from": 17, "to": 2, "description": "Involved"},
+		{"from": 18, "to": 2, "description": "Involved"},
+		{"from": 14, "to": 23, "description": "OccurredAt"},
+		{"from": 16, "to": 23, "description": "OccurredAt"},
+		{"from": 17, "to": 23, "description": "OccurredAt"},
+		{"from": 18, "to": 23, "description": "OccurredAt"},
+		{"from": 12, "to": 22, "description": "OccurredAt"},
+		{"from": 11, "to": 24, "description": "OccurredAt"},
+		{"from": 20, "to": 24, "description": "OccurredAt"},
+		{"from": 3, "to": 24, "description": "OccurredAt"},
+		{"from": 10, "to": 24, "description": "OccurredAt"},
+		{"from": 0, "to": 21, "description": "BornIn"},
+		{"from": 1, "to": 21, "description": "BornIn"},
+		{"from": 2, "to": 21, "description": "BornIn"},
+		{"from": 0, "to": 25, "description": "LivesAt"},
+		{"from": 1, "to": 25, "description": "LivesAt"}
 	],
 	"groups": [
 		{"key": 1, "title": "Phase One"},
