@@ -115,7 +115,8 @@ class Pole(ODB):
                    'groups': [],
                    'sims': [],
                    'node_index': [],
-                   'group_index': []}
+                   'group_index': [],
+                   'simLocations': {}}
         click.echo('[%s_SimServer_init] Complete' % (get_datetime()))
 
     def fill_lists(self):
@@ -648,7 +649,7 @@ class Pole(ODB):
         Sim LivesAt value to create the relation
         :return:
         """
-        if len(self.DB['sims']) == 0:
+        if len(self.DB['sims']) == 0 or len(self.DB['simLocations'].keys()) == 0:
             r = self.client.command(''' 
                 match 
                 {class: Person, as: P, where: (name = 'Profile')}.out("LivesAt")
@@ -657,7 +658,6 @@ class Pole(ODB):
                 L.Latitude, L.Longitude, L.Description, L.Category, L.key, L.title, L.icon, L.country, L.city 
                 '''
             )
-            self.DB['simLocations'] = {}
             self.DB['sims'] = [{
                 "key": n.oRecordData['P_key'],
                 "icon": n.oRecordData['P_icon'],
