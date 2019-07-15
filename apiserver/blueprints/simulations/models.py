@@ -320,7 +320,7 @@ class Pole(ODB):
             if a['label'] == att:
                 a['value'] = val
                 return node
-        return
+        return node
 
     def create_person(self, **kwargs):
         """
@@ -484,7 +484,7 @@ class Pole(ODB):
         LastNameB = random.choice(self.LastNames)
 
         POB_B = self.get_random_city()
-        tPOB_B = "%s, %s" % (self.get_node_att(POB_A, "city"), self.get_node_att(POB_A, "country"))
+        tPOB_B = "%s, %s" % (self.get_node_att(POB_B, "city"), self.get_node_att(POB_B, "country"))
         # Create the person record and key
         parentB = self.create_person(
             DateOfBirth=(datetime.datetime.now() - datetime.timedelta(days=b_core_age)).strftime('%Y-%m-%d %H:%M:%S'),
@@ -538,7 +538,7 @@ class Pole(ODB):
                 FirstName = random.choice(self.FemaleNames)
 
             POB = random.choice([POB_A, POB_B])
-            tPOB = self.get_node_att(POB, "title")
+            tPOB = "%s, %s" % (self.get_node_att(POB, "city"), self.get_node_att(POB, "country"))
             child = self.create_person(
                 DateOfBirth=(datetime.datetime.now() - datetime.timedelta(days=core_age)).strftime('%Y-%m-%d %H:%M:%S'),
                 PlaceOfBirth=tPOB,
@@ -653,10 +653,10 @@ class Pole(ODB):
             self.check_base_book()
         if 'Sims.json' not in os.listdir(self.datapath):
             self.fill_lists()
-        i = 0
+        i = totalPeople = totalEvents = totalLocations = 0
         self.get_sims()
         Simulation = {
-            "nodes": list(self.DB['sims']),
+            "nodes": [],
             "lines": []
         }
         sim_time = datetime.datetime.strptime(self.SimStartDate, '%Y-%m-%d %H:%M:%S')
@@ -674,6 +674,7 @@ class Pole(ODB):
             '''
 
             for sim in self.DB['sims']:
+                # In cases where sims were created with faulty data a catch is required
                 try:
                     simclock = int(self.get_node_att(sim, 'simclock'))
                 except:
@@ -681,7 +682,11 @@ class Pole(ODB):
                         simclock = int(self.get_node_att(sim, 'simaction'))
                     except:
                         simclock = random.randint(1, 9)
+                # Decision to use the sim in an event or not
                 if simclock > random.randint(1, 9):
+                    if sim not in Simulation['nodes']:
+                        Simulation['nodes'].append(sim)
+                        totalPeople+=1
                     age = self.check_age(sim_time, self.get_node_att(sim, 'DateOfBirth'))
                     if age == 'Not born':
                         break
@@ -693,6 +698,7 @@ class Pole(ODB):
                                                            self.get_node_att(sim, 'LastName'),
                                                            age, action, sim_time.strftime('%Y-%m-%d %H:%M:%S')))
                     Simulation['nodes'].append(EVT)
+                    totalEvents+=1
                     self.create_relation(EVT, sim, 'Involved', Simulation, "Event", "Person")
                     # Reset the time to a step in the future based on random time between 1 and max round length
                     # Set to seconds to allow for more interactions in a round
@@ -710,7 +716,10 @@ class Pole(ODB):
                  ).strftime('%Y-%m-%d %H:%M:%S'), '%Y-%m-%d %H:%M:%S')
             i += 1
 
-        return {'message': 'Simulation complete', 'data': Simulation}
+        return {
+            'message': 'Simulation complete with a total of %d People involved with %d Events' % (
+                totalPeople, totalEvents),
+            'data': Simulation}
 
     def format_graph(self, g):
 
