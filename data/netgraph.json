@@ -18,6 +18,9 @@
 				},{
 					"label": "LastName",
 					"value": "Elsner"
+				},{
+					"label": "Age",
+					"value": 43
 				}
 			]
 		},{
@@ -38,6 +41,9 @@
 				},{
 					"label": "LastName",
 					"value": "Elsner"
+				},{
+					"label": "Age",
+					"value": 8
 				}
 			]
 		},{
@@ -58,6 +64,9 @@
 				},{
 					"label": "LastName",
 					"value": "Gyulai"
+				},{
+					"label": "Age",
+					"value": 13
 				}
 			]
 		},{
@@ -76,6 +85,9 @@
 				},{
 					"label": "className",
 					"value": "Event"
+				},{
+					"label": "Description",
+					"value": "Cecilia Elsner was involved with a health event on 19 April that resulted in elevated status."
 				}
 			]
 		},{
@@ -94,6 +106,9 @@
 				},{
 					"label": "className",
 					"value": "Event"
+				},{
+					"label": "Description",
+					"value": "Abily was charged with an abuse event on 30 April where Sahin was a victim."
 				}
 			]
 		},{
@@ -112,6 +127,9 @@
 				},{
 					"label": "className",
 					"value": "Event"
+				},{
+					"label": "Description",
+					"value": "Abily reported loss of employment on 21 May resulting in an elevated status of risk."
 				}
 			]
 		},{
@@ -130,6 +148,9 @@
 				},{
 					"label": "className",
 					"value": "Event"
+				},{
+					"label": "Description",
+					"value": "Jasper conducted a social assessment visit to the home of Cecilia and Rosamund on 22 May resulting in a decision to keep the family in the program."
 				}
 			]
 		},{
@@ -148,6 +169,9 @@
 				},{
 					"label": "className",
 					"value": "Event"
+				},{
+					"label": "Description",
+					"value": "Abily was charged with an abuse event on 23 May where Sahin was a victim. It is the second incident within a 45 day alert rule resulting in elevated risk."
 				}
 			]
 		},{
@@ -166,12 +190,17 @@
 				},{
 					"label": "className",
 					"value": "Event"
+				},{
+					"label": "Description",
+					"value": "Abily reported gain of employment on 24 January resulting in a decreased status of risk."
 				}
+			]
 			]
 		},{
 			"key": 9,
 			"title": "Employment",
 			"group": 3,
+			"status": "Success",
 			"icon": "sap-icon://my-sales-order",
 			"attributes": [
 				{
@@ -183,7 +212,11 @@
 				},{
 					"label": "className",
 					"value": "Event"
+				},{
+					"label": "Description",
+					"value": "Abily reported gain of employment on 15 July resulting in an decreased status of risk."
 				}
+			]
 			]
 		},{
 			"key": 10,
@@ -201,6 +234,9 @@
 				},{
 					"label": "className",
 					"value": "Event"
+				},{
+					"label": "Description",
+					"value": "Cecilia Elsner was involved with a health event on 26 May that resulted in elevated status and repeatable pattern identified within a 45 day period."
 				}
 			]
 		},{
@@ -218,6 +254,9 @@
 				},{
 					"label": "className",
 					"value": "Event"
+				},{
+					"label": "Description",
+					"value": "Sahin was involved with a health event on 27 May that may be related to the same health incident experienced by Cecilia who is within 1 degree of relation."
 				}
 			]
 		},{
@@ -236,6 +275,9 @@
 				},{
 					"label": "className",
 					"value": "Event"
+				},{
+					"label": "Description",
+					"value": "Abiliy was charged with an alcohol related incident on 27 May in the vicinity of a Manchester United game. The incident is within 48 hours of 3 other incidents including 2 health and 1 employment"
 				}
 			]
 		},{
@@ -256,13 +298,15 @@
 				},{
 					"label": "LastName",
 					"value": "Kurita"
+				},{
+					"label": "Age",
+					"value": 31
 				}
 			]
 		},{
 			"key": 14,
 			"title": "Education",
 			"group": 3,
-			"status": "Success",
 			"icon": "sap-icon://study-leave",
 			"attributes": [
 				{
@@ -274,6 +318,9 @@
 				},{
 					"label": "className",
 					"value": "Event"
+				},{
+					"label": "Description",
+					"value": "Jumana missed school on 28 May. No other absences or transfers noted"
 				}
 			]
 		},{
@@ -294,6 +341,9 @@
 				},{
 					"label": "LastName",
 					"value": "Auerswald"
+				},{
+					"label": "Age",
+					"value": 42
 				}
 			]
 		},{
@@ -312,6 +362,9 @@
 				},{
 					"label": "className",
 					"value": "Event"
+				},{
+					"label": "Description",
+					"value": "Jumana missed school on 28 May. This is the 2nd consecutive absence resulting in elevated status of alert."
 				}
 			]
 		},{
@@ -328,6 +381,9 @@
 				},{
 					"label": "endDate",
 					"value": "05/30/2019/17:0:0"
+				},{
+					"label": "Description",
+					"value": "Jumana missed school on 28 May. This is the 3rd consecutive absence resulting in elevated status of alert."
 				}
 			]
 		},{
@@ -346,6 +402,9 @@
 				},{
 					"label": "className",
 					"value": "Event"
+				},{
+					"label": "Description",
+					"value": "Jumana missed school on 28 May. This is the 4th consecutive absence resulting in elevated status of alert. There are more than 4 other related alerts within 2 degrees of Jumana during the last 72 hours."
 				}
 			]
 		},{
@@ -366,6 +425,9 @@
 				},{
 					"label": "LastName",
 					"value": "Eskelinen"
+				},{
+					"label": "Age",
+					"value": 51
 				}
 			]
 		},{
@@ -384,6 +446,9 @@
 				},{
 					"label": "className",
 					"value": "Event"
+				},{
+					"label": "Description",
+					"value": "Cecilia was admitted to the hospital under emergency status after a car accident resulting in an elevated risk for the family."
 				}
 			]
 		},{
@@ -500,33 +565,33 @@
 		}
 	],
 	"lines": [
-		{"from": 10, "to": 0, "description": "Involved"},
-		{"from": 3, "to": 0, "description": "Involved"},
-		{"from": 20, "to": 0, "description": "Involved"},
+		{"from": 10, "to": 0, "description": "Involved", "title":  "Event"},
+		{"from": 3, "to": 0, "description": "Involved", "title":  "Event"},
+		{"from": 20, "to": 0, "description": "Involved", "title":  "Event"},
 		{"from": 0, "to": 1, "description": "ParentOf"},
 		{"from": 15, "to": 1, "description": "ParentOf"},
 		{"from": 1, "to": 0, "description": "ChildOf"},
 		{"from": 1, "to": 15, "description": "ChildOf"},
 		{"from": 19, "to": 6, "description": "Conducted"},
-		{"from": 6, "to": 0, "description": "Involved"},
-		{"from": 6, "to": 1, "description": "Involved"},
-		{"from": 9, "to": 15, "description": "Involved"},
-		{"from": 12, "to": 15, "description": "Involved"},
-		{"from": 8, "to": 15, "description": "Involved"},
-		{"from": 5, "to": 15, "description": "Involved"},
+		{"from": 6, "to": 0, "description": "Involved", "title":  "Event"},
+		{"from": 6, "to": 1, "description": "Involved", "title":  "Event"},
+		{"from": 9, "to": 15, "description": "Involved", "title":  "Event"},
+		{"from": 12, "to": 15, "description": "Involved", "title":  "Event"},
+		{"from": 8, "to": 15, "description": "Involved", "title":  "Event"},
+		{"from": 5, "to": 15, "description": "Involved", "title":  "Event"},
 		{"from": 15, "to": 2, "description": "ParentOf"},
 		{"from": 13, "to": 2, "description": "ParentOf"},
 		{"from": 2, "to": 15, "description": "ChildOf"},
 		{"from": 2, "to": 13, "description": "ChildOf"},
 		{"from": 7, "to": 15, "description": "Charged"},
-		{"from": 7, "to": 13, "description": "VictimOf"},
-		{"from": 4, "to": 15, "description": "Charged"},
-		{"from": 4, "to": 13, "description": "VictimOf"},
-		{"from": 11, "to": 13, "description": "Involved"},
-		{"from": 14, "to": 2, "description": "Involved"},
-		{"from": 16, "to": 2, "description": "Involved"},
-		{"from": 17, "to": 2, "description": "Involved"},
-		{"from": 18, "to": 2, "description": "Involved"},
+		{"from": 7, "to": 13, "description": "VictimOf", "title":  "Event"},
+		{"from": 4, "to": 15, "description": "Charged", "title":  "Event"},
+		{"from": 4, "to": 13, "description": "VictimOf", "title":  "Event"},
+		{"from": 11, "to": 13, "description": "Involved", "title":  "Event"},
+		{"from": 14, "to": 2, "description": "Involved", "title":  "Event"},
+		{"from": 16, "to": 2, "description": "Involved", "title":  "Event"},
+		{"from": 17, "to": 2, "description": "Involved", "title":  "Event"},
+		{"from": 18, "to": 2, "description": "Involved", "title":  "Event"},
 		{"from": 14, "to": 23, "description": "OccurredAt"},
 		{"from": 16, "to": 23, "description": "OccurredAt"},
 		{"from": 17, "to": 23, "description": "OccurredAt"},
