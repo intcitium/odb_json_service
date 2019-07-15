@@ -195,7 +195,6 @@
 					"value": "Abily reported gain of employment on 24 January resulting in a decreased status of risk."
 				}
 			]
-			]
 		},{
 			"key": 9,
 			"title": "Employment",
@@ -216,7 +215,6 @@
 					"label": "Description",
 					"value": "Abily reported gain of employment on 15 July resulting in an decreased status of risk."
 				}
-			]
 			]
 		},{
 			"key": 10,
@@ -351,7 +349,7 @@
 			"title": "Education",
 			"group": 3,
 			"status": "Warning",
-			"icon": "sap-icon://tree",
+			"icon": "sap-icon://study-leave",
 			"attributes": [
 				{
 					"label": "startDate",
