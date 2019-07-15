@@ -3,7 +3,7 @@
 		{
 			"key": 0,
 			"title": "Cecilia Elsner",
-			"group": 1,
+			"group": 5,
 			"icon": "sap-icon://person-placeholder",
 			"attributes": [
 				{
@@ -26,7 +26,7 @@
 		},{
 			"key": 1,
 			"title": "Rosamund Elsner",
-			"group": 1,
+			"group": 5,
 			"icon": "sap-icon://person-placeholder",
 			"attributes": [
 				{
@@ -49,7 +49,7 @@
 		},{
 			"key": 2,
 			"title": "Jumana Gyulai",
-			"group": 2,
+			"group": 6,
 			"icon": "sap-icon://person-placeholder",
 			"attributes": [
 				{
@@ -93,7 +93,7 @@
 		},{
 			"key": 4,
 			"title": "Abuse",
-			"group": 1,
+			"group": 2,
 			"status": "Error",
 			"icon": "sap-icon://wounds-doc",
 			"attributes": [
@@ -114,7 +114,7 @@
 		},{
 			"key": 5,
 			"title": "Employment",
-			"group": 1,
+			"group": 4,
 			"status": "Warning",
 			"icon": "sap-icon://sys-help",
 			"attributes": [
@@ -135,7 +135,7 @@
 		},{
 			"key": 6,
 			"title": "Social Assessment",
-			"group": 2,
+			"group": 5,
 			"status": "Success",
 			"icon": "sap-icon://learning-assistant",
 			"attributes": [
@@ -177,7 +177,7 @@
 		},{
 			"key": 8,
 			"title": "Employment",
-			"group": 2,
+			"group": 4,
 			"status": "Success",
 			"icon": "sap-icon://my-sales-order",
 			"attributes": [
@@ -198,7 +198,7 @@
 		},{
 			"key": 9,
 			"title": "Employment",
-			"group": 3,
+			"group": 4,
 			"status": "Success",
 			"icon": "sap-icon://my-sales-order",
 			"attributes": [
@@ -219,7 +219,7 @@
 		},{
 			"key": 10,
 			"title": "Health",
-			"group": 2,
+			"group": 1,
 			"status": "Error",
 			"icon": "sap-icon://accidental-leave",
 			"attributes": [
@@ -240,7 +240,8 @@
 		},{
 			"key": 11,
 			"title": "Health",
-			"group": 3,
+			"group": 1,
+			"status": "Warning",
 			"icon": "sap-icon://accidental-leave",
 			"attributes": [
 				{
@@ -260,7 +261,7 @@
 		},{
 			"key": 12,
 			"title": "Alcohol crime",
-			"group": 3,
+			"group": 2,
 			"status": "Warning",
 			"icon": "sap-icon://badge",
 			"attributes": [
@@ -281,7 +282,7 @@
 		},{
 			"key": 13,
 			"title": "Şahin Kurita",
-			"group": 2,
+			"group": 6,
 			"icon": "sap-icon://person-placeholder",
 			"attributes": [
 				{
@@ -324,13 +325,10 @@
 		},{
 			"key": 15,
 			"title": "Abily Auerswald",
-			"group": 2,
+			"group": 7,
 			"icon": "sap-icon://person-placeholder",
 			"attributes": [
 				{
-					"label": "Release date",
-					"value": "August 1, 2014"
-				},{
 					"label": "className",
 					"value": "Person"
 				},{
@@ -408,13 +406,10 @@
 		},{
 			"key": 19,
 			"title": "Jasper Eskelinen",
-			"group": 3,
+			"group": 5,
 			"icon": "sap-icon://person-placeholder",
 			"attributes": [
 				{
-					"label": "Release date",
-					"value": "May 3, 2019"
-				},{
 					"label": "className",
 					"value": "Person"
 				},{
@@ -431,7 +426,7 @@
 		},{
 			"key": 20,
 			"title": "Health Emergency",
-			"group": 3,
+			"group": 1,
 			"status": "Error",
 			"icon": "sap-icon://accidental-leave",
 			"attributes": [
@@ -453,7 +448,8 @@
 			"key": 21,
 			"title": "Manchester, England",
 			"icon": "sap-icon://map",
-			"group": 1,
+			"group": 8,
+			"status": "CustomLocation",
 			"tooltip": "City",
 			"attributes": [
 				{
@@ -476,8 +472,9 @@
 		},{
 			"key": 22,
 			"title": "Etihad Campus",
-			"icon": "sap-icon://map",
-			"group": 1,
+			"icon": "sap-icon://soccor",
+			"group": 8,
+			"status": "CustomLocation",
 			"tooltip": "Etihad Campus",
 			"attributes": [
 				{
@@ -500,8 +497,10 @@
 		},{
 			"key": 23,
 			"title": "Old Trafford School",
-			"icon": "sap-icon://map",
-			"group": 1,
+			"icon": "sap-icon://study-leave",
+			"status": "CustomLocation",
+			"group": 8,
+			
 			"tooltip": "Old Trafford School",
 			"attributes": [
 				{
@@ -521,8 +520,9 @@
 		},{
 			"key": 24,
 			"title": "Royal Infirmary",
-			"icon": "sap-icon://map",
-			"group": 1,
+			"icon": "sap-icon://accidental-leave",
+			"group": 8,
+			"status": "CustomLocation",
 			"tooltip": "Royal Infirmary",
 			"attributes": [
 				{
@@ -542,8 +542,9 @@
 		},{
 			"key": 25,
 			"title": "Residence",
-			"icon": "sap-icon://map",
-			"group": 1,
+			"icon": "sap-icon://home",
+			"group": 8,
+			"status": "CustomLocation",
 			"tooltip": "Wilbraham Rd",
 			"attributes": [
 				{
@@ -606,8 +607,13 @@
 		{"from": 1, "to": 25, "description": "LivesAt"}
 	],
 	"groups": [
-		{"key": 1, "title": "Phase One"},
-		{"key": 2, "title": "Phase Two"},
-		{"key": 3, "title": "Phase Three"}
+		{"key": 1, "title": "Health"},
+		{"key": 2, "title": "Police"},
+		{"key": 3, "title": "Education"},
+		{"key": 5, "title": "Case 1"},
+		{"key": 6, "title": "Case 2"},
+		{"key": 7, "title": "Intersection"},
+		{"key": 8, "title": "Locations"},
+		{"key": 4, "title": "Employment"}
 	]
 }
