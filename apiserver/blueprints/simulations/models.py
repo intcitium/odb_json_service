@@ -97,6 +97,15 @@ class Pole(ODB):
         self.Actions_All = ['Crime', 'Education', 'Abuse', 'Health', 'Employment', 'SocialMedia']
         self.Actions_Minor = ['Education', 'Abuse', 'Health', 'SocialMedia']
         self.Actions_Baby = ['Abuse', 'Health']
+        self.LocationsCrime = ["Residence", "Police Station", "Public space"]
+        self.LocationsHealth = ["Clinic", "Hospital", "Emergency room"]
+        self.LocationsEducation = ["School"]
+        self.LocationsEmployment = ["Employment office", "Commercial firm", "Private business"]
+        self.LocationsSocialMedia = ["Public space", "Residence"]
+        self.LocationsAbuse = ["Residence", "Public space"]
+        self.LocationCategories = ["Residence", "Public space", "Employment office", "Commercial firm", "School",
+                                   "Private business", "Police Station", "Clinic", "Hospital", "Emergency room"]
+
         self.SimStartDate = datetime.datetime.today().strftime('%Y-%m-%d') + " 00:00:00"
         self.SimRoundLengthMax = 60  # in minutes
         self.POLE = 'POLE_Fusion'
@@ -430,6 +439,7 @@ class Pole(ODB):
             FirstName = random.choice(self.MaleNames)
             Message = Message + "Father: %s born on " % FirstName
         # Get the place of birth from the simulation base cities
+        livesAt = self.get_random_city()
         POB_A = self.get_random_city()
         # Create the person record and key
         tPOB_A = "%s, %s" % (self.get_node_att(POB_A, "city"), self.get_node_att(POB_A, "country"))
@@ -445,6 +455,7 @@ class Pole(ODB):
         )
         # Create the relation to place of birth
         self.create_relation(parentA, POB_A, 'BornIn', Family, "Person", "Location")
+        self.create_relation(parentA, livesAt, 'LivesAt', Family, "Person", "Location")
         # Create the event for birth
         aParentDOB = self.get_node_att(parentA, 'DateOfBirth')
         DOB_A = self.create_event(
@@ -497,6 +508,7 @@ class Pole(ODB):
         )
         # Create the relation to place of birth
         self.create_relation(parentB, POB_B, 'BornIn', Family, "Person", "Location")
+        self.create_relation(parentB, livesAt, 'LivesAt', Family, "Person", "Location")
         # Create the event for birth
         bParentDOB = self.get_node_att(parentB, 'DateOfBirth')
         DOB_B = self.create_event(
@@ -551,6 +563,7 @@ class Pole(ODB):
             Family["nodes"].append(child)
             # Create the relation to place of birth
             self.create_relation(child, POB, 'BornIn', Family, "Person", "Location")
+            self.create_relation(child, livesAt, 'LivesAt', Family, "Person", "Location")
             # Create the event for birth
             childDOB = self.get_node_att(child, 'DateOfBirth')
             DOB = self.create_event(
@@ -629,23 +642,48 @@ class Pole(ODB):
             self.DB = json.load(db)
 
     def get_sims(self):
+        """
+        Get all the people identified as Sims from the database and collect their lives_at locations in 2
+        view sthat can be used as content for future simulation events. simLocations have keys that match the
+        Sim LivesAt value to create the relation
+        :return:
+        """
         if len(self.DB['sims']) == 0:
-            r = self.client.command('select key, icon, simaction, simclock, DateOfBirth, PlaceOfBirth, LastName, FirstName, Gender, title from Person where name = "Profile" ')
+            r = self.client.command(''' 
+                match 
+                {class: Person, as: P, where: (name = 'Profile')}.out("LivesAt")
+                {class: Location, as: L} 
+                return P.title, P.key, P.icon, P.simaction, P.simclock, P.DateOfBirth, P.LastName, P.FirstName, P.Gender, P.PlaceOfBirth,
+                L.Latitude, L.Longitude, L.Description, L.Category, L.key, L.title, L.icon, L.country, L.city 
+                '''
+            )
+            self.DB['simLocations'] = {}
             self.DB['sims'] = [{
-                "key": n.oRecordData['key'],
-                "icon": n.oRecordData['icon'],
-                "title": n.oRecordData['title'],
+                "key": n.oRecordData['P_key'],
+                "icon": n.oRecordData['P_icon'],
+                "status": "CustomPerson",
+                "title": n.oRecordData['P_title'],
                 "attributes": [
-                    {"label": "simaction", "value": n.oRecordData['simaction']},
-                    {"label": "simclock", "value": n.oRecordData['simclock']},
-                    {"label": "DateOfBirth", "value": n.oRecordData['DateOfBirth']},
-                    {"label": "PlaceOfBirth", "value": n.oRecordData['PlaceOfBirth']},
-                    {"label": "LastName", "value": n.oRecordData['LastName']},
-                    {"label": "FirstName", "value": n.oRecordData['FirstName']},
-                    {"label": "Gender", "value": n.oRecordData['Gender']},
-                    {"label": "title", "value": n.oRecordData['title']}
+                    {"label": "simaction", "value": n.oRecordData['P_simaction']},
+                    {"label": "simclock", "value": n.oRecordData['P_simclock']},
+                    {"label": "DateOfBirth", "value": n.oRecordData['P_DateOfBirth']},
+                    {"label": "PlaceOfBirth", "value": n.oRecordData['P_PlaceOfBirth']},
+                    {"label": "LastName", "value": n.oRecordData['P_LastName']},
+                    {"label": "FirstName", "value": n.oRecordData['P_FirstName']},
+                    {"label": "Gender", "value": n.oRecordData['P_Gender']},
+                    {"label": "title", "value": n.oRecordData['P_title']},
+                    {"label": "livesAt", "value": n.oRecordData['L_title']}
                 ]
             } for n in r]
+            for n in r:
+                if n.oRecordData['L_title'] not in self.DB['simLocations'].keys():
+                    self.DB['simLocations'][n.oRecordData['L_title']] = {
+                        "Latitude": n.oRecordData['L_Latitude'],
+                        "Longitude": n.oRecordData['L_Longitude'],
+                        "key": n.oRecordData['L_key'],
+                        "country": n.oRecordData['L_country'],
+                        "city": n.oRecordData['L_city']
+                    }
 
     def run_simulation(self, rounds):
 
@@ -672,7 +710,6 @@ class Pole(ODB):
             4. Insert the relation of event to person and to locations into the db based on event type
 
             '''
-
             for sim in self.DB['sims']:
                 # In cases where sims were created with faulty data a catch is required
                 try:
@@ -700,6 +737,34 @@ class Pole(ODB):
                     Simulation['nodes'].append(EVT)
                     totalEvents+=1
                     self.create_relation(EVT, sim, 'Involved', Simulation, "Event", "Person")
+                    # Create a location for the event based on the frequented locations of the Sim
+                    eLocation = self.DB['simLocations'][self.get_node_att(sim, 'livesAt')]
+                    # 'Crime', 'Education', 'Abuse', 'Health', 'Employment', 'SocialMedia'
+                    if action == "Health":
+                        Category = random.choice(self.LocationsHealth)
+                    elif action == "Crime":
+                        Category = random.choice(self.LocationsCrime)
+                    elif action == "Education":
+                        Category = random.choice(self.LocationsEducation)
+                    elif action == "Abuse":
+                        Category = random.choice(self.LocationsAbuse)
+                    elif action == "Employment":
+                        Category = random.choice(self.LocationsEmployment)
+                    elif action == "SocialMedia":
+                        Category = random.choice(self.LocationsSocialMedia)
+                    else:
+                        Category = random.choice(self.LocationCategories)
+
+                    eLocation = self.create_location(
+                        Latitude=eLocation['Latitude'] + random.randint(-1000, 1000)/100000,
+                        Longitude=eLocation['Longitude'] + random.randint(-1000, 1000)/100000,
+                        country=eLocation['country'],
+                        city=eLocation['city'],
+                        Type=Category,
+                        Description=self.get_node_att(EVT, "Description")
+                    )
+                    self.create_relation(EVT, eLocation, 'OccurredAt', Simulation, "Event", "Location")
+                    Simulation['nodes'].append(eLocation)
                     # Reset the time to a step in the future based on random time between 1 and max round length
                     # Set to seconds to allow for more interactions in a round
                     sim_time = datetime.datetime.strptime(
