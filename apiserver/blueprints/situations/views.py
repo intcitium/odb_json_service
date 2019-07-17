@@ -20,9 +20,21 @@ def get_risks():
 
 
 
+
+
     return jsonify({
         "status": 200,
         "message": "Situations Base URL",
-        "data": simserver.get_risks()
+        "replies": [
+            {
+              "type": "text",
+              "content": "Hello world!"
+            }],
+        "conversation": {
+            "language": "en",
+            "memory": {
+              "user": "Bob"
+            }
+          }
     })
 
