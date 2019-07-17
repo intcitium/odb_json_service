@@ -12,6 +12,7 @@ def create_app():
     app.register_blueprint(users)
     app.register_blueprint(chatbot)
     app.register_blueprint(simulations)
+    app.register_blueprint(simulations)
 
 
     return app
