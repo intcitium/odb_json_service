@@ -3,6 +3,7 @@ from apiserver.blueprints.home import home
 from apiserver.blueprints.users import users
 from apiserver.blueprints.chatbot import chatbot
 from apiserver.blueprints.simulations import simulations
+from apiserver.blueprints.situations import situations
 
 
 def create_app():
@@ -12,7 +13,7 @@ def create_app():
     app.register_blueprint(users)
     app.register_blueprint(chatbot)
     app.register_blueprint(simulations)
-    app.register_blueprint(simulations)
+    app.register_blueprint(situations)
 
 
     return app
