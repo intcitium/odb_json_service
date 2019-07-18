@@ -23,7 +23,6 @@ def get_risks():
 
     risks = None # Placeholder for the query results
     r = request.form.to_dict(flat=True)
-    click.echo("RECEIVED %s" % r)
     if LastName in r.keys():
         searchType = LastName
         risks = SDB.get_risks(r[searchType])
@@ -38,7 +37,7 @@ def get_risks():
     if risks:
         replyContent = SDB.model_message(risks)
     else:
-        replyContent = "Sorry, I couldn't find anyone with the %s %s" % (searchType, [searchType])
+        replyContent = "Sorry, I couldn't find anyone with the %s %s" % (searchType, r[searchType])
 
     return jsonify({
         "status": 200,
