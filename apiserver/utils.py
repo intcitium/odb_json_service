@@ -1,5 +1,6 @@
 import time, string, random, socket, pyorient
-import click, smtplib, ssl
+import click, smtplib, ssl, json
+from flask import request
 from datetime import datetime
 from dateutil.parser import parse
 from email.mime.text import MIMEText
@@ -186,3 +187,11 @@ def get_host(user, pswd):
 
     return {"client": None, "session_id": None}
 
+def get_request_payload(r):
+
+    r = request.form.to_dict(flat=True)
+    if len(r.keys()) == 0:
+        # CAI sends POST as raw so need to get data
+        r = json.loads(request.data)
+
+    return r
