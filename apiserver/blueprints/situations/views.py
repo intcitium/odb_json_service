@@ -2,6 +2,7 @@ from flask import jsonify, Blueprint, request
 from apiserver.blueprints.users.views import odbserver
 from apiserver.blueprints.situations.models import SituationsDB, FirstName, LastName, DateOfBirth, PlaceOfBirth
 import click
+import json
 
 situations = Blueprint('situations', __name__)
 SDB = SituationsDB()
@@ -21,16 +22,11 @@ def index():
 @situations.route('/situations/get_risks', methods=['POST'])
 def get_risks():
 
-    risks = None # Placeholder for the query results
     r = request.form.to_dict(flat=True)
     if len(r.keys()) == 0:
-        r = request.get_data("LastName")
-        click.echo(r)
-        click.echo(request.args)
-        click.echo(request.get_data())
+        r = json.loads(request.data)
     if LastName in r.keys():
         searchType = LastName
-        risks = SDB.get_risks(r[searchType])
     elif FirstName in r.keys():
         searchType = FirstName
     elif DateOfBirth in r.keys():
@@ -39,6 +35,8 @@ def get_risks():
         searchType = PlaceOfBirth
     else:
         searchType = r[r.keys(0)]
+
+    risks = SDB.get_risks(r[searchType])
     if risks:
         replyContent = SDB.model_message(risks)
     else:
