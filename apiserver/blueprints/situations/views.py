@@ -24,9 +24,6 @@ def get_risks():
 
     r = request.form.to_dict(flat=True)
     if len(r.keys()) == 0:
-        click.echo(request.get_data())
-        click.echo(request.data)
-        click.echo(request.get_data("LastName"))
         r = json.loads(request.data)
     if LastName in r.keys():
         searchType = LastName
