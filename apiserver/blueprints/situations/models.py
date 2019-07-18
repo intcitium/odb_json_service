@@ -1,6 +1,12 @@
 from apiserver.blueprints.simulations.models import Pole
 import datetime
 
+FirstName = 'FirstName'
+LastName = 'LastName'
+DateOfBirth = 'DateOfBirth'
+PlaceOfBirth = 'PlaceOfBirth'
+
+
 class SituationsDB(Pole):
 
     def __init__(self, db_name="POLE"):
@@ -16,8 +22,8 @@ class SituationsDB(Pole):
                 datetime.datetime.strftime(oRecord['DateOfBirth'], "%d %B, %Y"),
                 oRecord['PlaceOfBirth']
             )
-
         return message
+
 
     def get_risks(self, LastName):
         return self.get_node(class_name="Person", val=LastName, var="LastName")
