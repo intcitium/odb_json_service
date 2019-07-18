@@ -25,6 +25,7 @@ def get_risks():
     r = request.form.to_dict(flat=True)
     click.echo(r)
     click.echo(request.args)
+    click.echo(request.get_data())
     if LastName in r.keys():
         searchType = LastName
         risks = SDB.get_risks(r[searchType])
