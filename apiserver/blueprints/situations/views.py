@@ -38,7 +38,7 @@ def get_risks():
     if risks:
         replyContent = SDB.model_message(risks)
     else:
-        replyContent = "Sorry, I couldn't find anyone with the %s %s" % r[searchType]
+        replyContent = "Sorry, I couldn't find anyone with the %s %s" % (searchType, [searchType])
 
     return jsonify({
         "status": 200,
