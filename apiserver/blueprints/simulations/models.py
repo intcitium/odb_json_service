@@ -815,7 +815,9 @@ class Pole(ODB):
                         except:
                             simclock = random.randint(1, 9)
                     # Decision to use the sim in an event or not
-                    if simclock > random.randint(1, 9):
+                    seed = random.randint(1, 9)
+                    click.echo("SEED: %d, CLOCK: %d" % (seed, simclock))
+                    if simclock > seed:
                         if self.DB['sims'][sim] not in S.nodes:
                             S.nodes.append(self.DB['sims'][sim])
                             totalPeople+=1
