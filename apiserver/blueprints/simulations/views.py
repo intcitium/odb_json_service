@@ -1,8 +1,7 @@
-from flask import jsonify, Blueprint, request, json
+from flask import jsonify, Blueprint, request
 from apiserver.blueprints.users.views import odbserver as OAuth
 from apiserver.blueprints.simulations.models import Pole
 import click
-import urllib
 
 simulations = Blueprint('simulations', __name__)
 simserver = Pole()
@@ -36,6 +35,7 @@ def create_family():
             "data": simserver.quality_check(family['data'])
         })
 
+
 @simulations.route('/simulations/run', methods=['POST'])
 def run():
     auth = OAuth.auth_user(request.headers['Authorization'])
@@ -47,10 +47,12 @@ def run():
             run = simserver.run_simulation(request.form.to_dict()['Rounds'])
         else:
             run = simserver.run_simulation(1)
+
+        run['data']['graph'] = simserver.quality_check(run['data']['graph'])
         return jsonify({
             "status": 200,
             "message": run['message'],
-            "data": simserver.quality_check(run['data'])
+            "data": run['data']
         })
 
 

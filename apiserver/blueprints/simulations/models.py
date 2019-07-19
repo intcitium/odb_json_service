@@ -8,6 +8,37 @@ import os
 import datetime
 
 
+class Simulation():
+
+    def __init__(self):
+        self.nodes = []
+        self.lines = []
+        self.items = []
+
+    def get_graph(self):
+        return {
+            "nodes": self.nodes,
+            "lines": self.lines
+        }
+
+    def get_geo(self):
+        return {
+            "items": self.items
+        }
+
+    def to_dict(self):
+        return {
+            "graph": {
+                "nodes": self.nodes,
+                "lines": self.lines
+            },
+            "geo": {
+                "Spots": {
+                    "items": self.items
+                }
+            }
+        }
+
 class Pole(ODB):
 
     def __init__(self, db_name="POLE"):
@@ -17,6 +48,7 @@ class Pole(ODB):
         self.ICON_OBJECT = "sap-icon://add-product"
         self.ICON_LOCATION = "sap-icon://map"
         self.ICON_EVENT = "sap-icon://date-time"
+        self.ICON_STATUSES = ["Warning", "Error", "Success"]
         self.models = {
             "Person": {
                 "key": "integer",
@@ -94,6 +126,7 @@ class Pole(ODB):
         self.MaleNames = []
         self.Locations = []
         self.AverageAction = {'mean': 3, 'stdev': 1}
+        self.AverageDistance = {'mean': 5, 'stdev': 2}
         self.Actions_All = ['Crime', 'Education', 'Abuse', 'Health', 'Employment', 'SocialMedia']
         self.Actions_Minor = ['Education', 'Abuse', 'Health', 'SocialMedia']
         self.Actions_Baby = ['Abuse', 'Health']
@@ -113,7 +146,7 @@ class Pole(ODB):
         self.DB = {'nodes': [],
                    'lines': [],
                    'groups': [],
-                   'sims': [],
+                   'sims': {},
                    'node_index': [],
                    'group_index': [],
                    'simLocations': {}}
@@ -301,11 +334,12 @@ class Pole(ODB):
             kwargs['city'] = 'Unknown'
         if not kwargs['country']:
             kwargs['country'] = 'Country'
+        if 'title' not in kwargs.keys():
+            kwargs['title'] = "%s, %s" % (kwargs['city'], kwargs['country'])
         node = self.create_node(
             **node['properties'],
             db_name=kwargs['Type'],
-            class_name='Location',
-            title="%s, %s" % (kwargs['city'], kwargs['country']),
+            class_name='Location'
         )['data']
         node['group'] = kwargs['country']
         node['status'] = 'Success'
@@ -320,16 +354,23 @@ class Pole(ODB):
 
     def get_node_att(self, node, att):
 
-        for a in node['attributes']:
-            if a['label'] == att:
-                return a['value']
-        return None
+        try:
+            for a in node['attributes']:
+                if a['label'] == att:
+                    return a['value']
+            return None
+        except:
+            print(node)
 
     def update_node_att(self, node, att, val):
+
+
         for a in node['attributes']:
             if a['label'] == att:
                 a['value'] = val
                 return node
+
+
         return node
 
     def create_person(self, **kwargs):
@@ -344,10 +385,12 @@ class Pole(ODB):
 
         # Set the standard person properties
         simAction = int(np.random.normal(loc=self.AverageAction['mean'], scale=self.AverageAction['stdev']))
+        simDistance = int(np.random.normal(loc=self.AverageDistance['mean'], scale=self.AverageDistance['stdev']))
         node = {
             'properties': {
                 'icon': "sap-icon://person-placeholder",
                 'simaction': simAction,
+                'simdistance': simDistance,
                 'simclock': 0
             }
         }
@@ -380,7 +423,7 @@ class Pole(ODB):
 
         # Sims have an action and clock. Clock is iterated during the simulation as an agent based time. Action is how
         # active the sim is. Higher the number, more likely they are to act given random selector in simulator
-        self.DB['sims'].append(node)
+        self.DB['sims'][node['key']] = node
         return node
 
     def create_relation(self, source, target, rtype, sub_net, fromClass, toClass):
@@ -642,10 +685,37 @@ class Pole(ODB):
         with open(dbjson, 'r') as db:
             self.DB = json.load(db)
 
+    def get_sims_pol(self):
+        """
+        Follows the get_sims function but looks for only people who have had a pattern of events which can be added into
+        their own choice of places to go to. After collecting the "ReportedAt" locations, match the results with the
+        self.DB['sims'] by key and assign those locations to the reportedAt attribute array of the sim.
+        :return:
+        """
+        sims = []
+        r = self.client.command(''' 
+            match 
+            {class: Person, as: P, where: (name = 'Profile')}.out("ReportedAt")
+            {class: Location, as: L} 
+            return P.key, L.Latitude, L.Longitude, L.Description, L.Category, L.key, L.title, L.icon, L.country, L.city 
+            ''')
+        for n in r:
+            # Get the sim from the dictionary of sims by the key, and get that sim's "ReportedAt" attributes to append the new location
+            self.get_node_att(self.DB['sims'][n.oRecordData['P_key']], "reportedAt").append(n.oRecordData['L_key'])
+            if n.oRecordData['L_key'] not in self.DB['simLocations'].keys():
+                self.DB['simLocations'][n.oRecordData['L_key']] = {
+                    "Latitude": n.oRecordData['L_Latitude'],
+                    "Longitude": n.oRecordData['L_Longitude'],
+                    "key": n.oRecordData['L_key'],
+                    "country": n.oRecordData['L_country'],
+                    "city": n.oRecordData['L_city'],
+                    "title": n.oRecordData['L_title']
+                }
+
     def get_sims(self):
         """
         Get all the people identified as Sims from the database and collect their lives_at locations in 2
-        view sthat can be used as content for future simulation events. simLocations have keys that match the
+        views that can be used as content for future simulation events. simLocations have keys that match the
         Sim LivesAt value to create the relation
         :return:
         """
@@ -658,46 +728,69 @@ class Pole(ODB):
                 L.Latitude, L.Longitude, L.Description, L.Category, L.key, L.title, L.icon, L.country, L.city 
                 '''
             )
-            self.DB['sims'] = [{
-                "key": n.oRecordData['P_key'],
-                "icon": n.oRecordData['P_icon'],
-                "status": "CustomPerson",
-                "title": n.oRecordData['P_title'],
-                "attributes": [
-                    {"label": "simaction", "value": n.oRecordData['P_simaction']},
-                    {"label": "simclock", "value": n.oRecordData['P_simclock']},
-                    {"label": "DateOfBirth", "value": n.oRecordData['P_DateOfBirth']},
-                    {"label": "PlaceOfBirth", "value": n.oRecordData['P_PlaceOfBirth']},
-                    {"label": "LastName", "value": n.oRecordData['P_LastName']},
-                    {"label": "FirstName", "value": n.oRecordData['P_FirstName']},
-                    {"label": "Gender", "value": n.oRecordData['P_Gender']},
-                    {"label": "title", "value": n.oRecordData['P_title']},
-                    {"label": "livesAt", "value": n.oRecordData['L_title']}
-                ]
-            } for n in r]
+            for n in r:
+                self.DB['sims'][n.oRecordData['P_key']] = {
+                    "key": n.oRecordData['P_key'],
+                    "icon": n.oRecordData['P_icon'],
+                    "status": "CustomPerson",
+                    "title": n.oRecordData['P_title'],
+                    "attributes": [
+                        {"label": "simaction", "value": n.oRecordData['P_simaction']},
+                        {"label": "simclock", "value": n.oRecordData['P_simclock']},
+                        {"label": "DateOfBirth", "value": n.oRecordData['P_DateOfBirth']},
+                        {"label": "PlaceOfBirth", "value": n.oRecordData['P_PlaceOfBirth']},
+                        {"label": "LastName", "value": n.oRecordData['P_LastName']},
+                        {"label": "FirstName", "value": n.oRecordData['P_FirstName']},
+                        {"label": "Gender", "value": n.oRecordData['P_Gender']},
+                        {"label": "title", "value": n.oRecordData['P_title']},
+                        {"label": "livesAt", "value": n.oRecordData['L_key']},
+                        {"label": "reportedAt", "value": []}
+                    ]
+                }
             for n in r:
                 if n.oRecordData['L_title'] not in self.DB['simLocations'].keys():
-                    self.DB['simLocations'][n.oRecordData['L_title']] = {
+                    self.DB['simLocations'][n.oRecordData['L_key']] = {
                         "Latitude": n.oRecordData['L_Latitude'],
                         "Longitude": n.oRecordData['L_Longitude'],
                         "key": n.oRecordData['L_key'],
                         "country": n.oRecordData['L_country'],
-                        "city": n.oRecordData['L_city']
+                        "city": n.oRecordData['L_city'],
+                        "title": n.oRecordData['L_title']
                     }
 
-    def run_simulation(self, rounds):
+    def get_sim(self, **kwargs):
 
+        newSim = {}
+        sim = self.get_node(val=kwargs['val'], var=kwargs['var'], class_name=kwargs['class_name'])
+        for i in sim:
+            print(sim[i])
+            if str(type(sim[i])) == "<class 'pyorient.otypes.OrientBinaryObject'>":
+                print("Need to do something here")
+            else:
+                newSim[i] = sim[i]
+
+        return newSim
+
+    def run_simulation(self, rounds):
+        """
+        Runs a simulation based on manufactured POLE entities and return a graph containing the nodes and lines. The
+        graph is automatically replicated into a geoJSON format as modeled for SAP Map visualization and Chronology
+        format for Calendar (TODO)
+        :param rounds:
+        :return:
+        """
+        # Check content requirements
         if not self.basebook:
             self.check_base_book()
         if 'Sims.json' not in os.listdir(self.datapath):
             self.fill_lists()
+        # Set up the Simulation variables
         i = totalPeople = totalEvents = totalLocations = 0
         self.get_sims()
-        Simulation = {
-            "nodes": [],
-            "lines": []
-        }
+        self.get_sims_pol()
+        S = Simulation()
         sim_time = datetime.datetime.strptime(self.SimStartDate, '%Y-%m-%d %H:%M:%S')
+        # Run the simulation for the user input rounds
         while i < int(rounds):
             '''
             1. Choose sims based on an action number range/filter
@@ -713,32 +806,50 @@ class Pole(ODB):
             for sim in self.DB['sims']:
                 # In cases where sims were created with faulty data a catch is required
                 try:
-                    simclock = int(self.get_node_att(sim, 'simclock'))
+                    simclock = int(self.get_node_att(self.DB['sims'][sim], 'simclock'))
                 except:
                     try:
-                        simclock = int(self.get_node_att(sim, 'simaction'))
+                        simclock = int(self.get_node_att(self.DB['sims'][sim], 'simaction'))
                     except:
                         simclock = random.randint(1, 9)
                 # Decision to use the sim in an event or not
                 if simclock > random.randint(1, 9):
-                    if sim not in Simulation['nodes']:
-                        Simulation['nodes'].append(sim)
+                    if self.DB['sims'][sim] not in S.nodes:
+                        S.nodes.append(self.DB['sims'][sim])
                         totalPeople+=1
-                    age = self.check_age(sim_time, self.get_node_att(sim, 'DateOfBirth'))
+                    age = self.check_age(sim_time, self.get_node_att(self.DB['sims'][sim], 'DateOfBirth'))
                     if age == 'Not born':
                         break
                     action = self.choose_action(age)
                     EVT = self.create_event(Type=action,
                                             DateTime=sim_time.strftime('%Y-%m-%d %H:%M:%S'),
                                             Description='%s %s, of %s age was involved with an event related to %s at %s'
-                                                        % (self.get_node_att(sim, 'FirstName'),
-                                                           self.get_node_att(sim, 'LastName'),
+                                                        % (self.get_node_att(self.DB['sims'][sim], 'FirstName'),
+                                                           self.get_node_att(self.DB['sims'][sim], 'LastName'),
                                                            age, action, sim_time.strftime('%Y-%m-%d %H:%M:%S')))
-                    Simulation['nodes'].append(EVT)
+                    S.nodes.append(EVT)
                     totalEvents+=1
-                    self.create_relation(EVT, sim, 'Involved', Simulation, "Event", "Person")
-                    # Create a location for the event based on the frequented locations of the Sim
-                    eLocation = self.DB['simLocations'][self.get_node_att(sim, 'livesAt')]
+                    self.create_relation(EVT, self.DB['sims'][sim], 'Involved', S.get_graph(), "Event", "Person")
+                    # If the sim has only been at home, livesAt, then use that as the center
+                    if len(self.get_node_att(self.DB['sims'][sim], 'reportedAt')) < 1:
+                        eLocation = self.DB['simLocations'][self.get_node_att(self.DB['sims'][sim], 'livesAt')]
+                        Latitude = eLocation['Latitude'] + random.randint(-1000, 1000) / 100000
+                        Longitude = eLocation['Longitude'] + random.randint(-1000, 1000) / 100000
+                        createNew = True
+                    # Otherwise, base it on a random selected one from the Sims locations. TODO categorize places based on Event type
+                    else:
+                        eLocation = self.DB['simLocations'][random.choice(self.get_node_att(self.DB['sims'][sim], 'reportedAt'))]
+                        # If the AverageDistance the sim travels is below a value, use the same eLocation
+                        if len(self.get_node_att(self.DB['sims'][sim], 'reportedAt')) < random.randint(0, self.AverageDistance['mean']):
+                            Latitude = eLocation['Latitude']
+                            Longitude = eLocation['Longitude']
+                            createNew = False
+                        # Otherwise the sim will create the new location based on
+                        else:
+                            Latitude = eLocation['Latitude'] + random.randint(-1000, 1000) / 100000
+                            Longitude = eLocation['Longitude'] + random.randint(-1000, 1000) / 100000
+                            createNew = True
+                        # TODO use the SIM
                     # 'Crime', 'Education', 'Abuse', 'Health', 'Employment', 'SocialMedia'
                     if action == "Health":
                         Category = random.choice(self.LocationsHealth)
@@ -754,26 +865,34 @@ class Pole(ODB):
                         Category = random.choice(self.LocationsSocialMedia)
                     else:
                         Category = random.choice(self.LocationCategories)
-
-                    eLocation = self.create_location(
-                        Latitude=eLocation['Latitude'] + random.randint(-1000, 1000)/100000,
-                        Longitude=eLocation['Longitude'] + random.randint(-1000, 1000)/100000,
-                        country=eLocation['country'],
-                        city=eLocation['city'],
-                        Type=Category,
-                        Description=self.get_node_att(EVT, "Description")
+                    if createNew:
+                        eLocation = self.create_location(
+                            Latitude=Latitude,
+                            Longitude=Longitude,
+                            country=eLocation['country'],
+                            city=eLocation['city'],
+                            title="%s: %f, %f" % (Category, Latitude, Longitude),
+                            Type=Category,
+                            Description=self.get_node_att(EVT, "Description")
+                        )
+                    self.create_relation(EVT, eLocation, 'OccurredAt', S.get_graph(), "Event", "Location")
+                    self.create_relation(self.DB['sims'][sim], eLocation, 'ReportedAt', S.get_graph(), "Person", "Location")
+                    S.nodes.append(eLocation)
+                    S.items.append({
+                        "pos": "%f;%f;0" % (self.get_node_att(eLocation, "Longitude"), self.get_node_att(eLocation, "Latitude")),
+                        "type": random.choice(self.ICON_STATUSES),
+                        "tooltip": self.get_node_att(eLocation, "city")}
                     )
-                    self.create_relation(EVT, eLocation, 'OccurredAt', Simulation, "Event", "Location")
-                    Simulation['nodes'].append(eLocation)
+                    totalLocations+=1
                     # Reset the time to a step in the future based on random time between 1 and max round length
                     # Set to seconds to allow for more interactions in a round
                     sim_time = datetime.datetime.strptime(
                         (sim_time + datetime.timedelta(seconds=random.randint(1, self.SimRoundLengthMax))
                          ).strftime('%Y-%m-%d %H:%M:%S'), '%Y-%m-%d %H:%M:%S')
                     # Reset the Sim's clock it's original setting
-                    self.update_node_att(sim, 'simclock', int(self.get_node_att(sim, 'simaction')))
+                    self.update_node_att(self.DB['sims'][sim], 'simclock', int(self.get_node_att(self.DB['sims'][sim], 'simaction')))
                 else:
-                    self.update_node_att(sim, 'simclock', simclock + 1)
+                    self.update_node_att(self.DB['sims'][sim], 'simclock', simclock + 1)
             # Reset the time to a step in the future based on random time between 1 and max round length
             # Set to minutes to allow for a bigger time jump between each round treating the iteration of sims as "bullet time"
             sim_time = datetime.datetime.strptime(
@@ -782,11 +901,12 @@ class Pole(ODB):
             i += 1
 
         return {
-            'message': 'Simulation complete with a total of %d People involved with %d Events' % (
-                totalPeople, totalEvents),
-            'data': Simulation}
+            'message': 'Simulation complete with a total of %d People involved with %d Events within a total of %d '
+                       'different Locations' % (totalPeople, totalEvents, totalLocations),
+            'data': S.to_dict()}
 
-    def format_graph(self, g):
+    @staticmethod
+    def format_graph(g):
 
         newDict = {'nodes': [], 'lines': g['lines']}
         for n in g['nodes']:
@@ -905,6 +1025,11 @@ class Pole(ODB):
         return
 
     def quality_check(self, graph):
+        """
+        Create a chrono view and geo view from a graph
+        :param graph:
+        :return:
+        """
 
         node_keys = []
         group_keys = [{"key": "NoGroup", "title": "NoGroup" }]
