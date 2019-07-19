@@ -785,13 +785,14 @@ class Pole(ODB):
         if 'Sims.json' not in os.listdir(self.datapath):
             self.fill_lists()
         # Set up the Simulation variables
-        i = totalPeople = totalEvents = totalLocations = 0
+        i = totalPeople = totalEvents = totalLocations = attempts = 0
         self.get_sims()
         self.get_sims_pol()
         S = Simulation()
         sim_time = datetime.datetime.strptime(self.SimStartDate, '%Y-%m-%d %H:%M:%S')
         # Run the simulation for the user input rounds
-        while totalEvents < 1:
+        while totalEvents < 1 and attempts < 20:
+            attempts+=1
             while i < int(rounds):
                 '''
                 1. Choose sims based on an action number range/filter
@@ -918,9 +919,6 @@ class Pole(ODB):
                     (sim_time + datetime.timedelta(hours=random.randint(1, self.SimRoundLengthMax))
                      ).strftime('%Y-%m-%d %H:%M:%S'), '%Y-%m-%d %H:%M:%S')
                 i += 1
-            if totalEvents == 0:
-                self.create_family()
-                self.get_sims()
         return {
             'message': 'Simulation complete with a total of %d People involved with %d Events within a total of %d '
                        'different Locations' % (totalPeople, totalEvents, totalLocations),
