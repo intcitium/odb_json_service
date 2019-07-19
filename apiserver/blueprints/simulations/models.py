@@ -914,7 +914,7 @@ class Pole(ODB):
                         # Reset the Sim's clock it's original setting
                         self.update_node_att(self.DB['sims'][sim], 'simclock', int(self.get_node_att(self.DB['sims'][sim], 'simaction')))
                     else:
-                        self.update_node_att(self.DB['sims'][sim], 'simclock', simclock + 1)
+                        self.DB['sims'][sim] = self.update_node_att(self.DB['sims'][sim], 'simclock', simclock + 1)
                 # Reset the time to a step in the future based on random time between 1 and max round length
                 # Set to minutes to allow for a bigger time jump between each round treating the iteration of sims as "bullet time"
                 sim_time = datetime.datetime.strptime(
