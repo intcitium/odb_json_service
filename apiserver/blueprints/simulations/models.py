@@ -791,115 +791,136 @@ class Pole(ODB):
         S = Simulation()
         sim_time = datetime.datetime.strptime(self.SimStartDate, '%Y-%m-%d %H:%M:%S')
         # Run the simulation for the user input rounds
-        while i < int(rounds):
-            '''
-            1. Choose sims based on an action number range/filter
-            2. Based on the age create an action.
-                If child create a school or abuse related event
-                If parent create a police or employment related event
-            3. Create a location based on Sim Locations
-                Choose home as first and add random. 
-                If len of locations is < 3 append, else, random create new based on others or select one
-            4. Insert the relation of event to person and to locations into the db based on event type
-
-            '''
-            for sim in self.DB['sims']:
-                # In cases where sims were created with faulty data a catch is required
-                try:
-                    simclock = int(self.get_node_att(self.DB['sims'][sim], 'simclock'))
-                except:
+        while totalEvents < 1:
+            while i < int(rounds):
+                '''
+                1. Choose sims based on an action number range/filter
+                2. Based on the age create an action.
+                    If child create a school or abuse related event
+                    If parent create a police or employment related event
+                3. Create a location based on Sim Locations
+                    Choose home as first and add random. 
+                    If len of locations is < 3 append, else, random create new based on others or select one
+                4. Insert the relation of event to person and to locations into the db based on event type
+    
+                '''
+                for sim in self.DB['sims']:
+                    # In cases where sims were created with faulty data a catch is required
                     try:
-                        simclock = int(self.get_node_att(self.DB['sims'][sim], 'simaction'))
+                        simclock = int(self.get_node_att(self.DB['sims'][sim], 'simclock'))
                     except:
-                        simclock = random.randint(1, 9)
-                # Decision to use the sim in an event or not
-                if simclock > random.randint(1, 9):
-                    if self.DB['sims'][sim] not in S.nodes:
-                        S.nodes.append(self.DB['sims'][sim])
-                        totalPeople+=1
-                    age = self.check_age(sim_time, self.get_node_att(self.DB['sims'][sim], 'DateOfBirth'))
-                    if age == 'Not born':
-                        break
-                    action = self.choose_action(age)
-                    EVT = self.create_event(Type=action,
-                                            DateTime=sim_time.strftime('%Y-%m-%d %H:%M:%S'),
-                                            Description='%s %s, of %s age was involved with an event related to %s at %s'
-                                                        % (self.get_node_att(self.DB['sims'][sim], 'FirstName'),
-                                                           self.get_node_att(self.DB['sims'][sim], 'LastName'),
-                                                           age, action, sim_time.strftime('%Y-%m-%d %H:%M:%S')))
-                    S.nodes.append(EVT)
-                    totalEvents+=1
-                    self.create_relation(EVT, self.DB['sims'][sim], 'Involved', S.get_graph(), "Event", "Person")
-                    # If the sim has only been at home, livesAt, then use that as the center
-                    if len(self.get_node_att(self.DB['sims'][sim], 'reportedAt')) < 1:
-                        eLocation = self.DB['simLocations'][self.get_node_att(self.DB['sims'][sim], 'livesAt')]
-                        Latitude = eLocation['Latitude'] + random.randint(-1000, 1000) / 100000
-                        Longitude = eLocation['Longitude'] + random.randint(-1000, 1000) / 100000
-                        createNew = True
-                    # Otherwise, base it on a random selected one from the Sims locations. TODO categorize places based on Event type
-                    else:
-                        eLocation = self.DB['simLocations'][random.choice(self.get_node_att(self.DB['sims'][sim], 'reportedAt'))]
-                        # If the AverageDistance the sim travels is below a value, use the same eLocation
-                        if len(self.get_node_att(self.DB['sims'][sim], 'reportedAt')) < random.randint(0, self.AverageDistance['mean']):
-                            Latitude = eLocation['Latitude']
-                            Longitude = eLocation['Longitude']
-                            createNew = False
-                        # Otherwise the sim will create the new location based on
-                        else:
+                        try:
+                            simclock = int(self.get_node_att(self.DB['sims'][sim], 'simaction'))
+                        except:
+                            simclock = random.randint(1, 9)
+                    # Decision to use the sim in an event or not
+                    if simclock > random.randint(1, 9):
+                        if self.DB['sims'][sim] not in S.nodes:
+                            S.nodes.append(self.DB['sims'][sim])
+                            totalPeople+=1
+                        age = self.check_age(sim_time, self.get_node_att(self.DB['sims'][sim], 'DateOfBirth'))
+                        if age == 'Not born':
+                            break
+                        action = self.choose_action(age)
+                        EVT = self.create_event(Type=action,
+                                                DateTime=sim_time.strftime('%Y-%m-%d %H:%M:%S'),
+                                                Description='%s %s, of %s age was involved with an event related to %s at %s'
+                                                            % (self.get_node_att(self.DB['sims'][sim], 'FirstName'),
+                                                               self.get_node_att(self.DB['sims'][sim], 'LastName'),
+                                                               age, action, sim_time.strftime('%Y-%m-%d %H:%M:%S')))
+                        S.nodes.append(EVT)
+                        totalEvents+=1
+                        self.create_relation(EVT, self.DB['sims'][sim], 'Involved', S.get_graph(), "Event", "Person")
+                        # If the sim has only been at home, livesAt, then use that as the center
+
+                        if not self.get_node_att(self.DB['sims'][sim], 'reportedAt'):
+                            eLocation = self.DB['simLocations'][self.get_node_att(self.DB['sims'][sim], 'livesAt')]
                             Latitude = eLocation['Latitude'] + random.randint(-1000, 1000) / 100000
                             Longitude = eLocation['Longitude'] + random.randint(-1000, 1000) / 100000
                             createNew = True
-                        # TODO use the SIM
-                    # 'Crime', 'Education', 'Abuse', 'Health', 'Employment', 'SocialMedia'
-                    if action == "Health":
-                        Category = random.choice(self.LocationsHealth)
-                    elif action == "Crime":
-                        Category = random.choice(self.LocationsCrime)
-                    elif action == "Education":
-                        Category = random.choice(self.LocationsEducation)
-                    elif action == "Abuse":
-                        Category = random.choice(self.LocationsAbuse)
-                    elif action == "Employment":
-                        Category = random.choice(self.LocationsEmployment)
-                    elif action == "SocialMedia":
-                        Category = random.choice(self.LocationsSocialMedia)
+                        # Otherwise, base it on a random selected one from the Sims locations. TODO categorize places based on Event type
+                        else:
+                            eLocation = self.DB['simLocations'][random.choice(self.get_node_att(self.DB['sims'][sim], 'reportedAt'))]
+                            # If the AverageDistance the sim travels is below a value, use the same eLocation
+                            if len(self.get_node_att(self.DB['sims'][sim], 'reportedAt')) < random.randint(0, self.AverageDistance['mean']):
+                                Latitude = eLocation['Latitude']
+                                Longitude = eLocation['Longitude']
+                                createNew = False
+                            # Otherwise the sim will create the new location based on
+                            else:
+                                Latitude = eLocation['Latitude'] + random.randint(-1000, 1000) / 100000
+                                Longitude = eLocation['Longitude'] + random.randint(-1000, 1000) / 100000
+                                createNew = True
+                            # TODO use the SIM
+                        # 'Crime', 'Education', 'Abuse', 'Health', 'Employment', 'SocialMedia'
+                        if action == "Health":
+                            Category = random.choice(self.LocationsHealth)
+                        elif action == "Crime":
+                            Category = random.choice(self.LocationsCrime)
+                        elif action == "Education":
+                            Category = random.choice(self.LocationsEducation)
+                        elif action == "Abuse":
+                            Category = random.choice(self.LocationsAbuse)
+                        elif action == "Employment":
+                            Category = random.choice(self.LocationsEmployment)
+                        elif action == "SocialMedia":
+                            Category = random.choice(self.LocationsSocialMedia)
+                        else:
+                            Category = random.choice(self.LocationCategories)
+                        if createNew:
+                            eLocation = self.create_location(
+                                Latitude=Latitude,
+                                Longitude=Longitude,
+                                country=eLocation['country'],
+                                city=eLocation['city'],
+                                title="%s: %f, %f" % (Category, Latitude, Longitude),
+                                Type=Category,
+                                Description=self.get_node_att(EVT, "Description")
+                            )
+                        else:
+                            eLocation = {
+                                "key": eLocation['key'],
+                                "title": eLocation['title'],
+                                "icon": self.ICON_LOCATION,
+                                "attributes": [
+                                    {"label": "Latitude", "value": eLocation['Latitude']},
+                                    {"label": "Longitude", "value": eLocation['Longitude']},
+                                    {"label": "country", "value": eLocation['country']},
+                                    {"label": "city", "value": eLocation['city']},
+                                    {"label": "Type", "value": Category},
+                                    {"label": "Description", "value": self.get_node_att(EVT, "Description")}
+                                ]
+                            }
+                        self.create_relation(EVT, eLocation, 'OccurredAt', S.get_graph(), "Event", "Location")
+                        self.create_relation(self.DB['sims'][sim], eLocation, 'ReportedAt', S.get_graph(), "Person", "Location")
+                        S.nodes.append(eLocation)
+                        try:
+                            S.items.append({
+                                "pos": "%f;%f;0" % (self.get_node_att(eLocation, "Longitude"), self.get_node_att(eLocation, "Latitude")),
+                                "type": random.choice(self.ICON_STATUSES),
+                                "tooltip": self.get_node_att(eLocation, "city")}
+                            )
+                        except:
+                            click.echo(eLocation)
+                        totalLocations+=1
+                        # Reset the time to a step in the future based on random time between 1 and max round length
+                        # Set to seconds to allow for more interactions in a round
+                        sim_time = datetime.datetime.strptime(
+                            (sim_time + datetime.timedelta(seconds=random.randint(1, self.SimRoundLengthMax))
+                             ).strftime('%Y-%m-%d %H:%M:%S'), '%Y-%m-%d %H:%M:%S')
+                        # Reset the Sim's clock it's original setting
+                        self.update_node_att(self.DB['sims'][sim], 'simclock', int(self.get_node_att(self.DB['sims'][sim], 'simaction')))
                     else:
-                        Category = random.choice(self.LocationCategories)
-                    if createNew:
-                        eLocation = self.create_location(
-                            Latitude=Latitude,
-                            Longitude=Longitude,
-                            country=eLocation['country'],
-                            city=eLocation['city'],
-                            title="%s: %f, %f" % (Category, Latitude, Longitude),
-                            Type=Category,
-                            Description=self.get_node_att(EVT, "Description")
-                        )
-                    self.create_relation(EVT, eLocation, 'OccurredAt', S.get_graph(), "Event", "Location")
-                    self.create_relation(self.DB['sims'][sim], eLocation, 'ReportedAt', S.get_graph(), "Person", "Location")
-                    S.nodes.append(eLocation)
-                    S.items.append({
-                        "pos": "%f;%f;0" % (self.get_node_att(eLocation, "Longitude"), self.get_node_att(eLocation, "Latitude")),
-                        "type": random.choice(self.ICON_STATUSES),
-                        "tooltip": self.get_node_att(eLocation, "city")}
-                    )
-                    totalLocations+=1
-                    # Reset the time to a step in the future based on random time between 1 and max round length
-                    # Set to seconds to allow for more interactions in a round
-                    sim_time = datetime.datetime.strptime(
-                        (sim_time + datetime.timedelta(seconds=random.randint(1, self.SimRoundLengthMax))
-                         ).strftime('%Y-%m-%d %H:%M:%S'), '%Y-%m-%d %H:%M:%S')
-                    # Reset the Sim's clock it's original setting
-                    self.update_node_att(self.DB['sims'][sim], 'simclock', int(self.get_node_att(self.DB['sims'][sim], 'simaction')))
-                else:
-                    self.update_node_att(self.DB['sims'][sim], 'simclock', simclock + 1)
-            # Reset the time to a step in the future based on random time between 1 and max round length
-            # Set to minutes to allow for a bigger time jump between each round treating the iteration of sims as "bullet time"
-            sim_time = datetime.datetime.strptime(
-                (sim_time + datetime.timedelta(hours=random.randint(1, self.SimRoundLengthMax))
-                 ).strftime('%Y-%m-%d %H:%M:%S'), '%Y-%m-%d %H:%M:%S')
-            i += 1
-
+                        self.update_node_att(self.DB['sims'][sim], 'simclock', simclock + 1)
+                # Reset the time to a step in the future based on random time between 1 and max round length
+                # Set to minutes to allow for a bigger time jump between each round treating the iteration of sims as "bullet time"
+                sim_time = datetime.datetime.strptime(
+                    (sim_time + datetime.timedelta(hours=random.randint(1, self.SimRoundLengthMax))
+                     ).strftime('%Y-%m-%d %H:%M:%S'), '%Y-%m-%d %H:%M:%S')
+                i += 1
+            if totalEvents == 0:
+                self.create_family()
+                self.get_sims()
         return {
             'message': 'Simulation complete with a total of %d People involved with %d Events within a total of %d '
                        'different Locations' % (totalPeople, totalEvents, totalLocations),
