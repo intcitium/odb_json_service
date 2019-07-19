@@ -785,7 +785,7 @@ class Pole(ODB):
         if 'Sims.json' not in os.listdir(self.datapath):
             self.fill_lists()
         # Set up the Simulation variables
-        i = totalPeople = totalEvents = totalLocations = attempts = 0
+        totalPeople = totalEvents = totalLocations = attempts = 0
         self.get_sims()
         self.get_sims_pol()
         S = Simulation()
@@ -793,6 +793,7 @@ class Pole(ODB):
         # Run the simulation for the user input rounds
         while totalEvents < 1 and attempts < 20:
             attempts+=1
+            i = 0
             while i < int(rounds):
                 '''
                 1. Choose sims based on an action number range/filter
@@ -807,16 +808,22 @@ class Pole(ODB):
                 '''
                 for sim in self.DB['sims']:
                     # In cases where sims were created with faulty data a catch is required
-                    try:
-                        simclock = int(self.get_node_att(self.DB['sims'][sim], 'simclock'))
-                    except:
+                    # If first round, base the simclock on the sim action
+                    if i == 0:
                         try:
                             simclock = int(self.get_node_att(self.DB['sims'][sim], 'simaction'))
                         except:
                             simclock = random.randint(1, 9)
+                    else:
+                        try:
+                            simclock = int(self.get_node_att(self.DB['sims'][sim], 'simclock'))
+                        except:
+                            try:
+                                simclock = int(self.get_node_att(self.DB['sims'][sim], 'simaction'))
+                            except:
+                                simclock = random.randint(1, 9)
                     # Decision to use the sim in an event or not
                     seed = random.randint(1, 9)
-                    click.echo("SEED: %d, CLOCK: %d" % (seed, simclock))
                     if simclock > seed:
                         if self.DB['sims'][sim] not in S.nodes:
                             S.nodes.append(self.DB['sims'][sim])
@@ -921,6 +928,7 @@ class Pole(ODB):
                     (sim_time + datetime.timedelta(hours=random.randint(1, self.SimRoundLengthMax))
                      ).strftime('%Y-%m-%d %H:%M:%S'), '%Y-%m-%d %H:%M:%S')
                 i += 1
+
         return {
             'message': 'Simulation complete with a total of %d People involved with %d Events within a total of %d '
                        'different Locations' % (totalPeople, totalEvents, totalLocations),
