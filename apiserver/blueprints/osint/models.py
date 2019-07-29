@@ -386,7 +386,7 @@ class OSINT(ODB):
             graph_build['lines'].append({"from": side_b_key, "to": location, "title": "OccurredAt"})
 
         message = {
-            "graph": format_graph(graph_build),
+            "graph": self.quality_check(format_graph(graph_build)),
             "raw": data,
             "geo": {
                 "Spots": {
