@@ -342,7 +342,8 @@ class ODB:
 
         if "groups" in graph.keys():
             for g in graph['groups']:
-                group_keys.append({"key": g['key'], "title": g['title']})
+                if ({"key": g['key'], "title": g['title']}) not in graph['groups']:
+                    group_keys.append({"key": g['key'], "title": g['title']})
         else:
             graph['groups'] = group_keys
 
