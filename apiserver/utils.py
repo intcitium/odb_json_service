@@ -210,7 +210,7 @@ def get_request_payload(request):
 
 def format_graph(g):
 
-    newDict = {'nodes': [], 'lines': g['lines'], 'groups': [{"NoGroup": "NoGroup"}]}
+    newDict = {'nodes': [], 'lines': g['lines'], 'groups': [{999: "NoGroup"}]}
     for n in g['nodes']:
         newNode = {}
         if "key" in n.keys():
@@ -224,7 +224,7 @@ def format_graph(g):
         if "group" in n.keys():
             newNode['group'] = n['group']
         else:
-            newNode['group'] = 'NoGroup'
+            newNode['group'] = 999
         if "attributes" in n.keys():
             for a in n['attributes']:
                 if a['label'] == 'className':
