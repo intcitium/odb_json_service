@@ -224,7 +224,7 @@ def format_graph(g):
         if "group" in n.keys():
             newNode['group'] = n['group']
         else:
-            newNode['group'] = 999
+            newNode['group'] = "NoGroup"
         if "attributes" in n.keys():
             for a in n['attributes']:
                 if a['label'] == 'className':
