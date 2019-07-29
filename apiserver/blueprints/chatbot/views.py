@@ -43,7 +43,19 @@ def send_message():
     return jsonify({
         "status": 200,
         "message": "Message sent at %s" % get_datetime(),
-        "data": response
+        "data": response,
+        "conversation": {
+            "language": "en",
+            "memory": {
+                "user": "Bob"
+            }
+        },
+        "replies": [
+            {
+                "content": "Hello World!",
+                "type": "text"
+            }
+        ]
     })
 
 

@@ -1,12 +1,11 @@
 import time, string, random, socket, pyorient
 import click, smtplib, ssl, json
-from flask import request
 from datetime import datetime
 from dateutil.parser import parse
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from apiserver.config import HOST_IP, SECRET_KEY, MAIL_PASSWORD,\
-    MAIL_USERNAME, COPILOT_URL, COPILOT_AUTH, COPILOT_DEV_TOKEN, HTTPS
+    MAIL_USERNAME, COPILOT_URL, COPILOT_AUTH, COPILOT_DEV_TOKEN, HTTPS, TWITTER_AUTH
 
 HOST_IP = HOST_IP
 HTTPS = HTTPS
@@ -35,6 +34,9 @@ ADMINS = [MAIL_USERNAME]
 
 # mail accounts
 MAIL_DEFAULT_SENDER = 'from@example.com'
+
+# osint API tokens
+TWITTER_AUTH = TWITTER_AUTH
 
 
 def send_mail(**kwargs):
@@ -100,11 +102,14 @@ def clean(content):
     :return:
     """
     try:
+        if str(type(content)) == "<class 'datetime.datetime'>":
+            return content
         clean_content = change_if_date(content)
         if clean_content:
             return clean_content
         else:
-            clean_content = str(content.replace("'", "\\'").replace('"', ''))
+            clean_content = str(content.replace("\\", ""))
+            clean_content = str(clean_content.replace("'", "\\'").replace('"', '').replace("\n", " "))
     except Exception as e:
         try:
             clean_content = change_if_number(content)
@@ -137,10 +142,10 @@ def change_if_date(date_string, fuzzy=False):
         '%a, %d %b %Y %H:%M:%S %z', '%a, %d %b %Y %H:%M:%S %Z', '%A, %D %B %Y %H:%M:%S %z', '%A, %D %B %Y %H:%M:%S %Z',
         '%A, %D %B %y %h:%m:%s %z', '%a, %d %b %y %h:%m:%s %z', '%a, %d %b %y %h:%m:%s %Z','%a, %D %b %Y %H:%M:%S %Z',
         '%m/%d/%y, %I:%M %p', '%M/%d/%y, %I:%M %p', '%M/%D/%y, %I:%M %p', '%M/%D/%Y, %I:%M %p', '%m/%d/%Y/%H:%M:%S',
-        '%Y-%m-%d', '%Y/%m/%d', '%d-%m-%Y', '%d/%m/%Y', '%Y-%M-%D', '%Y/%M/%D', '%D-%M-%Y', '%D/%M/%Y',
-        '%Y-%m-%d %H:%M:%S', '%Y/%m/%d %H:%M:%S', '%d-%m-%Y %H:%M:%S', '%d/%m/%Y %H:%M:%S',
-        '%Y-%m-%d %H:%M', '%Y/%m/%d %H:%M', '%d-%m-%Y %H:%M', '%d/%m/%Y %H:%M',
-                    ]
+        '%Y-%m-%dT%H:%M:%S','%Y-%m-%d', '%Y/%m/%d', '%d-%m-%Y', '%d/%m/%Y', '%Y-%M-%D', '%Y/%M/%D', '%D-%M-%Y',
+        '%D/%M/%Y', '%Y-%m-%d %H:%M:%S', '%Y/%m/%d %H:%M:%S', '%d-%m-%Y %H:%M:%S', '%d/%m/%Y %H:%M:%S',
+        '%Y-%m-%d %H:%M', '%Y/%m/%d %H:%M', '%d-%m-%Y %H:%M', '%d/%m/%Y %H:%M'
+    ]
     try:
         parse(date_string, fuzzy=fuzzy)
         try:
@@ -187,7 +192,13 @@ def get_host(user, pswd):
 
     return {"client": None, "session_id": None}
 
-def get_request_payload(r):
+
+def get_request_payload(request):
+    """
+    Some requests come in as form, binary, raw, or other...
+    :param request: 
+    :return:
+    """
 
     r = request.form.to_dict(flat=True)
     if len(r.keys()) == 0:
@@ -195,3 +206,30 @@ def get_request_payload(r):
         r = json.loads(request.data)
 
     return r
+
+
+def format_graph(g):
+
+    newDict = {'nodes': [], 'lines': g['lines'], 'groups': [{"NoGroup": "NoGroup"}]}
+    for n in g['nodes']:
+        newNode = {}
+        if "key" in n.keys():
+            newNode['key'] = n['key']
+        if "title" in n.keys():
+            newNode['title'] = n['title']
+        if "status" in n.keys():
+            newNode['status'] = n['status']
+        if "icon" in n.keys():
+            newNode['icon'] = n['icon']
+        if "group" in n.keys():
+            newNode['group'] = n['group']
+        else:
+            newNode['group'] = 'NoGroup'
+        if "attributes" in n.keys():
+            for a in n['attributes']:
+                if a['label'] == 'className':
+                    newNode['class_name'] = a['value']
+                else:
+                    newNode[str(a['label']).replace(" ", "_")] = a['value']
+        newDict['nodes'].append(newNode)
+    return newDict

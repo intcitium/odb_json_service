@@ -1,6 +1,6 @@
 import json, random
 import click
-from apiserver.utils import get_datetime, clean, get_time_based_id
+from apiserver.utils import get_datetime, clean, get_time_based_id, format_graph
 from apiserver.blueprints.home.models import ODB
 import pandas as pd
 import numpy as np
@@ -933,31 +933,6 @@ class Pole(ODB):
             'message': 'Simulation complete with a total of %d People involved with %d Events within a total of %d '
                        'different Locations' % (totalPeople, totalEvents, totalLocations),
             'data': S.to_dict()}
-
-    @staticmethod
-    def format_graph(g):
-
-        newDict = {'nodes': [], 'lines': g['lines']}
-        for n in g['nodes']:
-            newNode = {}
-            if "key" in n.keys():
-                newNode['key'] = n['key']
-            if "title" in n.keys():
-                newNode['title'] = n['title']
-            if "status" in n.keys():
-                newNode['status'] = n['status']
-            if "icon" in n.keys():
-                newNode['icon'] = n['icon']
-            if "group" in n.keys():
-                newNode['group'] = n['group']
-            if "attributes" in n.keys():
-                for a in n['attributes']:
-                    if a['label'] == 'className':
-                        newNode['class_name'] = a['value']
-                    else:
-                        newNode[str(a['label']).replace(" ", "_")] = a['value']
-            newDict['nodes'].append(newNode)
-        return newDict
 
     def save(self, r):
         """

@@ -3,7 +3,7 @@
 		{
 			"key": 0,
 			"title": "Cecilia Elsner",
-			"group": 5,
+			"group": 1,
 			"icon": "sap-icon://person-placeholder",
 			"attributes": [
 				{
@@ -26,7 +26,7 @@
 		},{
 			"key": 1,
 			"title": "Rosamund Elsner",
-			"group": 5,
+			"group": 1,
 			"icon": "sap-icon://person-placeholder",
 			"attributes": [
 				{
@@ -49,7 +49,7 @@
 		},{
 			"key": 2,
 			"title": "Jumana Gyulai",
-			"group": 6,
+			"group": 2,
 			"icon": "sap-icon://person-placeholder",
 			"attributes": [
 				{
@@ -93,7 +93,7 @@
 		},{
 			"key": 4,
 			"title": "Abuse",
-			"group": 2,
+			"group": 1,
 			"status": "Error",
 			"icon": "sap-icon://wounds-doc",
 			"attributes": [
@@ -114,7 +114,7 @@
 		},{
 			"key": 5,
 			"title": "Employment",
-			"group": 4,
+			"group": 1,
 			"status": "Warning",
 			"icon": "sap-icon://sys-help",
 			"attributes": [
@@ -135,7 +135,7 @@
 		},{
 			"key": 6,
 			"title": "Social Assessment",
-			"group": 5,
+			"group": 2,
 			"status": "Success",
 			"icon": "sap-icon://learning-assistant",
 			"attributes": [
@@ -177,7 +177,7 @@
 		},{
 			"key": 8,
 			"title": "Employment",
-			"group": 4,
+			"group": 2,
 			"status": "Success",
 			"icon": "sap-icon://my-sales-order",
 			"attributes": [
@@ -195,10 +195,11 @@
 					"value": "Abily reported gain of employment on 24 January resulting in a decreased status of risk."
 				}
 			]
+			]
 		},{
 			"key": 9,
 			"title": "Employment",
-			"group": 4,
+			"group": 3,
 			"status": "Success",
 			"icon": "sap-icon://my-sales-order",
 			"attributes": [
@@ -216,10 +217,11 @@
 					"value": "Abily reported gain of employment on 15 July resulting in an decreased status of risk."
 				}
 			]
+			]
 		},{
 			"key": 10,
 			"title": "Health",
-			"group": 1,
+			"group": 2,
 			"status": "Error",
 			"icon": "sap-icon://accidental-leave",
 			"attributes": [
@@ -240,8 +242,7 @@
 		},{
 			"key": 11,
 			"title": "Health",
-			"group": 1,
-			"status": "Warning",
+			"group": 3,
 			"icon": "sap-icon://accidental-leave",
 			"attributes": [
 				{
@@ -261,7 +262,7 @@
 		},{
 			"key": 12,
 			"title": "Alcohol crime",
-			"group": 2,
+			"group": 3,
 			"status": "Warning",
 			"icon": "sap-icon://badge",
 			"attributes": [
@@ -282,7 +283,7 @@
 		},{
 			"key": 13,
 			"title": "Şahin Kurita",
-			"group": 6,
+			"group": 2,
 			"icon": "sap-icon://person-placeholder",
 			"attributes": [
 				{
@@ -325,10 +326,13 @@
 		},{
 			"key": 15,
 			"title": "Abily Auerswald",
-			"group": 7,
+			"group": 2,
 			"icon": "sap-icon://person-placeholder",
 			"attributes": [
 				{
+					"label": "Release date",
+					"value": "August 1, 2014"
+				},{
 					"label": "className",
 					"value": "Person"
 				},{
@@ -347,7 +351,7 @@
 			"title": "Education",
 			"group": 3,
 			"status": "Warning",
-			"icon": "sap-icon://study-leave",
+			"icon": "sap-icon://tree",
 			"attributes": [
 				{
 					"label": "startDate",
@@ -406,10 +410,13 @@
 		},{
 			"key": 19,
 			"title": "Jasper Eskelinen",
-			"group": 5,
+			"group": 3,
 			"icon": "sap-icon://person-placeholder",
 			"attributes": [
 				{
+					"label": "Release date",
+					"value": "May 3, 2019"
+				},{
 					"label": "className",
 					"value": "Person"
 				},{
@@ -426,7 +433,7 @@
 		},{
 			"key": 20,
 			"title": "Health Emergency",
-			"group": 1,
+			"group": 3,
 			"status": "Error",
 			"icon": "sap-icon://accidental-leave",
 			"attributes": [
@@ -448,8 +455,7 @@
 			"key": 21,
 			"title": "Manchester, England",
 			"icon": "sap-icon://map",
-			"group": 8,
-			"status": "CustomLocation",
+			"group": 1,
 			"tooltip": "City",
 			"attributes": [
 				{
@@ -472,9 +478,8 @@
 		},{
 			"key": 22,
 			"title": "Etihad Campus",
-			"icon": "sap-icon://soccor",
-			"group": 8,
-			"status": "CustomLocation",
+			"icon": "sap-icon://map",
+			"group": 1,
 			"tooltip": "Etihad Campus",
 			"attributes": [
 				{
@@ -497,10 +502,8 @@
 		},{
 			"key": 23,
 			"title": "Old Trafford School",
-			"icon": "sap-icon://study-leave",
-			"status": "CustomLocation",
-			"group": 8,
-			
+			"icon": "sap-icon://map",
+			"group": 1,
 			"tooltip": "Old Trafford School",
 			"attributes": [
 				{
@@ -520,9 +523,8 @@
 		},{
 			"key": 24,
 			"title": "Royal Infirmary",
-			"icon": "sap-icon://accidental-leave",
-			"group": 8,
-			"status": "CustomLocation",
+			"icon": "sap-icon://map",
+			"group": 1,
 			"tooltip": "Royal Infirmary",
 			"attributes": [
 				{
@@ -542,9 +544,8 @@
 		},{
 			"key": 25,
 			"title": "Residence",
-			"icon": "sap-icon://home",
-			"group": 8,
-			"status": "CustomLocation",
+			"icon": "sap-icon://map",
+			"group": 1,
 			"tooltip": "Wilbraham Rd",
 			"attributes": [
 				{
@@ -607,13 +608,8 @@
 		{"from": 1, "to": 25, "description": "LivesAt"}
 	],
 	"groups": [
-		{"key": 1, "title": "Health"},
-		{"key": 2, "title": "Police"},
-		{"key": 3, "title": "Education"},
-		{"key": 5, "title": "Case 1"},
-		{"key": 6, "title": "Case 2"},
-		{"key": 7, "title": "Intersection"},
-		{"key": 8, "title": "Locations"},
-		{"key": 4, "title": "Employment"}
+		{"key": 1, "title": "Phase One"},
+		{"key": 2, "title": "Phase Two"},
+		{"key": 3, "title": "Phase Three"}
 	]
 }
