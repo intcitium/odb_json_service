@@ -245,6 +245,7 @@ class OSINT(ODB):
         results = requests.get(self.UCDP_Base_URL).json()
         data = results['Result']
         graph_build = {"nodes": [], "lines": [], "groups": []}
+        geo = []
         for row in data:
             # Get the sources who reported the event
             source_keys = []
@@ -350,6 +351,11 @@ class OSINT(ODB):
                 city=city,
                 country=row['country']
             )
+            geo.append({
+                "pos": "%f;%f;0" % (row['longitude'], row['latitude']),
+                "tooltip": city,
+                "type": "Error"
+            })
             graph_build['nodes'].append(location_node['data'])
             location = location_node['data']['key']
             # Wire up the Event to Location (OccurredAt)
@@ -381,7 +387,12 @@ class OSINT(ODB):
 
         message = {
             "graph": format_graph(graph_build),
-            "raw": data
+            "raw": data,
+            "geo": {
+                "Spots": {
+                    "items": geo
+                }
+            }
         }
         return message
 
