@@ -330,4 +330,40 @@ class ODB:
 
         return node_format
 
+    def quality_check(self, graph):
+        """
+        Create a chrono view and geo view from a graph
+        :param graph:
+        :return:
+        """
+
+        node_keys = []
+        group_keys = [{"key": "NoGroup", "title": "NoGroup" }]
+
+        if "groups" in graph.keys():
+            for g in graph['groups']:
+                group_keys.append({"key": g['key'], "title": g['title']})
+        else:
+            graph['groups'] = group_keys
+
+        if "nodes" in graph.keys() and "lines" in graph.keys():
+            for n in graph['nodes']:
+                node_keys.append(n['key'])
+                if "group" in n.keys():
+                    if {"key": n['group'], "title": n['group']} not in group_keys:
+                        graph['groups'].append({'key': n['group'], 'title': n['group']})
+                else:
+                    n['group'] = "NoGroup"
+            for l in graph['lines']:
+                if l['to'] not in node_keys:
+                    click.echo("Relationship TO with %s not found in nodes. Creating dummy node.")
+                    graph['nodes'].append(self.create_node(key=l['to'], class_name="Object"))
+                if l['from'] not in node_keys:
+                    click.echo("Relationship TO with %s not found in nodes. Creating dummy node.")
+                    graph['nodes'].append(self.create_node(key=l['from'], class_name="Object"))
+        else:
+            click.echo("Missing nodes or lines")
+            return None
+        return graph
+
 
