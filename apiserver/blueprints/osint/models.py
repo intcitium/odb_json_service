@@ -16,8 +16,10 @@ class OSINT(ODB):
         self.ICON_PERSON = "sap-icon://person-placeholder"
         self.ICON_OBJECT = "sap-icon://add-product"
         self.ICON_ORGANIZATION = "sap-icon://manager"
+        self.ICON_INFO_SOURCE = "sap-icon://newspaper"
         self.ICON_LOCATION = "sap-icon://map"
         self.ICON_EVENT = "sap-icon://date-time"
+        self.ICON_CONFLICT = "sap-icon://alert"
         self.ICON_CASE = "sap-icon://folder"
         self.ICON_STATUSES = ["Warning", "Error", "Success"]
         self.datapath = os.path.join(os.path.join(os.getcwd(), 'data'))
@@ -251,23 +253,25 @@ class OSINT(ODB):
             source_keys = []
             sources = list(set(row['source_office'].split(";")))
             for s in sources:
-                if s in self.DB['ucdp_org'].keys():
-                    source_keys.append(self.DB['ucdp_org']['key'])
-                else:
-                    source_node = self.create_node(
-                        class_name="Organization",
-                        Category="Information Source",
-                        Name=s,
-                        title="%s information source" % s,
-                        icon=self.ICON_ORGANIZATION
-                    )
-                    graph_build['nodes'].append(source_node['data'])
-                    source_keys.append(source_node['data']['key'])
+                if s != "":
+                    if s in self.DB['ucdp_org'].keys():
+                        source_keys.append(self.DB['ucdp_org']['key'])
+                    else:
+                        source_node = self.create_node(
+                            class_name="Organization",
+                            Category="Information Source",
+                            Name=s,
+                            title="%s information source" % s,
+                            icon=self.ICON_INFO_SOURCE
+                        )
+                        graph_build['nodes'].append(source_node['data'])
+                        source_keys.append(source_node['data']['key'])
             # Get the Event
             StartDate = change_if_date(row['date_start'])
             EndDate = change_if_date(row['date_end'])
             event_node = self.create_node(
                 class_name="Event",
+                icon=self.ICON_CONFLICT,
                 Category=self.ucdp_conflict_type(row),
                 UCDP_id=row['id'],
                 Description=("Headline: %s Article: %s" % (
@@ -300,7 +304,8 @@ class OSINT(ODB):
                     title="Organization %s" % row['side_a'],
                     UCDP_id=row['side_a_new_id'],
                     UCDP_old=row['side_a_dset_id'],
-                    Name=row['side_a']
+                    Name=row['side_a'],
+                    icon=self.ICON_ORGANIZATION
                 )
                 graph_build['nodes'].append(side_a_node['data'])
                 side_a_key = side_a_node['data']['key']
@@ -312,7 +317,8 @@ class OSINT(ODB):
                     title="Organization %s" % row['side_b'],
                     UCDP_id=row['side_b_new_id'],
                     UCDP_old=row['side_b_dset_id'],
-                    Name=row['side_b']
+                    Name=row['side_b'],
+                    icon=self.ICON_ORGANIZATION
                 )
                 graph_build['nodes'].append(side_b_node['data'])
                 side_b_key = side_b_node['data']['key']
@@ -349,7 +355,8 @@ class OSINT(ODB):
                 Latitude=row['latitude'],
                 Longitude=row['longitude'],
                 city=city,
-                country=row['country']
+                country=row['country'],
+                icon=self.ICON_LOCATION
             )
             geo.append({
                 "pos": "%f;%f;0" % (row['longitude'], row['latitude']),
