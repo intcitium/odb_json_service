@@ -6,6 +6,7 @@ osint = Blueprint('osint', __name__)
 osintserver = OSINT()
 osintserver.open_db()
 osintserver.check_base_book()
+osintserver.fill_db()
 
 
 @osint.route('/osint', methods=['GET'])

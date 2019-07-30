@@ -41,7 +41,9 @@ class OSINT(ODB):
                 "class": "V",
                 "Category": "string",
                 "Description": "string",
-                "Tags": "string"
+                "Tags": "string",
+                "icon": "string",
+                "title": "string",
             },
             "Organization": {
                 "key": "integer",
@@ -55,7 +57,9 @@ class OSINT(ODB):
                 "OtherNames": "string",
                 "UCDP_id": "string",
                 "ACLED_id": "string",
-                "Source": "string"
+                "Source": "string",
+                "icon": "string",
+                "title": "string",
             },
             "Profile": {
                 "key": "integer",
@@ -70,7 +74,9 @@ class OSINT(ODB):
                 "Posts": "integer",
                 "DateCreated": "datetime",
                 "url": "string",
-                "Source": "string"
+                "Source": "string",
+                "icon": "string",
+                "title": "string",
             },
             "Post": {
                 "key": "integer",
@@ -83,7 +89,9 @@ class OSINT(ODB):
                 "Likes": "integer",
                 "Author": "string",
                 "url": "string",
-                "Source": "string"
+                "Source": "string",
+                "icon": "string",
+                "title": "string",
             },
             "Location": {
                 "key": "integer",
@@ -97,7 +105,9 @@ class OSINT(ODB):
                 "pop": "integer",
                 "country": "string",
                 "iso3": "string",
-                "province": "string"
+                "province": "string",
+                "icon": "string",
+                "title": "string",
             },
             "Event": {
                 "key": "integer",
@@ -106,7 +116,15 @@ class OSINT(ODB):
                 "Description": "string",
                 "Tags": "string",
                 "StartDate": "datetime",
-                "EndDate": "datetime"
+                "EndDate": "datetime",
+                "icon": "string",
+                "title": "string",
+                "Sources": "string",
+                "Deaths": "string",
+                "Civilians": "string",
+                "Origin": "string",
+                "UCDP_id": "string",
+                "Source": "string"
             },
             "Case": {
                 "key": "string",
@@ -123,7 +141,9 @@ class OSINT(ODB):
                    'node_keys': [],
                    'group_index': [],
                    'ucdp_org': {},
-                   'ucdp_obj': {}}
+                   'ucdp_sources': {},
+                   'ucdp_events': {}
+                   }
         click.echo('[%s_SimServer_init] Complete' % (get_datetime()))
         self.ACLED_Base_URL = "https://api.acleddata.com/acled/read?terms=accept"
         self.UCDP_Page_Size = 50
@@ -150,11 +170,11 @@ class OSINT(ODB):
         Check if the Organizations have been set by UCDP
         :return:
         """
-        click.echo('[%s_SimServer_init] Checking base OSINT settings' % (get_datetime()))
+        click.echo('[%s_OSINTserver_check_base_book] Checking base OSINT settings' % (get_datetime()))
         r = self.client.command('select * from Organization where UCDP_id != "" limit 50')
         if len(r) == 0:
             if not self.basebook:
-                click.echo('[%s_SimServer_init] Initializing basebook UCDP codes' % (get_datetime()))
+                click.echo('[%s_OSINTserver_check_base_book] Initializing basebook UCDP codes' % (get_datetime()))
                 self.basebook = pd.ExcelFile(os.path.join(self.datapath, 'Base_Book.xlsx'))
                 UCDP = self.basebook.parse('UCDP')
                 a = c = 0
@@ -166,7 +186,9 @@ class OSINT(ODB):
                             UCDP_id=row['new_id'],
                             UCDP_old=row['old_id'],
                             Name=row['name'],
-                            Source="UCDP"
+                            Source="UCDP",
+                            Category="Political",
+                            icon=self.ICON_ORGANIZATION
                         )
                         a+=1
                     else:
@@ -178,34 +200,80 @@ class OSINT(ODB):
                             UCDP_id=row['new_id'],
                             UCDP_old=row['old_id'],
                             Name=row['name'],
-                            Source="UCDP"
+                            Source="UCDP",
+                            icon=self.ICON_CONFLICT
                         )
                         c+=1
 
-                click.echo('[%s_SimServer_init] Complete with UCDP setup including %s actors and %s conflicts'
+                click.echo('[%s_OSINTserver_check_base_book] Complete with UCDP setup including %s actors and %s conflicts'
                            % (get_datetime(), a, c))
 
     def fill_db(self):
 
-        r = self.client.command('select key, UCDP_id, Name from Organization where UCDP_id != "" ')
+        # Fill UCDP Organisations
+        r = self.client.command(
+            'select key, UCDP_id, title, Name, Source, icon from Organization where Category = "Politcal" '
+        )
         for i in r:
             self.DB['ucdp_org'][i.oRecordData['UCDP_id']] = {
-                "Name": i.oRecordData['Name'],
-                "key": i.oRecordData['key']
+                "title": i.oRecordData['title'],
+                "key": i.oRecordData['key'],
+                "class_name": "Organization",
+                "icon": i.oRecordData['icon'],
+                "attributes": [
+                    {"label": "Category", "value": i.oRecordData['Category']},
+                    {"label": "UCDP_id", "value": i.oRecordData['UCDP_id']},
+                    {"label": "Source", "value": i.oRecordData['Source']},
+                    {"label": "Name", "value": i.oRecordData['Name']}
+                ]
             }
-
-        r = self.client.command('select key, UCDP_id from Object where UCDP_id != "" ')
+        click.echo('[%s_OSINTserver_fill_db]  Complete with %d UCDP organizations'
+                   % (get_datetime(), len(self.DB['ucdp_org'])))
+        # Fill UCDP Information sources
+        r = self.client.command(
+            'select key, UCDP_id, title, Name, Source, icon from Organization where Category = "Information Source" '
+        )
         for i in r:
-            self.DB['ucdp_obj'][i.oRecordData['UCDP_id']] = {
-                "Name": i.oRecordData['Name'],
-                "key": i.oRecordData['key']
+            self.DB['ucdp_sources'][i.oRecordData['Name']] = {
+                "title": i.oRecordData['title'],
+                "key": i.oRecordData['key'],
+                "class_name": "Organization",
+                "icon": i.oRecordData['icon'],
+                "attributes": [
+                    {"label": "Category", "value": i.oRecordData['Category']},
+                    {"label": "UCDP_id", "value": i.oRecordData['UCDP_id']},
+                    {"label": "Source", "value": i.oRecordData['Source']},
+                    {"label": "Name", "value": i.oRecordData['Name']}
+                ]
             }
-        r = self.client.command('select key, UCDP_id, Category, Description, Sources, StartDate, EndDate, Deaths, Origin, Civilians from Event where UCDP_id != "" ')
+        click.echo('[%s_OSINTserver_fill_db]  Complete with %d UCDP information sources'
+                   % (get_datetime(), len(self.DB['ucdp_org'])))
+        # Fill UCDP Events
+        r = self.client.command(
+            ''' select key, UCDP_id, Category, icon, title, Description, Sources, StartDate, EndDate, Deaths, Origin,
+             Civilians, Source from Event where UCDP_id != ""
+             ''')
         for i in r:
-            self.DB['ucdp_obj'][i.oRecordData['UCDP_id']] = {
-                "Name": i.oRecordData['Name'],
-                "key": i.oRecordData['key']
+            self.DB['ucdp_events'][i.oRecordData['UCDP_id']] = {
+                "title": i.oRecordData['title'],
+                "key": i.oRecordData['key'],
+                "class_name": "Event",
+                "icon": i.oRecordData['icon'],
+                "attributes": [
+                    {"label": "Category", "value": i.oRecordData['Category']},
+                    {"label": "Description", "value": i.oRecordData['Description']},
+                    {"label": "Sources", "value": i.oRecordData['Sources']},
+                    {"label": "StartDate", "value": i.oRecordData['StartDate']},
+                    {"label": "EndDate", "value": i.oRecordData['EndDate']},
+                    {"label": "Deaths", "value": i.oRecordData['Deaths']},
+                    {"label": "Civilians", "value": i.oRecordData['Civilians']},
+                    {"label": "Origin", "value": i.oRecordData['Origin']},
+                    {"label": "UCDP_id", "value": i.oRecordData['UCDP_id']},
+                    {"label": "Source", "value": i.oRecordData['Source']},
+                ]
             }
+        click.echo('[%s_OSINTserver_fill_db]  Complete with %d UCDP events'
+                   % (get_datetime(), len(self.DB['ucdp_events'])))
 
     def get_acled(self):
         """
@@ -250,12 +318,15 @@ class OSINT(ODB):
         geo = []
         for row in data:
             # Get the sources who reported the event
-            source_keys = []
             sources = list(set(row['source_office'].split(";")))
+            sources.append(row['source_original'])
+            source_keys = []
             for s in sources:
                 if s != "":
-                    if s in self.DB['ucdp_org'].keys():
-                        source_keys.append(self.DB['ucdp_org']['key'])
+                    if s in self.DB['ucdp_sources'].keys():
+                        source_node = {"data" : self.DB['ucdp_sources'][s]}
+                        if self.DB['ucdp_org'][s] not in graph_build['nodes']:
+                            graph_build['nodes'].append(self.DB['ucdp_sources'][s])
                     else:
                         source_node = self.create_node(
                             class_name="Organization",
@@ -265,26 +336,35 @@ class OSINT(ODB):
                             icon=self.ICON_INFO_SOURCE
                         )
                         graph_build['nodes'].append(source_node['data'])
-                        source_keys.append(source_node['data']['key'])
+                source_keys.append(source_node['data']['key'])
             # Get the Event
-            StartDate = change_if_date(row['date_start'])
-            EndDate = change_if_date(row['date_end'])
-            event_node = self.create_node(
-                class_name="Event",
-                icon=self.ICON_CONFLICT,
-                Category=self.ucdp_conflict_type(row),
-                UCDP_id=row['id'],
-                Description=("Headline: %s Article: %s" % (
-                    row['source_headline'],
-                    row['source_article'])).replace("'", ""),
-                Sources=len(sources),
-                StartDate=StartDate,
-                EndDate=EndDate,
-                Deaths=row['best'],
-                Origin=clean(row['source_original']),
-                Civilans=row['deaths_civilians']
-            )
-            graph_build['nodes'].append(event_node['data'])
+            if row['id'] in self.DB['ucdp_events'].keys():
+                event_node = {"data" : self.DB['ucdp_events'][row['id']]}
+                if event_node['data'] not in graph_build['nodes']:
+                    graph_build['nodes'].append(event_node['data'])
+            else:
+                StartDate = change_if_date(row['date_start'])
+                EndDate = change_if_date(row['date_end'])
+                Category = self.ucdp_conflict_type(row)
+                event_node = self.create_node(
+                    class_name="Event",
+                    icon=self.ICON_CONFLICT,
+                    Category=Category,
+                    UCDP_id=row['id'],
+                    title="%s %s, %s" % (Category, row['country'], row['source_original']),
+                    Description=("Headline: %s Article: %s" % (
+                        row['source_headline'],
+                        row['source_article'])).replace("'", ""),
+                    Sources=len(sources),
+                    StartDate=StartDate,
+                    EndDate=EndDate,
+                    Deaths=row['best'],
+                    Origin=clean(row['source_original']),
+                    Civilians=row['deaths_civilians'],
+                    Source="UCDP"
+                )
+                graph_build['nodes'].append(event_node['data'])
+                self.DB['ucdp_events'][row['id']] = event_node['data']
             # Wire up the Sources as reporting on the Event
             for k in source_keys:
                 self.create_edge(
@@ -296,32 +376,44 @@ class OSINT(ODB):
                 )
                 graph_build['lines'].append({"from": k, "to": event_node['data']['key'], "title": "GeoSpatial"})
             # Get the 2 conflicting organizations
-            if row['side_a_new_id'] in self.DB.keys():
-                side_a_key = self.DB[row['side_a_new_id']]['key']
+            if row['side_a_new_id'] in self.DB['ucdp_org'].keys():
+                side_a_key = self.DB['ucdp_org'][row['side_a_new_id']]['key']
+                if self.DB[row['side_a_new_id']] not in graph_build['nodes']:
+                    graph_build['nodes'].append(self.DB[row['side_a_new_id']])
+
             else:
                 side_a_node = self.create_node(
                     class_name="Organization",
+                    Category="Political",
                     title="Organization %s" % row['side_a'],
                     UCDP_id=row['side_a_new_id'],
                     UCDP_old=row['side_a_dset_id'],
                     Name=row['side_a'],
-                    icon=self.ICON_ORGANIZATION
+                    icon=self.ICON_ORGANIZATION,
+                    Source="UCDP"
                 )
                 graph_build['nodes'].append(side_a_node['data'])
                 side_a_key = side_a_node['data']['key']
+                self.DB['ucdp_org'][row['side_a']] = side_a_node['data']
+
             if row['side_b_new_id'] in self.DB.keys():
                 side_b_key = self.DB[row['side_b_new_id']]['key']
+                if self.DB[row['side_b_new_id']] not in graph_build['nodes']:
+                    graph_build['nodes'].append(self.DB[row['side_b_new_id']])
             else:
                 side_b_node = self.create_node(
                     class_name="Organization",
                     title="Organization %s" % row['side_b'],
+                    Category="Political",
                     UCDP_id=row['side_b_new_id'],
                     UCDP_old=row['side_b_dset_id'],
                     Name=row['side_b'],
-                    icon=self.ICON_ORGANIZATION
+                    icon=self.ICON_ORGANIZATION,
+                    Source="UCDP"
                 )
                 graph_build['nodes'].append(side_b_node['data'])
                 side_b_key = side_b_node['data']['key']
+                self.DB['ucdp_org'][row['side_b']] = side_b_node['data']
             # Wire up the Organizations with the Event
             self.create_edge(
                 fromClass="Organization",
