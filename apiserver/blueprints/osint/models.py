@@ -154,7 +154,6 @@ class OSINT(ODB):
         self.base_twitter_url = "https://api.twitter.com/1.1/"
         self.default_number_of_tweets = 200
 
-
     @staticmethod
     def ucdp_conflict_type(row):
 
@@ -219,6 +218,7 @@ class OSINT(ODB):
                 "title": i.oRecordData['title'],
                 "key": i.oRecordData['key'],
                 "class_name": "Organization",
+                "group": "UCDP",
                 "icon": i.oRecordData['icon'],
                 "attributes": [
                     {"label": "Category", "value": i.oRecordData['Category']},
@@ -237,12 +237,11 @@ class OSINT(ODB):
             self.DB['ucdp_sources'][i.oRecordData['Name']] = {
                 "title": i.oRecordData['title'],
                 "key": i.oRecordData['key'],
+                "group": "UCDP",
                 "class_name": "Organization",
                 "icon": i.oRecordData['icon'],
                 "attributes": [
-                    {"label": "Category", "value": i.oRecordData['Category']},
-                    {"label": "UCDP_id", "value": i.oRecordData['UCDP_id']},
-                    {"label": "Source", "value": i.oRecordData['Source']},
+                    {"label": "Category", "value": "Information Source"},
                     {"label": "Name", "value": i.oRecordData['Name']}
                 ]
             }
@@ -258,6 +257,7 @@ class OSINT(ODB):
                 "title": i.oRecordData['title'],
                 "key": i.oRecordData['key'],
                 "class_name": "Event",
+                "group": "UCDP",
                 "icon": i.oRecordData['icon'],
                 "attributes": [
                     {"label": "Category", "value": i.oRecordData['Category']},
@@ -314,7 +314,7 @@ class OSINT(ODB):
         """
         results = requests.get(self.UCDP_Base_URL).json()
         data = results['Result']
-        graph_build = {"nodes": [], "lines": [], "groups": []}
+        graph_build = {"nodes": [], "lines": [], "groups": [{"key": "UCDP", "title": "UCDP"}]}
         geo = []
         for row in data:
             # Get the sources who reported the event
@@ -325,7 +325,7 @@ class OSINT(ODB):
                 if s != "":
                     if s in self.DB['ucdp_sources'].keys():
                         source_node = {"data" : self.DB['ucdp_sources'][s]}
-                        if self.DB['ucdp_org'][s] not in graph_build['nodes']:
+                        if self.DB['ucdp_sources'][s] not in graph_build['nodes']:
                             graph_build['nodes'].append(self.DB['ucdp_sources'][s])
                     else:
                         source_node = self.create_node(
@@ -333,7 +333,8 @@ class OSINT(ODB):
                             Category="Information Source",
                             Name=s,
                             title="%s information source" % s,
-                            icon=self.ICON_INFO_SOURCE
+                            icon=self.ICON_INFO_SOURCE,
+                            Source="UCDP"
                         )
                         graph_build['nodes'].append(source_node['data'])
                 source_keys.append(source_node['data']['key'])
