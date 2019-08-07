@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 from apiserver.blueprints.game.models import Game
 from apiserver.utils import get_request_payload
+import click
 
 game = Blueprint('game', __name__)
 gameserver = Game()
@@ -30,6 +31,8 @@ def create_player():
 @game.route('/game/setup_game', methods=['GET'])
 def setup_game():
     r = get_request_payload(request)
+    click.echo(r)
+    r = {"playerCount": 3}
 
     data = gameserver.setup_game(playerCount=int(r['playerCount']))
     return jsonify({
