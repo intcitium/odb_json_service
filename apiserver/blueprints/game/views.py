@@ -30,8 +30,11 @@ def create_player():
 
 @game.route('/game/setup_game', methods=['GET'])
 def setup_game():
-    r = get_request_payload(request)
-    click.echo(r)
+    click.echo(request)
+    try:
+        r = get_request_payload(request)
+    except Exception as e:
+        click.echo(e)
     r = {"playerCount": 3}
 
     data = gameserver.setup_game(playerCount=int(r['playerCount']))
