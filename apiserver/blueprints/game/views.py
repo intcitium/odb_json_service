@@ -1,10 +1,8 @@
 from flask import Blueprint, jsonify, request
 from apiserver.blueprints.game.models import Game
 from apiserver.utils import get_request_payload
-from flask_cors import CORS
 
 game = Blueprint('game', __name__)
-CORS(game)
 gameserver = Game()
 gameserver.open_db()
 
@@ -37,5 +35,6 @@ def setup_game():
     return jsonify({
         "status": 200,
         "message": "Game setup complete with %d players" % (int(r['playerCount'])),
-        "gameState": data
+        "gameState": data,
+        "ok": True
     })
