@@ -1,0 +1,1 @@
+from apiserver.blueprints.game.views import game
