@@ -1,8 +1,10 @@
 from flask import Blueprint, jsonify, request
 from apiserver.blueprints.game.models import Game
 from apiserver.utils import get_request_payload
+from flask_cors import CORS
 
 game = Blueprint('game', __name__)
+CORS(game)
 gameserver = Game()
 gameserver.open_db()
 
