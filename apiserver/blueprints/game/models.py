@@ -216,6 +216,32 @@ class Game(ODB):
             "resources": [],
             "scoreboard": []
         }
+        self.d3data = {
+            "nodes": [],
+            "links": []
+        }
+
+    def node_to_d3(self, **kwargs):
+        """
+        Expecting the node with attributes, flattens everything into a single level doc
+
+        :param kwargs:
+        :return:
+        """
+        d3 = {}
+        for k in kwargs:
+            if k != "attributes":
+                if k == "key":
+                    d3["id"] = kwargs['key']
+                else:
+                    d3[k] = kwargs[k]
+            else:
+                i = 0
+                for a in kwargs[k]:
+                    d3[a['label']] = a['value']
+                    i+=1
+
+        return d3
 
     def create_resource(self, **kwargs):
         """
@@ -242,6 +268,7 @@ class Game(ODB):
             speed=int(np.random.normal(loc=self.norm['mean'], scale=self.norm['stdev'])),
             xpos=xpos,
             ypos=ypos,
+            group=kwargs['homeNation'],
             zpos=int(np.random.normal(loc=self.norm['mean'], scale=self.norm['stdev'])),
             active=True
         )
@@ -280,6 +307,7 @@ class Game(ODB):
         :return:
         """
         # Choose the home nation for the player if not selected. Ensure it is not already chosen
+        playerd3 = {"nodes": [], "links": []}
         homeNation = "None"
         if 'homeNation' not in kwargs.keys():
             inCache = False
@@ -297,40 +325,53 @@ class Game(ODB):
             created=get_datetime(),
             name=kwargs['name'],
             score=0,
-            home=homeNation,
+            group=homeNation,
             icon="TBD",
             title=kwargs['name']
         )
-        player['resources'] = []
+        player = self.node_to_d3(**player['data'])
+        playerd3['nodes'].append(player)
 
         # Create the resources
         i = 0
         while i < 50:
             r = self.create_resource(homeNation=homeNation)
             self.create_edge(
-                fromNode=player['data']['key'],
+                fromNode=player['id'],
                 fromClass=sPlayer,
                 toNode=r['data']['key'],
                 toClass=sResource,
                 edgeType="Owns"
             )
-            player['resources'].append(r['data'])
+            r = self.node_to_d3(**r['data'])
+            playerd3['links'].append({
+                "source": player['id'],
+                "target": r['id'],
+                "value": random.randint(1,3)
+            })
+            playerd3['nodes'].append(r)
             i+=1
 
         i = 0
         while i < 25:
             r = self.create_resource(homeNation=random.choice(list(self.content['nations'].keys())))
             self.create_edge(
-                fromNode=player['data']['key'],
+                fromNode=player['id'],
                 fromClass=sPlayer,
                 toNode=r['data']['key'],
                 toClass=sResource,
                 edgeType="Owns"
             )
-            player['resources'].append(r['data'])
+            r = self.node_to_d3(**r['data'])
+            playerd3['links'].append({
+                "source": player['id'],
+                "target": r['id'],
+                "value": random.randint(1,3)
+            })
+            playerd3['nodes'].append(r)
             i+=1
 
-        return player
+        return playerd3
 
     def setup_game(self, **kwargs):
         """
