@@ -200,6 +200,9 @@ def get_request_payload(request):
     :return:
     """
     try:
+        click.echo(len(request.data), request.data)
+        click.echo(len(request.args), request.args)
+        click.echo(request.values)
         r = request.form.to_dict(flat=True)
         if len(r.keys()) == 0:
             # CAI sends POST as raw so need to get data
