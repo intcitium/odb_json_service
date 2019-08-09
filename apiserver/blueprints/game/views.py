@@ -36,8 +36,6 @@ def setup_game():
         click.echo("R %s" % r)
     except Exception as e:
         click.echo(e)
-        r = {"playerCount": 3}
-
 
     data = gameserver.setup_game(playerCount=int(r['playerCount']))
     return jsonify({
