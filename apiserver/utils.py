@@ -201,15 +201,17 @@ def get_request_payload(request):
     """
     try:
         click.echo("Request.data: %s %s" % (len(request.data), request.data))
-        click.echo("Request.args: %s %s" % (len(request.args), request.args))
-        click.echo("Request.values:%s" % (request.values))
-        r = request.form.to_dict(flat=True)
+        r = request.args.to_dict()
         if len(r.keys()) == 0:
-            # CAI sends POST as raw so need to get data
-            r = json.loads(request.data)
-            # React Axios stores data in "logs" key
-            if "logs" in r.keys():
-                r = r["logs"]
+            click.echo("Request.args: %s %s" % (len(request.args), request.args))
+            click.echo("Request.values:%s" % (request.values))
+            r = request.form.to_dict(flat=True)
+            if len(r.keys()) == 0:
+                # CAI sends POST as raw so need to get data
+                r = json.loads(request.data)
+                # React Axios stores data in "logs" key
+                if "logs" in r.keys():
+                    r = r["logs"]
     except:
         r = request
 
