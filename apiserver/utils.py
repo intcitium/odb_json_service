@@ -207,9 +207,9 @@ def get_request_payload(request):
         if len(r.keys()) == 0:
             # CAI sends POST as raw so need to get data
             r = json.loads(request.data)
-            # React Axios stores data in "form" key
-            if "form" in r.keys():
-                r = r["form"]
+            # React Axios stores data in "logs" key
+            if "logs" in r.keys():
+                r = r["logs"]
     except:
         r = request
 
