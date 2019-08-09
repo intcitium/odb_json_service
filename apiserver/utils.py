@@ -209,7 +209,8 @@ def get_request_payload(request):
             # CAI sends POST as raw so need to get data
             click.echo("No keys")
             r = json.loads(request.data)
-
+            if "form" in r.keys():
+                r = r["form"]
     except:
         click.echo(request.values)
         r = request
