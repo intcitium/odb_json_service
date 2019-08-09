@@ -298,6 +298,7 @@ class Game(ODB):
 
     def create_player(self, **kwargs):
         """
+        TODO create dungeon master type player: gets dashboard view with inject and arbitration monitoring
         Using the player name and home country create the player and assign resources
         player and resource data returned as:
          {'message', 'data' { 'key', 'title', 'status', 'attributes' [ {label, value}]}}
@@ -331,6 +332,8 @@ class Game(ODB):
         )
         player = self.node_to_d3(**player['data'])
         playerd3['nodes'].append(player)
+
+        # TODO Map MPICE objective(s) to country to drive actions that result in a win
 
         # Create the resources
         i = 0
