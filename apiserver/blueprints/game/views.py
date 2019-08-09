@@ -28,7 +28,8 @@ def create_player():
         "player": data
     })
 
-@game.route('/game/setup_game', methods=['GET'])
+
+@game.route('/game/setup_game', methods=['GET', 'POST'])
 def setup_game():
     try:
         r = get_request_payload(request)
