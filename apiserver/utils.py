@@ -204,6 +204,7 @@ def get_request_payload(request):
         click.echo("%s %s" % (len(request.args), request.args))
         click.echo("%s" % (request.values))
         r = request.form.to_dict(flat=True)
+        click.echo("RR %s %s" % (r, type(r)))
         if len(r.keys()) == 0:
             # CAI sends POST as raw so need to get data
             r = json.loads(request.data)
