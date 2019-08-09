@@ -200,19 +200,17 @@ def get_request_payload(request):
     :return:
     """
     try:
-        click.echo("%s %s" % (len(request.data), request.data))
-        click.echo("%s %s" % (len(request.args), request.args))
-        click.echo("%s" % (request.values))
+        click.echo("Request.data: %s %s" % (len(request.data), request.data))
+        click.echo("Request.args: %s %s" % (len(request.args), request.args))
+        click.echo("Request.values:%s" % (request.values))
         r = request.form.to_dict(flat=True)
-        click.echo("RR %s %s" % (r, type(r)))
         if len(r.keys()) == 0:
             # CAI sends POST as raw so need to get data
-            click.echo("No keys")
             r = json.loads(request.data)
+            # React Axios stores data in "form" key
             if "form" in r.keys():
                 r = r["form"]
     except:
-        click.echo(request.values)
         r = request
 
     return r
