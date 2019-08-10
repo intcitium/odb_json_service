@@ -430,4 +430,15 @@ class Game(ODB):
         game = self.create_node(class_name=sGame, name=kwargs["gameName"], created=get_datetime())
         return self.node_to_d3(**game['data'])
 
+    def get_game_names(self):
+        """
+        Get the game names and keys to return for a user select
+        :return:
+        """
+        names = []
+        for n in self.client.command("select name, key from Game"):
+            names.append({"id": n.oRecordData["key"], "name": n.oRecordData["name"]})
+
+        return names
+
 

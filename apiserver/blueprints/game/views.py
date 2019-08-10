@@ -10,10 +10,11 @@ gameserver.open_db()
 
 @game.route('/game', methods=['GET'])
 def index():
+    names = gameserver.get_game_names()
     return jsonify({
         "status": 200,
-        "message": '''Games Endpoint
-        '''
+        "message": '''Games Endpoint''',
+        "data": names
     })
 
 
