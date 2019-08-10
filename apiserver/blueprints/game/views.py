@@ -33,7 +33,6 @@ def create_player():
 def setup_game():
     try:
         r = get_request_payload(request)
-        click.echo("R %s" % r)
     except Exception as e:
         click.echo(e)
 

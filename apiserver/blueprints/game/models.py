@@ -57,8 +57,19 @@ class Game(ODB):
                 "description": "string",
                 "player": "string",
                 "class": "V"
+            },
+            sGame: {
+                "key": "integer",
+                "name": "string",
+                "created": "datetime",
+                "ended": "datetime",
+                "icon": "string",
+                "class": "V"
             }
         }
+        self.game_names_a = ["Lunar", "Solar", "Jupiter", "Neptune", "Mercury", "Venus", "Pluto", "Saturn", "Uranus"]
+        self.game_names_b = ["Blue", "Black", "Yellow", "Red", "Green", "Orange"]
+        self.game_names_c = list("ABDCEFGHIJKLMNOPQRSTUVWZYZ")
         self.content = {
             "resources": [
                 {"ascope": "Person", "crimefilled": "Cyber", "type": "Hacker", "category": "Whistleblower"},
@@ -374,6 +385,8 @@ class Game(ODB):
             playerd3['nodes'].append(r)
             i+=1
 
+        playerd3['stability'] = random.randint(-999, 999)
+
         return playerd3
 
     def setup_game(self, **kwargs):
@@ -384,11 +397,37 @@ class Game(ODB):
         :return:
         """
         gameState = {
-            'players': []
+            'gameName': "%s %s-%s%s" % (
+                random.choice(self.game_names_a), random.choice(self.game_names_b),
+                random.choice(self.game_names_c), random.randint(100, 999)),
+            'players': [],
+            'moves': [],
+            'stability': 0
         }
+        game = self.create_game(gameName=gameState['gameName'])
         i = 0
         while i < kwargs['playerCount']:
-            gameState['players'].append(self.create_player(name="Player%d" % (i+1)))
+            player = self.create_player(name="Player%d" % (i + 1))
+            self.create_edge(
+                fromNode=game['id'],
+                fromClass=sGame,
+                toNode=player['nodes'][0]['id'],
+                toClass=sPlayer,
+                edgeType="HasPlayer"
+            )
+            gameState['players'].append(player)
+            gameState['stability'] = gameState['stability'] + player['stability']
             i+=1
 
         return gameState
+
+    def create_game(self, **kwargs):
+        """
+        Create a node that represents the game so all resources and player nodes can be linked to it
+        :param kwargs:
+        :return:
+        """
+        game = self.create_node(class_name=sGame, name=kwargs["gameName"], created=get_datetime())
+        return self.node_to_d3(**game['data'])
+
+
