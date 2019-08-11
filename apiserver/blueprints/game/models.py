@@ -47,6 +47,7 @@ class Game(ODB):
                 "ypos": "float",
                 "zpos": "float",
                 "active": "boolean",
+                "player": "string"
             },
             sMove: {
                 "key": "integer",
@@ -281,7 +282,8 @@ class Game(ODB):
             ypos=ypos,
             group=kwargs['homeNation'],
             zpos=int(np.random.normal(loc=self.norm['mean'], scale=self.norm['stdev'])),
-            active=True
+            active=True,
+            player=kwargs['player']
         )
         return resource
 
@@ -342,6 +344,7 @@ class Game(ODB):
             title=kwargs['name']
         )
         player = self.node_to_d3(**player['data'])
+        playerd3['player'] = player
         playerd3['nodes'].append(player)
 
         # TODO Map MPICE objective(s) to country to drive actions that result in a win
@@ -349,7 +352,7 @@ class Game(ODB):
         # Create the resources
         i = 0
         while i < 50:
-            r = self.create_resource(homeNation=homeNation)
+            r = self.create_resource(homeNation=homeNation, player=kwargs['name'])
             self.create_edge(
                 fromNode=player['id'],
                 fromClass=sPlayer,
@@ -368,7 +371,8 @@ class Game(ODB):
 
         i = 0
         while i < 25:
-            r = self.create_resource(homeNation=random.choice(list(self.content['nations'].keys())))
+            r = self.create_resource(player=kwargs['name'],
+                                     homeNation=random.choice(list(self.content['nations'].keys())))
             self.create_edge(
                 fromNode=player['id'],
                 fromClass=sPlayer,
@@ -402,7 +406,9 @@ class Game(ODB):
                 random.choice(self.game_names_c), random.randint(100, 999)),
             'players': [],
             'moves': [],
-            'stability': 0
+            'stability': 0,
+            'nodes': [],
+            'links': []
         }
         game = self.create_game(gameName=gameState['gameName'])
         i = 0
@@ -415,8 +421,9 @@ class Game(ODB):
                 toClass=sPlayer,
                 edgeType="HasPlayer"
             )
-            gameState['players'].append(player)
-            gameState['stability'] = gameState['stability'] + player['stability']
+            gameState['players'].append(player['nodes'][0])
+            gameState['nodes'] = gameState['nodes'] + player['nodes']
+            gameState['links'] = gameState['links'] + player['links']
             i+=1
 
         return gameState
@@ -440,5 +447,73 @@ class Game(ODB):
             names.append({"id": n.oRecordData["key"], "name": n.oRecordData["name"]})
 
         return names
+
+    def get_game(self, **kwargs):
+        """
+        Get a game that was saved to the Database in the following structure:
+        Game -> Players -> Resources
+        and return the same format of a GameState as in the Game setup
+        TODO Get moves
+        :return:
+        """
+        gameState = {
+            "nodes": [],
+            "links": [],
+            "players": [],
+            "gameName": None,
+            "moves": [],
+            "stability": 0
+        }
+        sql = ('''
+        match {class: Game, as: g, where: (key = '%s')}.out(HasPlayer){class: V, as: p}.out(){class: V, as: r} 
+        return g.name, p.key, p.name, p.created, p.group, p.score, p.status, p.icon, 
+        r.key, r.name, r.ascope, r.crimefilled, r.type, r.category, r.created, r.description, r.player, 
+        r.icon, r.offence, r.defence, r.hitpoints, r.speed, r.xpos, r.ypos, r.zpos, r.group, r.active, r.deleted, r.value
+        ''' % kwargs['gameKey'])
+        for o in self.client.command(sql):
+            if not gameState['gameName']:
+                gameState['gameName'] = o.oRecordData['g_name']
+            Player = {
+                "id": o.oRecordData['p_key'],
+                "name": o.oRecordData['p_name'],
+                "icon": o.oRecordData['p_icon'],
+                "group": o.oRecordData['p_group'],
+                "score": o.oRecordData['p_score'],
+                "status": o.oRecordData['p_status']
+            }
+            if Player not in gameState['players']:
+                gameState['players'].append(Player)
+                gameState['nodes'].append(Player)
+            Resource = {
+                "id": o.oRecordData['r_key'],
+                "name": o.oRecordData['r_name'],
+                "ascope": o.oRecordData['r_ascope'],
+                "crimefilled": o.oRecordData['r_crimefilled'],
+                "type": o.oRecordData['r_type'],
+                "category": o.oRecordData['r_category'],
+                "created": o.oRecordData['r_created'],
+                "description": o.oRecordData['r_description'],
+                "icon": o.oRecordData['r_icon'],
+                "offence": o.oRecordData['r_offence'],
+                "defence": o.oRecordData['r_defence'],
+                "hitpoints": o.oRecordData['r_hitpoints'],
+                "speed": o.oRecordData['r_speed'],
+                "xpos": o.oRecordData['r_xpos'],
+                "ypos": o.oRecordData['r_ypos'],
+                "zpos": o.oRecordData['r_zpos'],
+                "group": o.oRecordData['r_group'],
+                "active": o.oRecordData['r_active'],
+                "deleted": o.oRecordData['r_deleted'],
+                "value": o.oRecordData['r_value'],
+                "player": o.oRecordData['r_player']
+            }
+            gameState['links'].append({
+                "source": Player['id'],
+                "target": Resource['id'],
+                "value": random.randint(1,3)
+            })
+
+        return gameState
+
 
 

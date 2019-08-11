@@ -44,3 +44,19 @@ def setup_game():
         "gameState": data,
         "ok": True
     })
+
+
+@game.route('/game/get_game', methods=['GET', 'POST'])
+def get_game():
+    try:
+        r = get_request_payload(request)
+    except Exception as e:
+        click.echo(e)
+
+    data = gameserver.get_game(gameKey=int(r['gameKey']))
+    return jsonify({
+        "status": 200,
+        "message": "Game %s loading complete" % (data['gameName']),
+        "gameState": data,
+        "ok": True
+    })
