@@ -507,6 +507,7 @@ class Game(ODB):
                 "value": o.oRecordData['r_value'],
                 "player": o.oRecordData['r_player']
             }
+            gameState['nodes'].append(Resource)
             gameState['links'].append({
                 "source": Player['id'],
                 "target": Resource['id'],
