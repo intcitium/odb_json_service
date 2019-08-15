@@ -202,6 +202,7 @@ def get_request_payload(request):
     try:
         click.echo("Request.data: %s %s" % (len(request.data), request.data))
         r = request.args.to_dict()
+        click.echo("Dict: %s" % r)
         if len(r.keys()) == 0:
             click.echo("Request.args: %s %s" % (len(request.args), request.args))
             click.echo("Request.values:%s" % (request.values))
