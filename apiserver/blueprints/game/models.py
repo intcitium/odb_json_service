@@ -355,6 +355,7 @@ class Game(ODB):
             'links': []
         }
         game = self.create_game(gameName=gameState['gameName'])
+        gameState['gameKey'] = game['id']
         i = 0
         while i < kwargs['playerCount']:
             player = self.create_player(name="Player%d" % (i + 1))
@@ -505,6 +506,7 @@ class Game(ODB):
 
         return effect
 
+
     def get_game(self, **kwargs):
         """
         Get a game that was saved to the Database in the following structure:
@@ -576,6 +578,7 @@ class Game(ODB):
                     "goal": o.oRecordData['r_goal'],
                 }
             self.gameState['nodes'].append(Node)
+            self.gameState['key'] = kwargs['gameKey']
             self.gameState['links'].append({
                 "source": Player['id'],
                 "target": Node['id'],
