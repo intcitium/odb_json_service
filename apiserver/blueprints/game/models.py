@@ -432,7 +432,7 @@ class Game(ODB):
         # Get the latest values for all game pieces involved
         self.get_game(gameKey=kwargs['gameKey'])
         # Assign to a Move dictionary
-        effect = self.get_node(kwargs['effectKey'])
+        effect = self.get_node(kwargs['effectKeys'][0])
         move = {
             'resources' : [],
             'targets': [],

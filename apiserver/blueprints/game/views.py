@@ -2,7 +2,6 @@ from flask import Blueprint, jsonify, request
 from apiserver.blueprints.game.models import Game
 from apiserver.utils import get_request_payload
 import click
-import ast
 
 game = Blueprint('game', __name__)
 gameserver = Game()
@@ -70,9 +69,9 @@ def create_move():
     except Exception as e:
         click.echo(e)
     data = gameserver.create_move(
-        resourceKeys=[n for n in ast.literal_eval(r['resourceKeys'])],
-        targetKeys=[n for n in ast.literal_eval(r['targetKeys'])],
-        effectKey=r['effectKey'],
+        resourceKeys=r['resourceKeys'],
+        targetKeys=r['targetKeys'],
+        effectKeys=r['effectKeys'],
         gameKey=r['gameKey'],
         playerKey=r['playerKey']
     )
