@@ -1,13 +1,18 @@
 import os
 import random
+import click
 import numpy as np
 from apiserver.blueprints.home.models import ODB
-from apiserver.utils import get_datetime
+from apiserver.utils import get_datetime, change_if_number
+from apiserver.blueprints.game.content import content
 
 sPlayer = "Player"
 sResource = "Resource"
 sGame = "Game"
 sMove = "Move"
+sEffect = "Effect"
+#TODO UserType to determine if regular player or master for view options in UX
+#TODO color, fontColor, size (200), symbolType (circle, cross, diamond, square, star, triangle, wye)
 
 
 class Game(ODB):
@@ -17,6 +22,26 @@ class Game(ODB):
         self.db_name = db_name
         self.norm = {'mean': 50, 'stdev': 18}
         self.datapath = os.path.join(os.path.join(os.getcwd(), 'data'))
+        self.no_update = ['id', 'key', 'class_name', 'color', 'created', 'deleted', 'icon', 'offence', 'defence']
+        self.styling = {
+            "Area": "square",
+            "Structure": "cross",
+            "Capability": "circle",
+            "Organisation": "diamond",
+            "Person": "star",
+            "Event": "triangle",
+            "Cyber": "#f50505",
+            "Research": "#ff1241",
+            "Information": "#47102f",
+            "Military": "#214710",
+            "Economic": "#097015",
+            "Financial": "#35ff08",
+            "Intelligence": "#02041f",
+            "Legal": "#0894ff",
+            "Law Enforcement": "#140dff",
+            "Environment": "#fff30f",
+            "Diplomatic": "#ffa008"
+        }
         self.models = {
             sPlayer: {
                 "key": "integer",
@@ -24,7 +49,8 @@ class Game(ODB):
                 "name": "string",
                 "score": "string",
                 "resources": "string",
-                "class": "V"
+                "class": "V",
+                "category": "string"
             },
             sResource: {
                 "key": "integer",
@@ -47,7 +73,10 @@ class Game(ODB):
                 "ypos": "float",
                 "zpos": "float",
                 "active": "boolean",
-                "player": "string"
+                "player": "string",
+                "color": "string",
+                "fontColor": "string",
+                "symbolType": "string"
             },
             sMove: {
                 "key": "integer",
@@ -66,161 +95,28 @@ class Game(ODB):
                 "ended": "datetime",
                 "icon": "string",
                 "class": "V"
+            },
+            sEffect: {
+                "key": "integer",
+                "name": "string",
+                "player": "string",
+                "class": "V",
+                "measure": "string",
+                "indicator": "string",
+                "objective": "string",
+                "phase": "string",
+                "strat": "string",
+                "value": "integer",
+                "goal": "integer"
             }
         }
         self.game_names_a = ["Lunar", "Solar", "Jupiter", "Neptune", "Mercury", "Venus", "Pluto", "Saturn", "Uranus"]
         self.game_names_b = ["Blue", "Black", "Yellow", "Red", "Green", "Orange"]
         self.game_names_c = list("ABDCEFGHIJKLMNOPQRSTUVWZYZ")
         self.content = {
-            "resources": [
-                {"ascope": "Person", "crimefilled": "Cyber", "type": "Hacker", "category": "Whistleblower"},
-                {"ascope": "Area", "crimefilled": "Cyber", "type": "Network", "category": "Website"},
-                {"ascope": "Area", "crimefilled": "Cyber", "type": "Network", "category": "WAN"},
-                {"ascope": "Organisation", "crimefilled": "Research", "type": "Government", "category": "University"},
-                {"ascope": "Person", "crimefilled": "Research", "type": "Educator", "category": "University"},
-                {"ascope": "Person", "crimefilled": "Research", "type": "Administrator", "category": "University"},
-                {"ascope": "Capability", "crimefilled": "Diplomatic", "type": "Treaty", "category": "Travel"},
-                {"ascope": "Capability", "crimefilled": "Diplomatic", "type": "Treaty", "category": "Trade"},
-                {"ascope": "Area", "crimefilled": "Environment", "type": "Zone", "category": "Tourist"},
-                {"ascope": "Area", "crimefilled": "Information", "type": "Network", "category": "Television"},
-                {"ascope": "Capability", "crimefilled": "Diplomatic", "type": "Treaty", "category": "Technology"},
-                {"ascope": "Organisation", "crimefilled": "Research", "type": "International",
-                 "category": "Technology"},
-                {"ascope": "Event", "crimefilled": "Research", "type": "Discovery", "category": "Technology"},
-                {"ascope": "Area", "crimefilled": "Research", "type": "Field", "category": "Technology"},
-                {"ascope": "Capability", "crimefilled": "Diplomatic", "type": "Treaty", "category": "Strategic"},
-                {"ascope": "Person", "crimefilled": "Diplomatic", "type": "Ambassador", "category": "State"},
-                {"ascope": "Person", "crimefilled": "Legal", "type": "Judge", "category": "State"},
-                {"ascope": "Event", "crimefilled": "Research", "type": "Discovery", "category": "Space"},
-                {"ascope": "Organisation", "crimefilled": "Research", "type": "International", "category": "Space"},
-                {"ascope": "Organisation", "crimefilled": "Diplomatic", "type": "Political", "category": "Socialist"},
-                {"ascope": "Person", "crimefilled": "Information", "type": "Maven", "category": "Social media"},
-                {"ascope": "Area", "crimefilled": "Economic", "type": "Zone", "category": "Shared trade"},
-                {"ascope": "Event", "crimefilled": "Diplomatic", "type": "Message",
-                 "category": "Sensational (Curiosity)"},
-                {"ascope": "Person", "crimefilled": "Cyber", "type": "Hacker", "category": "Script Kiddie"},
-                {"ascope": "Person", "crimefilled": "Economic", "type": "Director", "category": "Reserve"},
-                {"ascope": "Organisation", "crimefilled": "Diplomatic", "type": "Political", "category": "Republican"},
-                {"ascope": "Organisation", "crimefilled": "Diplomatic", "type": "Humanitarian", "category": "Relief"},
-                {"ascope": "Area", "crimefilled": "Law Enforcement", "type": "Jurisdiction", "category": "Regional"},
-                {"ascope": "Person", "crimefilled": "Environment", "type": "Activist", "category": "Rebel"},
-                {"ascope": "Area", "crimefilled": "Information", "type": "Network", "category": "Radio"},
-                {"ascope": "Person", "crimefilled": "Cyber", "type": "Administrator", "category": "Public Sector"},
-                {"ascope": "Person", "crimefilled": "Cyber", "type": "Developer", "category": "Public Sector"},
-                {"ascope": "Person", "crimefilled": "Research", "type": "Administrator", "category": "Public School"},
-                {"ascope": "Person", "crimefilled": "Research", "type": "Educator", "category": "Public School"},
-                {"ascope": "Area", "crimefilled": "Financial", "type": "Market", "category": "Public"},
-                {"ascope": "Area", "crimefilled": "Environment", "type": "Zone", "category": "Protected"},
-                {"ascope": "Area", "crimefilled": "Legal", "type": "Zone", "category": "Protected"},
-                {"ascope": "Person", "crimefilled": "Legal", "type": "Lawyer", "category": "Prosecutor"},
-                {"ascope": "Person", "crimefilled": "Research", "type": "Administrator", "category": "Private School"},
-                {"ascope": "Person", "crimefilled": "Research", "type": "Educator", "category": "Private School"},
-                {"ascope": "Person", "crimefilled": "Cyber", "type": "Administrator", "category": "Private"},
-                {"ascope": "Person", "crimefilled": "Cyber", "type": "Developer", "category": "Private"},
-                {"ascope": "Area", "crimefilled": "Financial", "type": "Market", "category": "Private"},
-                {"ascope": "Area", "crimefilled": "Information", "type": "Network", "category": "Print Distribution"},
-                {"ascope": "Structure", "crimefilled": "Diplomatic", "type": "Building",
-                 "category": "Political Headquarters"},
-                {"ascope": "Person", "crimefilled": "Environment", "type": "Activist", "category": "Policy maker"},
-                {"ascope": "Organisation", "crimefilled": "Research", "type": "International", "category": "Physics"},
-                {"ascope": "Event", "crimefilled": "Research", "type": "Discovery", "category": "Physics"},
-                {"ascope": "Area", "crimefilled": "Research", "type": "Field", "category": "Physics"},
-                {"ascope": "Person", "crimefilled": "Law Enforcement", "type": "Police", "category": "Patrol"},
-                {"ascope": "Person", "crimefilled": "Environment", "type": "Activist", "category": "Organizer"},
-                {"ascope": "Structure", "crimefilled": "Intelligence", "type": "Network", "category": "Operations"},
-                {"ascope": "Person", "crimefilled": "Intelligence", "type": "Operator", "category": "Official"},
-                {"ascope": "Person", "crimefilled": "Research", "type": "Scientist", "category": "Nuclear"},
-                {"ascope": "Organisation", "crimefilled": "Intelligence", "type": "National",
-                 "category": "Non-Official"},
-                {"ascope": "Person", "crimefilled": "Information", "type": "Maven", "category": "News"},
-                {"ascope": "Area", "crimefilled": "Military", "type": "Base", "category": "Navy"},
-                {"ascope": "Person", "crimefilled": "Diplomatic", "type": "Ambassador", "category": "National"},
-                {"ascope": "Person", "crimefilled": "Legal", "type": "Judge", "category": "National"},
-                {"ascope": "Organisation", "crimefilled": "Research", "type": "International", "category": "Medicine"},
-                {"ascope": "Area", "crimefilled": "Research", "type": "Field", "category": "Medical"},
-                {"ascope": "Organisation", "crimefilled": "Diplomatic", "type": "Humanitarian", "category": "Medical"},
-                {"ascope": "Event", "crimefilled": "Research", "type": "Discovery", "category": "Medical"},
-                {"ascope": "Structure", "crimefilled": "Intelligence", "type": "Network", "category": "Logistics"},
-                {"ascope": "Area", "crimefilled": "Law Enforcement", "type": "Jurisdiction", "category": "Local"},
-                {"ascope": "Person", "crimefilled": "Legal", "type": "Judge", "category": "Local"},
-                {"ascope": "Person", "crimefilled": "Legal", "type": "Lawyer", "category": "Litigation"},
-                {"ascope": "Person", "crimefilled": "Military", "type": "Officer", "category": "Lieutenant"},
-                {"ascope": "Organisation", "crimefilled": "Diplomatic", "type": "Political", "category": "Libertarian"},
-                {"ascope": "Area", "crimefilled": "Cyber", "type": "Network", "category": "LAN"},
-                {"ascope": "Person", "crimefilled": "Financial", "type": "Director",
-                 "category": "Investment Management"},
-                {"ascope": "Event", "crimefilled": "Diplomatic", "type": "Message", "category": "Inspirational (Hope)"},
-                {"ascope": "Person", "crimefilled": "Diplomatic", "type": "Ambassador", "category": "Industry"},
-                {"ascope": "Organisation", "crimefilled": "Intelligence", "type": "National", "category": "Industrial"},
-                {"ascope": "Person", "crimefilled": "Cyber", "type": "Hacker", "category": "Hacktivist"},
-                {"ascope": "Person", "crimefilled": "Cyber", "type": "Hacker", "category": "Green Hat"},
-                {"ascope": "Person", "crimefilled": "Military", "type": "Officer", "category": "General"},
-                {"ascope": "Area", "crimefilled": "Financial", "type": "Market", "category": "Futures"},
-                {"ascope": "Person", "crimefilled": "Environment", "type": "Activist", "category": "Fund raising"},
-                {"ascope": "Person", "crimefilled": "Law Enforcement", "type": "Police", "category": "Forensics"},
-                {"ascope": "Organisation", "crimefilled": "Intelligence", "type": "National", "category": "Foreign"},
-                {"ascope": "Event", "crimefilled": "Diplomatic", "type": "Message", "category": "Factual"},
-                {"ascope": "Area", "crimefilled": "Economic", "type": "Zone", "category": "Exclusive trade"},
-                {"ascope": "Organisation", "crimefilled": "Diplomatic", "type": "Humanitarian",
-                 "category": "Equal Rights"},
-                {"ascope": "Organisation", "crimefilled": "Research", "type": "International",
-                 "category": "Environment"},
-                {"ascope": "Event", "crimefilled": "Research", "type": "Discovery", "category": "Environment"},
-                {"ascope": "Area", "crimefilled": "Research", "type": "Field", "category": "Environment"},
-                {"ascope": "Person", "crimefilled": "Information", "type": "Maven", "category": "Entertainment"},
-                {"ascope": "Area", "crimefilled": "Environment", "type": "Zone", "category": "Endangered"},
-                {"ascope": "Structure", "crimefilled": "Diplomatic", "type": "Building", "category": "Embassy"},
-                {"ascope": "Person", "crimefilled": "Cyber", "type": "Hacker", "category": "Electromagnetic"},
-                {"ascope": "Person", "crimefilled": "Research", "type": "Scientist", "category": "Electromagnetic"},
-                {"ascope": "Event", "crimefilled": "Diplomatic", "type": "Message", "category": "Dreadful (Fear)"},
-                {"ascope": "Organisation", "crimefilled": "Intelligence", "type": "National", "category": "Domestic"},
-                {"ascope": "Area", "crimefilled": "Information", "type": "Network",
-                 "category": "Digitial Distribution"},
-                {"ascope": "Person", "crimefilled": "Law Enforcement", "type": "Police", "category": "Detective"},
-                {"ascope": "Organisation", "crimefilled": "Diplomatic", "type": "Political", "category": "Democrat"},
-                {"ascope": "Person", "crimefilled": "Legal", "type": "Lawyer", "category": "Defence"},
-                {"ascope": "Area", "crimefilled": "Cyber", "type": "Network", "category": "Deepnet"},
-                {"ascope": "Area", "crimefilled": "Cyber", "type": "Network", "category": "Darknet"},
-                {"ascope": "Person", "crimefilled": "Cyber", "type": "Hacker", "category": "Cyber"},
-                {"ascope": "Person", "crimefilled": "Research", "type": "Scientist", "category": "Cyber"},
-                {"ascope": "Area", "crimefilled": "Intelligence", "type": "Region", "category": "Culture"},
-                {"ascope": "Area", "crimefilled": "Diplomatic", "type": "Zone", "category": "Cultural"},
-                {"ascope": "Area", "crimefilled": "Financial", "type": "Market", "category": "Commodities"},
-                {"ascope": "Person", "crimefilled": "Cyber", "type": "Administrator", "category": "Commercial"},
-                {"ascope": "Person", "crimefilled": "Cyber", "type": "Developer", "category": "Commercial"},
-                {"ascope": "Person", "crimefilled": "Economic", "type": "Director", "category": "Commerce"},
-                {"ascope": "Person", "crimefilled": "Military", "type": "Officer", "category": "Colonel"},
-                {"ascope": "Person", "crimefilled": "Environment", "type": "Activist", "category": "Citizen"},
-                {"ascope": "Person", "crimefilled": "Military", "type": "Officer", "category": "Chief of Staff"},
-                {"ascope": "Person", "crimefilled": "Law Enforcement", "type": "Police", "category": "Chief"},
-                {"ascope": "Person", "crimefilled": "Cyber", "type": "Hacker", "category": "Chemical"},
-                {"ascope": "Person", "crimefilled": "Research", "type": "Scientist", "category": "Chemical"},
-                {"ascope": "Person", "crimefilled": "Military", "type": "Officer", "category": "Captain"},
-                {"ascope": "Area", "crimefilled": "Diplomatic", "type": "Zone", "category": "Border"},
-                {"ascope": "Person", "crimefilled": "Cyber", "type": "Hacker", "category": "Biological"},
-                {"ascope": "Person", "crimefilled": "Research", "type": "Scientist", "category": "Biological"},
-                {"ascope": "Organisation", "crimefilled": "Law Enforcement", "type": "Professional",
-                 "category": "Benefits Association"},
-                {"ascope": "Person", "crimefilled": "Cyber", "type": "Hacker", "category": "Behavioral"},
-                {"ascope": "Person", "crimefilled": "Research", "type": "Scientist", "category": "Behavioral"},
-                {"ascope": "Person", "crimefilled": "Financial", "type": "Director", "category": "Bank"},
-                {"ascope": "Area", "crimefilled": "Military", "type": "Base", "category": "Army"},
-                {"ascope": "Area", "crimefilled": "Legal", "type": "Zone", "category": "Annex"},
-                {"ascope": "Area", "crimefilled": "Military", "type": "Base", "category": "Air Force"},
-                {"ascope": "Organisation", "crimefilled": "Environment", "type": "Protection", "category": "Activism"},
-            ],
-            "nations": {
-                "Heyanh Do": {"nwx": 0, "nwy": 0, "nex": 5, "ney": 0, "swx": 0, "swy": 6, "sex": 5, "sey": 6},
-                "Van Hua": {"nwx": 5, "nwy": 0, "nex": 11, "ney": 0, "swx": 5, "swy": 6, "sex": 11, "sey": 6},
-                "Mazhenda": {"nwx": 11, "nwy": 0, "nex": 14, "ney": 0, "swx": 11, "swy": 18, "sex": 14, "sey": 18},
-                "Nava Omrodiye": {"nwx": 14, "nwy": 0, "nex": 18, "ney": 0, "swx": 14, "swy": 21, "sex": 18, "sey": 21},
-                "Narednalen": {"nwx": 18, "nwy": 0, "nex": 21, "ney": 0, "swx": 18, "swy": 8, "sex": 21, "sey": 8},
-                "Bleszec": {"nwx": 18, "nwy": 8, "nex": 21, "ney": 8, "swx": 18, "swy": 21, "sex": 21, "sey": 21},
-                "Sintao": {"nwx": 0, "nwy": 18, "nex": 14, "ney": 18, "swx": 0, "swy": 21, "sex":14, "sey": 21},
-                "Dospazha": {"nwx": 3, "nwy": 12, "nex": 11, "ney": 12, "swx": 3, "swy": 18, "sex": 11, "sey": 18},
-                "Elonia": {"nwx": 3, "nwy": 6, "nex": 11, "ney": 6, "swx": 3, "swy": 11, "sex": 11, "sey": 11},
-                "Vanainen": {"nwx": 0, "nwy": 6, "nex": 3, "ney": 6, "swx": 0, "swy": 18, "sex": 3, "sey": 18}
-            }
+            "mpice": content['mpice'],
+            "resources": content['resources'],
+            "nations": content['nations']
         }
         self.cache = {
             "nations": [],
@@ -231,6 +127,14 @@ class Game(ODB):
         self.d3data = {
             "nodes": [],
             "links": []
+        }
+        self.gameState = {
+            "nodes": [],
+            "links": [],
+            "players": [],
+            "gameName": None,
+            "moves": [],
+            "stability": 0
         }
 
     def node_to_d3(self, **kwargs):
@@ -258,11 +162,14 @@ class Game(ODB):
     def create_resource(self, **kwargs):
         """
         Create a random resource or based on specifics in the kwargs
+        Assign colors based on CRIMEFILLED and symbolTypes as ASCOPE
         :param self:
         :param kwargs:
         :return:
         """
         r = random.choice(self.content['resources'])
+        # color, fontColor, size (200), symbolType (circle, cross, diamond, square, star, triangle, wye)
+
         xpos, ypos = self.get_nation_based_location(nation=kwargs['homeNation'])
         resource = self.create_node(
             class_name=sResource,
@@ -283,9 +190,28 @@ class Game(ODB):
             group=kwargs['homeNation'],
             zpos=int(np.random.normal(loc=self.norm['mean'], scale=self.norm['stdev'])),
             active=True,
-            player=kwargs['player']
+            player=kwargs['player'],
+            color=self.styling[r['crimefilled']],
+            symbolType=self.styling[r['ascope']],
+            value=int(np.random.normal(loc=self.norm['mean'], scale=self.norm['stdev']))
         )
         return resource
+
+    def create_effect(self, **kwargs):
+        e = random.choice(self.content['mpice'])
+        effect = self.create_node(
+            class_name=sEffect,
+            name="%s %s" % (e['Measure'], kwargs['player']),
+            objective=e['Objective'],
+            phase=e['Phase'],
+            value=random.randint(-100, 100),
+            goal=random.randint(-100, 100),
+            strat=e['Strategy'],
+            indicator=e['Indicator'],
+            measure=e['Measure'],
+            player=kwargs['player']
+        )
+        return effect
 
     def get_nation_based_location(self, **kwargs):
         posx = 0.0
@@ -312,7 +238,7 @@ class Game(ODB):
     def create_player(self, **kwargs):
         """
         TODO create dungeon master type player: gets dashboard view with inject and arbitration monitoring
-        Using the player name and home country create the player and assign resources
+        Using the player name and home country create the player and assign resources and priority MPICE effects
         player and resource data returned as:
          {'message', 'data' { 'key', 'title', 'status', 'attributes' [ {label, value}]}}
         xpos and ypos dependent on the Nation area. Also gives the player access to randomized foreign resources
@@ -347,7 +273,25 @@ class Game(ODB):
         playerd3['player'] = player
         playerd3['nodes'].append(player)
 
-        # TODO Map MPICE objective(s) to country to drive actions that result in a win
+        # Assign MPICE priorities
+        i = 0
+        while i < 10:
+            e = self.create_effect(player=kwargs['name'])
+            self.create_edge(
+                fromNode=player['id'],
+                fromClass=sPlayer,
+                toNode=e['data']['key'],
+                toClass=sEffect,
+                edgeType="Owns"
+            )
+            e = self.node_to_d3(**e['data'])
+            playerd3['links'].append({
+                "source": player['id'],
+                "target": e['id'],
+                "value": random.randint(1,3)
+            })
+            playerd3['nodes'].append(e)
+            i+=1
 
         # Create the resources
         i = 0
@@ -448,6 +392,119 @@ class Game(ODB):
 
         return names
 
+    def get_node(self, node_id):
+        for n in self.gameState['nodes']:
+            if n['id'] == int(node_id):
+                return n
+
+    def update_node(self, **kwargs):
+        """
+        Update a game node with attributes
+        :param kwargs:
+        :return:
+        """
+        sql = "update %s set " % (kwargs['class_name'])
+        for k in kwargs:
+            if k not in self.no_update:
+                if change_if_number(kwargs[k]):
+                    sql = sql + "%s = %s, " % (k, kwargs[k])
+                else:
+                    sql = sql + "%s = '%s', " % (k, kwargs[k])
+        sql = sql[:len(sql)-2] + " where key = %s" % kwargs['id']# remove last comma and put filter
+        click.echo("[%s_game_update_node]: Running sql\n%s" % (get_datetime(), sql))
+        self.client.command(sql)
+
+    def create_move(self, **kwargs):
+        """
+        Get the current game state, create a move that uses the resources, targets, and effects
+        The move elements' attributes are collected and then the arbitration engine results in
+        updated element attributes including a new stability score and other effects
+        Move Rules:
+        1) Align domains to library similar to CookBook or Rock/Paper/Scissors (Multipliers of offense?)
+        2) Use Offense Defense attributes
+        3) Update the Database with results
+        4) Re-get the game
+
+        :param kwargs:
+        :return:
+        """
+        # Get the latest values for all game pieces involved
+        self.get_game(gameKey=kwargs['gameKey'])
+        # Assign to a Move dictionary
+        effect = self.get_node(kwargs['effectKey'])
+        move = {
+            'resources' : [],
+            'targets': [],
+            'totalOffence': 0,
+            'totalDefence': 0,
+            'effect': effect,
+            'result': "Move Effect:\nValue: %s Goal: %s" % (effect['value'], effect['goal'])
+        }
+        move['result'] = move['result'] + "\nResources:"
+        for r in kwargs['resourceKeys']:
+            r = self.get_node(r)
+            move['resources'].append(r)
+            move['totalOffence'] = move['totalOffence'] + r['offence']
+            move['result'] = move['result'] +"\n%s: %s " % (r['name'], r['hitpoints'])
+        move['result'] = move['result'] + "\nMove Targets"
+        for r in kwargs['targetKeys']:
+            r = self.get_node(r)
+            if r['class_name'] == sResource:
+                move['totalDefence'] = move['totalDefence'] + r['defence']
+                move['targets'].append(r)
+                move['result'] = move['result'] + "\n%s: %s " % (r['name'], r['hitpoints'])
+            # Else it's an effect and can be related to this effect?
+
+        # TODO update effect to move towards goal
+        if move['totalOffence'] > move['totalDefence']:
+            move['result'] = move['result'] + "\nOffence wins:"
+            for r in move['targets']:
+                r['hitpoints'] = r['hitpoints'] - random.randint(0, move['totalOffence']/len(move['resources']))
+                if r['hitpoints'] < 0:
+                    r['active'] = False
+                move['result'] = move['result'] + "\n%s: %s " % (r['name'], r['hitpoints'])
+                # Update the node
+                self.update_node(**r)
+            move['effect'] = self.apply_effect(move['effect'], True)
+            move['result'] = move['result'] + "\nEffect: %s" % (move['effect']['value'])
+        elif move['totalOffence'] < move['totalDefence']:
+            move['result'] = move['result'] + "\nDefence wins:"
+            for r in move['resources']:
+                r['hitpoints'] = r['hitpoints'] - random.randint(0, move['totalDefence']/len(move['targets']))
+                if r['hitpoints'] < 0:
+                    r['active'] = False
+                move['result'] = move['result'] + "\n%s: %s " % (r['name'], r['hitpoints'])
+                # Update the node
+                self.update_node(**r)
+            move['effect'] = self.apply_effect(move['effect'], False)
+            self.update_node(**effect)
+            move['result'] = move['result'] + "\nEffect: %s" % (move['effect']['value'])
+        else:
+            move['result'] = move['result'] + "\nStalemate:"
+        newGameState = self.get_game(gameKey=kwargs['gameKey'])
+        newGameState['result'] = move['result']
+        return newGameState
+
+    def apply_effect(self, effect, result):
+        """
+        Using the effect goal, value and result of move, update the effect value
+        :param effect:
+        :param result:
+        :return:
+        """
+        if result:
+            if effect['value'] > effect['goal']:
+                effect['value'] = effect['value'] - random.randint(1, 10)
+            else:
+                effect['value'] = effect['value'] + random.randint(1, 10)
+        else:
+            if effect['value'] > effect['goal']:
+                effect['value'] = effect['value'] + random.randint(1, 10)
+            else:
+                effect['value'] = effect['value'] - random.randint(1, 10)
+
+        return effect
+
     def get_game(self, **kwargs):
         """
         Get a game that was saved to the Database in the following structure:
@@ -456,65 +513,76 @@ class Game(ODB):
         TODO Get moves
         :return:
         """
-        gameState = {
-            "nodes": [],
-            "links": [],
-            "players": [],
-            "gameName": None,
-            "moves": [],
-            "stability": 0
-        }
         sql = ('''
         match {class: Game, as: g, where: (key = '%s')}.out(HasPlayer){class: V, as: p}.out(){class: V, as: r} 
         return g.name, p.key, p.name, p.created, p.group, p.score, p.status, p.icon, 
         r.key, r.name, r.ascope, r.crimefilled, r.type, r.category, r.created, r.description, r.player, 
-        r.icon, r.offence, r.defence, r.hitpoints, r.speed, r.xpos, r.ypos, r.zpos, r.group, r.active, r.deleted, r.value
+        r.icon, r.offence, r.defence, r.hitpoints, r.speed, r.xpos, r.ypos, r.zpos, r.group, r.active, r.deleted, r.value,
+        r.class_name, r.color, r.objective, r.phase, r.measure, r.indicator, r.strat, r.goal, r.fontColor, r.symbolType
         ''' % kwargs['gameKey'])
         for o in self.client.command(sql):
-            if not gameState['gameName']:
-                gameState['gameName'] = o.oRecordData['g_name']
+            if not self.gameState['gameName']:
+                self.gameState['gameName'] = o.oRecordData['g_name']
             Player = {
                 "id": o.oRecordData['p_key'],
                 "name": o.oRecordData['p_name'],
                 "icon": o.oRecordData['p_icon'],
                 "group": o.oRecordData['p_group'],
                 "score": o.oRecordData['p_score'],
-                "status": o.oRecordData['p_status']
+                "status": o.oRecordData['p_status'],
+                "class_name": "Player"
             }
-            if Player not in gameState['players']:
-                gameState['players'].append(Player)
-                gameState['nodes'].append(Player)
-            Resource = {
-                "id": o.oRecordData['r_key'],
-                "name": o.oRecordData['r_name'],
-                "ascope": o.oRecordData['r_ascope'],
-                "crimefilled": o.oRecordData['r_crimefilled'],
-                "type": o.oRecordData['r_type'],
-                "category": o.oRecordData['r_category'],
-                "created": o.oRecordData['r_created'],
-                "description": o.oRecordData['r_description'],
-                "icon": o.oRecordData['r_icon'],
-                "offence": o.oRecordData['r_offence'],
-                "defence": o.oRecordData['r_defence'],
-                "hitpoints": o.oRecordData['r_hitpoints'],
-                "speed": o.oRecordData['r_speed'],
-                "xpos": o.oRecordData['r_xpos'],
-                "ypos": o.oRecordData['r_ypos'],
-                "zpos": o.oRecordData['r_zpos'],
-                "group": o.oRecordData['r_group'],
-                "active": o.oRecordData['r_active'],
-                "deleted": o.oRecordData['r_deleted'],
-                "value": o.oRecordData['r_value'],
-                "player": o.oRecordData['r_player']
-            }
-            gameState['nodes'].append(Resource)
-            gameState['links'].append({
+            if Player not in self.gameState['players']:
+                self.gameState['players'].append(Player)
+                self.gameState['nodes'].append(Player)
+            if o.oRecordData['r_class_name'] == sResource:
+                Node = {
+                    "id": o.oRecordData['r_key'],
+                    "name": o.oRecordData['r_name'],
+                    "ascope": o.oRecordData['r_ascope'],
+                    "crimefilled": o.oRecordData['r_crimefilled'],
+                    "type": o.oRecordData['r_type'],
+                    "category": o.oRecordData['r_category'],
+                    "created": o.oRecordData['r_created'],
+                    "description": o.oRecordData['r_description'],
+                    "icon": o.oRecordData['r_icon'],
+                    "offence": o.oRecordData['r_offence'],
+                    "defence": o.oRecordData['r_defence'],
+                    "hitpoints": o.oRecordData['r_hitpoints'],
+                    "speed": o.oRecordData['r_speed'],
+                    "xpos": o.oRecordData['r_xpos'],
+                    "ypos": o.oRecordData['r_ypos'],
+                    "zpos": o.oRecordData['r_zpos'],
+                    "group": o.oRecordData['r_group'],
+                    "active": o.oRecordData['r_active'],
+                    "deleted": o.oRecordData['r_deleted'],
+                    "value": o.oRecordData['r_value'],
+                    "player": o.oRecordData['r_player'],
+                    "class_name": o.oRecordData['r_class_name'],
+                    "color": o.oRecordData['r_color']
+                }
+            elif o.oRecordData['r_class_name'] == sEffect:
+                Node = {
+                    "id": o.oRecordData['r_key'],
+                    "name": o.oRecordData['r_name'],
+                    "class_name": sEffect,
+                    "indicator": o.oRecordData['r_indicator'],
+                    "measure": o.oRecordData['r_measure'],
+                    "objective": o.oRecordData['r_objective'],
+                    "phase": o.oRecordData['r_phase'],
+                    "player": o.oRecordData['r_player'],
+                    "strat": o.oRecordData['r_strat'],
+                    "value": o.oRecordData['r_value'],
+                    "goal": o.oRecordData['r_goal'],
+                }
+            self.gameState['nodes'].append(Node)
+            self.gameState['links'].append({
                 "source": Player['id'],
-                "target": Resource['id'],
+                "target": Node['id'],
                 "value": random.randint(1,3)
             })
 
-        return gameState
+        return self.gameState
 
 
 

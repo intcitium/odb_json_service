@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify, request
 from apiserver.blueprints.game.models import Game
 from apiserver.utils import get_request_payload
 import click
+import ast
 
 game = Blueprint('game', __name__)
 gameserver = Game()
@@ -57,6 +58,27 @@ def get_game():
     return jsonify({
         "status": 200,
         "message": "Game %s loading complete" % (data['gameName']),
+        "gameState": data,
+        "ok": True
+    })
+
+
+@game.route('/game/create_move', methods=['GET', 'POST'])
+def create_move():
+    try:
+        r = get_request_payload(request)
+    except Exception as e:
+        click.echo(e)
+    data = gameserver.create_move(
+        resourceKeys=[n for n in ast.literal_eval(r['resourceKeys'])],
+        targetKeys=[n for n in ast.literal_eval(r['targetKeys'])],
+        effectKey=r['effectKey'],
+        gameKey=r['gameKey'],
+        playerKey=r['playerKey']
+    )
+    return jsonify({
+        "status": 200,
+        "message": data['result'],
         "gameState": data,
         "ok": True
     })
