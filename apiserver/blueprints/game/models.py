@@ -460,7 +460,7 @@ class Game(ODB):
         if move['totalOffence'] > move['totalDefence']:
             move['result'] = move['result'] + "\nOffence wins:"
             for r in move['targets']:
-                r['hitpoints'] = r['hitpoints'] - random.randint(0, move['totalOffence']/len(move['resources']))
+                r['hitpoints'] = r['hitpoints'] - random.randint(0, int(move['totalOffence']/len(move['resources'])))
                 if r['hitpoints'] < 0:
                     r['active'] = False
                 move['result'] = move['result'] + "\n%s: %s " % (r['name'], r['hitpoints'])
