@@ -522,6 +522,8 @@ class Game(ODB):
         r.icon, r.offence, r.defence, r.hitpoints, r.speed, r.xpos, r.ypos, r.zpos, r.group, r.active, r.deleted, r.value,
         r.class_name, r.color, r.objective, r.phase, r.measure, r.indicator, r.strat, r.goal, r.fontColor, r.symbolType
         ''' % kwargs['gameKey'])
+        nodeKeys = [] # Quality check to ensure no duplicates sent
+        self.gameState['key'] = kwargs['gameKey']
         for o in self.client.command(sql):
             if not self.gameState['gameName']:
                 self.gameState['gameName'] = o.oRecordData['g_name']
@@ -577,13 +579,13 @@ class Game(ODB):
                     "value": o.oRecordData['r_value'],
                     "goal": o.oRecordData['r_goal'],
                 }
-            self.gameState['nodes'].append(Node)
-            self.gameState['key'] = kwargs['gameKey']
-            self.gameState['links'].append({
-                "source": Player['id'],
-                "target": Node['id'],
-                "value": random.randint(1,3)
-            })
+            if Node['id'] not in nodeKeys:
+                self.gameState['nodes'].append(Node)
+                self.gameState['links'].append({
+                    "source": Player['id'],
+                    "target": Node['id'],
+                    "value": random.randint(1,3)
+                })
 
         return self.gameState
 
