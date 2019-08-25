@@ -159,6 +159,7 @@ class Game(ODB):
 
         return d3
 
+
     def create_resource(self, **kwargs):
         """
         Create a random resource or based on specifics in the kwargs
@@ -506,6 +507,26 @@ class Game(ODB):
 
         return effect
 
+    def delete_game(self, **kwargs):
+        """
+        Get a game by the ID and delete all associated nodes
+        :param kwargs:
+        :return:
+        """
+        sql = '''
+        delete vertex from (select expand( out().out()) from Game where key = %d);
+        delete vertex from (select expand( out()) from Game where key = %d);
+        delete vertex from Game where key = %d;
+        ''' % (kwargs['gameKey'],kwargs['gameKey'], kwargs['gameKey'])
+        try:
+            message = self.client.batch(sql)
+
+        except Exception as e:
+            message = str(e)
+
+        data = {"message": message}
+
+        return data
 
     def get_game(self, **kwargs):
         """

@@ -61,6 +61,20 @@ def get_game():
         "ok": True
     })
 
+@game.route('/game/delete_game', methods=['GET', 'POST'])
+def delete_game():
+    try:
+        r = get_request_payload(request)
+    except Exception as e:
+        click.echo(e)
+
+    data = gameserver.delete_game(gameKey=int(r['gameKey']))
+    return jsonify({
+        "status": 200,
+        "message": "Game %s deleted" % (data['message']),
+        "gameState": data,
+        "ok": True
+    })
 
 @game.route('/game/create_move', methods=['GET', 'POST'])
 def create_move():
