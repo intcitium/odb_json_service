@@ -520,7 +520,10 @@ class Game(ODB):
         ''' % (kwargs['gameKey'],kwargs['gameKey'], kwargs['gameKey'])
         try:
             message = self.client.batch(sql)
-
+            if message[0] == 1:
+                message = "Game %d deleted" % kwargs['gameKey']
+            else:
+                message = "Game %d doesn't exist" % kwargs['gameKey']
         except Exception as e:
             message = str(e)
 

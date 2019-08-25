@@ -61,6 +61,7 @@ def get_game():
         "ok": True
     })
 
+
 @game.route('/game/delete_game', methods=['GET', 'POST'])
 def delete_game():
     try:
@@ -75,6 +76,7 @@ def delete_game():
         "gameState": data,
         "ok": True
     })
+
 
 @game.route('/game/create_move', methods=['GET', 'POST'])
 def create_move():
