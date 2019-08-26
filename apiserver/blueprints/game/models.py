@@ -136,14 +136,6 @@ class Game(ODB):
             "moves": [],
             "stability": 0
         }
-        self.gameShell = {
-            "nodes": [],
-            "links": [],
-            "players": [],
-            "gameName": None,
-            "moves": [],
-            "stability": 0
-        }
 
     def node_to_d3(self, **kwargs):
         """
@@ -547,6 +539,14 @@ class Game(ODB):
         TODO Get moves
         :return:
         """
+        self.gameState = {
+            "nodes": [],
+            "links": [],
+            "players": [],
+            "gameName": None,
+            "moves": [],
+            "stability": 0
+        }
         sql = ('''
         match {class: Game, as: g, where: (key = '%s')}.out(HasPlayer){class: V, as: p}.out(){class: V, as: r} 
         return g.name, p.key, p.name, p.created, p.group, p.score, p.status, p.icon, 
