@@ -136,6 +136,14 @@ class Game(ODB):
             "moves": [],
             "stability": 0
         }
+        self.gameShell = {
+            "nodes": [],
+            "links": [],
+            "players": [],
+            "gameName": None,
+            "moves": [],
+            "stability": 0
+        }
 
     def node_to_d3(self, **kwargs):
         """
@@ -546,11 +554,15 @@ class Game(ODB):
         r.icon, r.offence, r.defence, r.hitpoints, r.speed, r.xpos, r.ypos, r.zpos, r.group, r.active, r.deleted, r.value,
         r.class_name, r.color, r.objective, r.phase, r.measure, r.indicator, r.strat, r.goal, r.fontColor, r.symbolType
         ''' % kwargs['gameKey'])
+        click.echo("[%s_gameserver_get_game] Game state: %s" % (get_datetime(), self.gameState))
+        click.echo()
         nodeKeys = [] # Quality check to ensure no duplicates sent
         self.gameState['key'] = kwargs['gameKey']
+        click.echo("[%s_gameserver_get_game] SQL: %s" % (get_datetime(), sql))
         for o in self.client.command(sql):
             if not self.gameState['gameName']:
                 self.gameState['gameName'] = o.oRecordData['g_name']
+                click.echo("[%s_gameserver_get_game] Game name: %s" % (get_datetime(), o.oRecordData['g_name']))
             Player = {
                 "id": o.oRecordData['p_key'],
                 "name": o.oRecordData['p_name'],
@@ -563,6 +575,7 @@ class Game(ODB):
             if Player not in self.gameState['players']:
                 self.gameState['players'].append(Player)
                 self.gameState['nodes'].append(Player)
+                click.echo("[%s_gameserver_get_game] Player: %s" % (get_datetime(), Player))
             if o.oRecordData['r_class_name'] == sResource:
                 Node = {
                     "id": o.oRecordData['r_key'],
