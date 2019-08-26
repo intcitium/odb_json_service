@@ -159,7 +159,6 @@ class Game(ODB):
 
         return d3
 
-
     def create_resource(self, **kwargs):
         """
         Create a random resource or based on specifics in the kwargs
@@ -432,8 +431,12 @@ class Game(ODB):
         """
         # Get the latest values for all game pieces involved
         self.get_game(gameKey=kwargs['gameKey'])
+        if len(self.gameState['nodes']) < 1:
+            return {'result': 'No game with key %s' % kwargs['gameKey']}
         # Assign to a Move dictionary
         effect = self.get_node(kwargs['effectKeys'][0])
+        if effect == None:
+            return {'result': 'No effect with key %s in game %s' % (kwargs['effectKeys'][0], kwargs['gameKey'])}
         move = {
             'resources' : [],
             'targets': [],
@@ -472,7 +475,7 @@ class Game(ODB):
         elif move['totalOffence'] < move['totalDefence']:
             move['result'] = move['result'] + "\nDefence wins:"
             for r in move['resources']:
-                r['hitpoints'] = r['hitpoints'] - random.randint(0, move['totalDefence']/len(move['targets']))
+                r['hitpoints'] = r['hitpoints'] - random.randint(0, int(move['totalDefence']/len(move['targets'])))
                 if r['hitpoints'] < 0:
                     r['active'] = False
                 move['result'] = move['result'] + "\n%s: %s " % (r['name'], r['hitpoints'])
