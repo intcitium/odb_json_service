@@ -72,7 +72,7 @@ def delete_game():
     data = gameserver.delete_game(gameKey=int(r['gameKey']))
     return jsonify({
         "status": 200,
-        "message": "Game %s deleted" % (data['message']),
+        "message": data['message'],
         "gameState": data,
         "ok": True
     })
