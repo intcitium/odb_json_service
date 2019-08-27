@@ -431,27 +431,36 @@ class Game(ODB):
         """
         # Get the latest values for all game pieces involved
         self.get_game(gameKey=kwargs['gameKey'])
+        offenceWin = "Unknown"
         if len(self.gameState['nodes']) < 1:
+            # Exception Handling one
             return {'result': 'No game with key %s' % kwargs['gameKey']}
         # Assign to a Move dictionary
-        effect = self.get_node(kwargs['effectKeys'][0])
-        if effect == None:
-            return {'result': 'No effect with key %s in game %s' % (kwargs['effectKeys'][0], kwargs['gameKey'])}
         move = {
-            'resources' : [],
+            'resources': [],
             'targets': [],
+            'effects': [],
+            'result': "Effects:",
             'totalOffence': 0,
             'totalDefence': 0,
-            'effect': effect,
-            'result': "Move Effect:\nValue: %s Goal: %s" % (effect['value'], effect['goal'])
         }
+        # Check effects and load full data into new dictionary
+        for e in kwargs['effectKeys']:
+            effect = self.get_node(e)
+            if not effect:
+                # Exception Handling two
+                return {'result': 'No effect with key %s in game %s' % (e, kwargs['gameKey'])}
+            move['effects'].append(effect)
+            move['result'] = "\n[%s] Value: %s Goal: %s" % (e, effect['value'], effect['goal'])
         move['result'] = move['result'] + "\nResources:"
+        # Check resources and load full data into new dictionary
         for r in kwargs['resourceKeys']:
             r = self.get_node(r)
             move['resources'].append(r)
             move['totalOffence'] = move['totalOffence'] + r['offence']
-            move['result'] = move['result'] +"\n%s: %s " % (r['name'], r['hitpoints'])
+            move['result'] = move['result'] + "\n%s: %s " % (r['name'], r['hitpoints'])
         move['result'] = move['result'] + "\nMove Targets"
+        # Check targets and load full data into new dictionary
         for r in kwargs['targetKeys']:
             r = self.get_node(r)
             if r['class_name'] == sResource:
@@ -459,8 +468,7 @@ class Game(ODB):
                 move['targets'].append(r)
                 move['result'] = move['result'] + "\n%s: %s " % (r['name'], r['hitpoints'])
             # Else it's an effect and can be related to this effect?
-
-        # TODO update effect to move towards goal
+        # Check who the winner is
         if move['totalOffence'] > move['totalDefence']:
             move['result'] = move['result'] + "\nOffence wins:"
             for r in move['targets']:
@@ -470,8 +478,7 @@ class Game(ODB):
                 move['result'] = move['result'] + "\n%s: %s " % (r['name'], r['hitpoints'])
                 # Update the node
                 self.update_node(**r)
-            move['effect'] = self.apply_effect(move['effect'], True)
-            move['result'] = move['result'] + "\nEffect: %s" % (move['effect']['value'])
+                offenceWin = True
         elif move['totalOffence'] < move['totalDefence']:
             move['result'] = move['result'] + "\nDefence wins:"
             for r in move['resources']:
@@ -481,17 +488,24 @@ class Game(ODB):
                 move['result'] = move['result'] + "\n%s: %s " % (r['name'], r['hitpoints'])
                 # Update the node
                 self.update_node(**r)
-            move['effect'] = self.apply_effect(move['effect'], False)
-            self.update_node(**effect)
-            move['result'] = move['result'] + "\nEffect: %s" % (move['effect']['value'])
+                offenceWin = False
         else:
             move['result'] = move['result'] + "\nStalemate:"
+        if offenceWin != "Unknown":
+            move['result'] = move['result'] + "\nEffect results:"
+            for effect in move['effects']:
+                effect = self.apply_effect(effect, offenceWin)
+                move['result'] = move['result'] + "\n[%s]: %s" % (effect['id'], effect['value'])
+
         newGameState = self.get_game(gameKey=kwargs['gameKey'])
         newGameState['result'] = move['result']
         return newGameState
 
     def apply_effect(self, effect, result):
         """
+        E 1469
+        R 1481, 1485, 1489
+        T 1592
         Using the effect goal, value and result of move, update the effect value
         :param effect:
         :param result:
@@ -507,7 +521,7 @@ class Game(ODB):
                 effect['value'] = effect['value'] + random.randint(1, 10)
             else:
                 effect['value'] = effect['value'] - random.randint(1, 10)
-
+        self.update_node(**effect)
         return effect
 
     def delete_game(self, **kwargs):
