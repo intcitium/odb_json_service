@@ -557,8 +557,6 @@ class Game(ODB):
         r.icon, r.offence, r.defence, r.hitpoints, r.speed, r.xpos, r.ypos, r.zpos, r.group, r.active, r.deleted, r.value,
         r.class_name, r.color, r.objective, r.phase, r.measure, r.indicator, r.strat, r.goal, r.fontColor, r.symbolType
         ''' % kwargs['gameKey'])
-        click.echo("[%s_gameserver_get_game] Game state: %s" % (get_datetime(), self.gameState))
-        click.echo()
         nodeKeys = [] # Quality check to ensure no duplicates sent
         self.gameState['key'] = kwargs['gameKey']
         click.echo("[%s_gameserver_get_game] SQL: %s" % (get_datetime(), sql))
