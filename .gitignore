@@ -7,7 +7,7 @@ __pycache__/
 *.so
 
 # React files
-/apiserver/blueprints/game/templates
+/apiserver/blueprints/game/templates/
 
 # Distribution / packaging
 .Python
