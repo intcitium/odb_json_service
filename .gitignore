@@ -8,7 +8,9 @@ __pycache__/
 
 # React files
 /apiserver/blueprints/game/templates/
-
+apiserver/blueprints/game/templates/
+/blueprints/game/templates/
+blueprints/game/templates/
 # Distribution / packaging
 .Python
 build/
