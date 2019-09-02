@@ -3,7 +3,7 @@ import random
 import click
 import numpy as np
 from apiserver.blueprints.home.models import ODB
-from apiserver.utils import get_datetime, change_if_number
+from apiserver.utils import get_datetime, change_if_number, clean
 from apiserver.blueprints.game.content import content
 
 sPlayer = "Player"
@@ -11,6 +11,7 @@ sResource = "Resource"
 sGame = "Game"
 sMove = "Move"
 sEffect = "Effect"
+sIncludes = "Includes"
 #TODO UserType to determine if regular player or master for view options in UX
 #TODO color, fontColor, size (200), symbolType (circle, cross, diamond, square, star, triangle, wye)
 
@@ -84,6 +85,7 @@ class Game(ODB):
                 "created": "datetime",
                 "ended": "datetime",
                 "icon": "string",
+                "round": "integer",
                 "description": "string",
                 "player": "string",
                 "class": "V"
@@ -94,6 +96,7 @@ class Game(ODB):
                 "created": "datetime",
                 "ended": "datetime",
                 "icon": "string",
+                "current_round": "integer",
                 "class": "V"
             },
             sEffect: {
@@ -379,7 +382,7 @@ class Game(ODB):
         :param kwargs:
         :return:
         """
-        game = self.create_node(class_name=sGame, name=kwargs["gameName"], created=get_datetime())
+        game = self.create_node(class_name=sGame, name=kwargs["gameName"], created=get_datetime(), current_round=0)
         return self.node_to_d3(**game['data'])
 
     def get_game_names(self):
@@ -409,13 +412,42 @@ class Game(ODB):
             if k not in self.no_update:
                 if change_if_number(kwargs[k]):
                     sql = sql + "%s = %s, " % (k, kwargs[k])
-                else:
+                elif type(kwargs[k]) == bool:
                     sql = sql + "%s = '%s', " % (k, kwargs[k])
+                else:
+                    sql = sql + "%s = '%s', " % (k, clean(kwargs[k]))
         sql = sql[:len(sql)-2] + " where key = %s" % kwargs['id']# remove last comma and put filter
         click.echo("[%s_game_update_node]: Running sql\n%s" % (get_datetime(), sql))
         self.client.command(sql)
 
     def create_move(self, **kwargs):
+        """
+        Create a move that will be run through the effects application engine when the
+        Game current round = the move assigned round to give players availability to delay
+
+        :param kwargs:
+        :return:
+        """
+        move = {
+            "created": get_datetime(),
+            "round": kwargs['round'],
+            "class_name": sMove,
+            "description": "string",
+            "player": kwargs['playerKey']
+        }
+        m = self.create_node(**move)
+        for e in kwargs['effectKeys']:
+            self.create_edge(fromClass=sMove, toClass=sEffect, fromNode=m['data']['key'], toNode=e, edgeType=sIncludes)
+        for t in kwargs['targetKeys']:
+            self.create_edge(fromClass=sMove, toClass=sResource, fromNode=m['data']['key'], toNode=t, edgeType=sIncludes)
+        for r in kwargs['resourceKeys']:
+            self.create_edge(fromClass=sMove, toClass=sResource, fromNode=m['data']['key'], toNode=r, edgeType=sIncludes)
+
+        newGameState = self.get_game(gameKey=kwargs['gameKey'])
+        newGameState['result'] = move['round']
+        return newGameState
+
+    def run_move(self, **kwargs):
         """
         Get the current game state, create a move that uses the resources, targets, and effects
         The move elements' attributes are collected and then the arbitration engine results in
@@ -429,8 +461,6 @@ class Game(ODB):
         :param kwargs:
         :return:
         """
-        # Get the latest values for all game pieces involved
-        self.get_game(gameKey=kwargs['gameKey'])
         offenceWin = "Unknown"
         if len(self.gameState['nodes']) < 1:
             # Exception Handling one
@@ -475,6 +505,8 @@ class Game(ODB):
                 r['hitpoints'] = r['hitpoints'] - random.randint(0, int(move['totalOffence']/len(move['resources'])))
                 if r['hitpoints'] < 0:
                     r['active'] = False
+                else:
+                    r['active'] = True
                 move['result'] = move['result'] + "\n%s: %s " % (r['name'], r['hitpoints'])
                 # Update the node
                 self.update_node(**r)
@@ -485,6 +517,8 @@ class Game(ODB):
                 r['hitpoints'] = r['hitpoints'] - random.randint(0, int(move['totalDefence']/len(move['targets'])))
                 if r['hitpoints'] < 0:
                     r['active'] = False
+                else:
+                    r['active'] = True
                 move['result'] = move['result'] + "\n%s: %s " % (r['name'], r['hitpoints'])
                 # Update the node
                 self.update_node(**r)
@@ -497,9 +531,6 @@ class Game(ODB):
                 effect = self.apply_effect(effect, offenceWin)
                 move['result'] = move['result'] + "\n[%s]: %s" % (effect['id'], effect['value'])
 
-        newGameState = self.get_game(gameKey=kwargs['gameKey'])
-        newGameState['result'] = move['result']
-        return newGameState
 
     def apply_effect(self, effect, result):
         """
@@ -548,12 +579,88 @@ class Game(ODB):
 
         return data
 
+    @staticmethod
+    def load_record(m, currentMove):
+        if m.oRecordData['e_key'] not in currentMove['effectKeys']:
+            currentMove['effectKeys'].append(m.oRecordData['e_key'])
+        if m.oRecordData['r_key'] not in currentMove['resourceKeys'] and m.oRecordData['r_player'] == currentMove[
+            'player']:
+            currentMove['resourceKeys'].append(m.oRecordData['r_key'])
+        if m.oRecordData['r_key'] not in currentMove['targetKeys'] and m.oRecordData['r_player'] != currentMove[
+            'player']:
+            currentMove['targetKeys'].append(m.oRecordData['r_key'])
+        return currentMove
+
+    def get_moves(self):
+        """
+        Get the moves based on match of resources and effects. Query returns all moves in the same format they are passed
+        into the run_move and create_move function from the UX.
+        Use a round_count dictionary to determine the trigger for running the moves. When all players have entered at least
+        one move, then the round can iterate to the next.
+            round_count{ 1: [player1, player2], 2: [player1], current_round_moves[player1Move, player2Move]}
+            If the current_round is 1 and the total amount of players is 2, then the above example will trigger to run
+            the moves. The moves are run in order in which they were received based on the timestamp and updated with a
+            new timestamp for end time.
+        If the trigger criteria is met, then determine the gameState current round and run all moves for that round.
+
+        Added Value: Players can set up the same move for multiple rounds and can continue adding moves to any given round
+        until all players have entered at least 1 move. TODO prevent same move being added to the same round.
+        :return:
+        """
+
+        query = self.client.command('''
+        match {class: Resource, as: r}.in('Includes')
+        {class: Move, as: m}.out('Includes')
+        {class: Effect, as: e} 
+        return m.key, m.round, r.key, e.key, m.player, r.player, m.created
+        ''')
+        round_count = {'current_round': self.gameState['current_round'], 'moves': []}
+        Moves = []
+        currentMove = {'key': 0}
+        for m in query:
+            if m.oRecordData['m_key'] == currentMove['key']:
+                currentMove = self.load_record(m, currentMove)
+            else:
+                # Iteration 1, don't fill the array, switch to the new one and continue on. It 2, first move is appended
+                if currentMove['key'] != 0:
+                    Moves.append(currentMove)
+                    if currentMove['round'] == self.gameState['current_round']:
+                        round_count['moves'].append(currentMove)
+                currentMove = {
+                    'key': m.oRecordData['m_key'],
+                    'player': m.oRecordData['m_player'],
+                    'round': m.oRecordData['m_round'],
+                    'created': m.oRecordData['m_created'],
+                    'gameKey': self.gameState['key'],
+                    'effectKeys': [],
+                    'resourceKeys': [],
+                    'targetKeys': []
+                }
+                currentMove = self.load_record(m, currentMove)
+            if m.oRecordData['m_round'] in round_count.keys():
+                if m.oRecordData['m_player'] not in round_count[m.oRecordData['m_round']]:
+                    # Only execute if the player is not there, enabling multiple moves for any player and the most for the fastest
+                    round_count[m.oRecordData['m_round']].append(m.oRecordData['m_player'])
+            else:
+                round_count[m.oRecordData['m_round']] = []
+
+        if self.gameState['current_round'] in round_count.keys():
+            if len(round_count[self.gameState['current_round']]) % len(self.gameState['players']) == 0:
+                # Stage the moves and the sort them by create_date
+                round_count['moves'].sort(key=lambda item: item['created'])
+                for m in round_count['moves']:
+                    self.run_move(**m)
+                self.gameState['current_round']+=1
+                self.update_node(class_name=sGame, id=self.gameState['key'], current_round=self.gameState['current_round'])
+
+        return Moves
+
     def get_game(self, **kwargs):
         """
         Get a game that was saved to the Database in the following structure:
         Game -> Players -> Resources
-        and return the same format of a GameState as in the Game setup
-        TODO Get moves
+        and return the same format of a GameState as in the Game setup. When filling the moves, the gameState may change
+        based on that function's trigger to update the round and run moves with effects.
         :return:
         """
         self.gameState = {
@@ -562,21 +669,25 @@ class Game(ODB):
             "players": [],
             "gameName": None,
             "moves": [],
-            "stability": 0
+            "stability": 0,
+            "current_round": 0
         }
         sql = ('''
         match {class: Game, as: g, where: (key = '%s')}.out(HasPlayer){class: V, as: p}.out(){class: V, as: r} 
-        return g.name, p.key, p.name, p.created, p.group, p.score, p.status, p.icon, 
+        return g.name, g.current_round, p.key, p.name, p.created, p.group, p.score, p.status, p.icon, 
         r.key, r.name, r.ascope, r.crimefilled, r.type, r.category, r.created, r.description, r.player, 
         r.icon, r.offence, r.defence, r.hitpoints, r.speed, r.xpos, r.ypos, r.zpos, r.group, r.active, r.deleted, r.value,
         r.class_name, r.color, r.objective, r.phase, r.measure, r.indicator, r.strat, r.goal, r.fontColor, r.symbolType
         ''' % kwargs['gameKey'])
         nodeKeys = [] # Quality check to ensure no duplicates sent
         self.gameState['key'] = kwargs['gameKey']
+
         click.echo("[%s_gameserver_get_game] SQL: %s" % (get_datetime(), sql))
         for o in self.client.command(sql):
             if not self.gameState['gameName']:
                 self.gameState['gameName'] = o.oRecordData['g_name']
+                self.gameState['current_round'] = o.oRecordData['g_current_round']
+                current_round = int(o.oRecordData['g_current_round'])
                 click.echo("[%s_gameserver_get_game] Game name: %s" % (get_datetime(), o.oRecordData['g_name']))
             Player = {
                 "id": o.oRecordData['p_key'],
@@ -638,8 +749,68 @@ class Game(ODB):
                     "target": Node['id'],
                     "value": random.randint(1,3)
                 })
+        self.gameState['moves'] = self.get_moves()
+        # Running moves might change the gameState so check to see if there was a change and then update
+        if self.gameState['current_round'] != current_round:
+            self.get_game(gameKey=kwargs['gameKey'])
 
         return self.gameState
 
+    def get_move(self, **kwargs):
+        """
+        Get a single move by key
+        Use the load record method to get the keys properly aligned based on the links to resources and effects
+        :param kwargs:
+        :return:
+        """
 
+        query = self.client.command('''
+        match {class: Resource, as: r}.in('Includes')
+        {class: Move, as: m, where:(key = '%s')}.out('Includes')
+        {class: Effect, as: e} 
+        return m.key, m.round, r.key, e.key, m.player, r.player, m.created
+        ''' % kwargs['moveKey'])
+        Move = {
+            'key': kwargs['moveKey'],
+            'key': query[0].oRecordData['m_key'],
+            'player': query[0].oRecordData['m_player'],
+            'round': query[0].oRecordData['m_round'],
+            'created': query[0].oRecordData['m_created'],
+            'gameKey': kwargs['gameKey'],
+            'effectKeys': [],
+            'resourceKeys': [],
+            'targetKeys': []
+        }
+        for m in query:
+            Move = self.load_record(m, Move)
+
+        return Move
+
+    def update_move(self, **kwargs):
+        """
+        Allow a user to add or remove resources, targets, or effects in Moves
+        :param kwargs:
+        :return:
+        """
+        Move = self.get_move(moveKey=kwargs['moveKey'], gameKey=kwargs['gameKey'])
+        if kwargs['round'] != Move['round']:
+            self.update_node(class_name=sMove, id=Move['key'], round=kwargs['round'])
+        for e in kwargs['effectKeys']:
+            if e in Move['effectKeys']:
+                self.delete_edge(edgeType=sIncludes, fromClass=sMove, toClass=sEffect, fromNode=kwargs['gameKey'], toNode=e)
+            else:
+                self.create_edge(edgeType=sIncludes, fromClass=sMove, toClass=sEffect, fromNode=kwargs['gameKey'], toNode=e)
+        for e in kwargs['resourceKeys']:
+            if e in Move['resourceKeys']:
+                self.delete_edge(edgeType=sIncludes, fromClass=sMove, toClass=sResource, fromNode=kwargs['gameKey'], toNode=e)
+            else:
+                self.create_edge(edgeType=sIncludes, fromClass=sMove, toClass=sResource, fromNode=kwargs['gameKey'], toNode=e)
+        for e in kwargs['targetKeys']:
+            if e in Move['targetKeys']:
+                self.delete_edge(edgeType=sIncludes, fromClass=sMove, toClass=sResource, fromNode=kwargs['gameKey'], toNode=e)
+            else:
+                self.create_edge(edgeType=sIncludes, fromClass=sMove, toClass=sResource, fromNode=kwargs['gameKey'], toNode=e)
+
+        self.get_game(gameKey=kwargs['gameKey'])
+        return self.gameState
 

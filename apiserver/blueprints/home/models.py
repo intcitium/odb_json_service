@@ -69,6 +69,43 @@ class ODB:
         except Exception as e:
             return str(e)
 
+    def delete_edge(self, **kwargs):
+        if change_if_number(kwargs['fromNode']) and change_if_number(kwargs['toNode']):
+            sql = '''
+            delete edge {edgeType} from 
+            (select from {fromClass} where key = {fromNode}) to 
+            (select from {toClass} where key = {toNode})
+            '''.format(edgeType=kwargs['edgeType'], fromNode=kwargs['fromNode'], toNode=kwargs['toNode'],
+                       fromClass=kwargs['fromClass'], toClass=kwargs['toClass'])
+
+        elif change_if_number(kwargs['fromNode']):
+            sql = '''
+            delete edge {edgeType} from 
+            (select from {fromClass} where key = {fromNode}) to 
+            (select from {toClass} where key = '{toNode}')
+            '''.format(edgeType=kwargs['edgeType'], fromNode=kwargs['fromNode'], toNode=kwargs['toNode'],
+                       fromClass=kwargs['fromClass'], toClass=kwargs['toClass'])
+        elif change_if_number(kwargs['toNode']):
+            sql = '''
+            delete edge {edgeType} from 
+            (select from {fromClass} where key = '{fromNode}') to 
+            (select from {toClass} where key = {toNode})
+            '''.format(edgeType=kwargs['edgeType'], fromNode=kwargs['fromNode'], toNode=kwargs['toNode'],
+                       fromClass=kwargs['fromClass'], toClass=kwargs['toClass'])
+        else:
+            sql = '''
+            delete edge {edgeType} from 
+            (select from {fromClass} where key = '{fromNode}') to 
+            (select from {toClass} where key = '{toNode}')
+            '''.format(edgeType=kwargs['edgeType'], fromNode=kwargs['fromNode'], toNode=kwargs['toNode'],
+                       fromClass=kwargs['fromClass'], toClass=kwargs['toClass'])
+
+        try:
+            self.client.command(sql)
+            return True
+        except Exception as e:
+            return str(e)
+
     def create_node(self, **kwargs):
         """
         Use the idseq to iterate the key and require a class name to create the node
