@@ -1,6 +1,7 @@
 import os
 import random
 import click
+import json
 import numpy as np
 from apiserver.blueprints.home.models import ODB
 from apiserver.utils import get_datetime, change_if_number, clean
@@ -23,6 +24,7 @@ class Game(ODB):
         self.db_name = db_name
         self.norm = {'mean': 50, 'stdev': 18}
         self.datapath = os.path.join(os.path.join(os.getcwd(), 'data'))
+        self.content_json = os.path.join(self.datapath, 'content.json')
         self.no_update = ['id', 'key', 'class_name', 'color', 'created', 'deleted', 'icon', 'offence', 'defence']
         self.styling = {
             "Area": "square",
@@ -119,7 +121,8 @@ class Game(ODB):
         self.content = {
             "mpice": content['mpice'],
             "resources": content['resources'],
-            "nations": content['nations']
+            "nations": content['nations'],
+            "moveTypes": content['moveTypes']
         }
         self.cache = {
             "nations": [],
@@ -137,6 +140,7 @@ class Game(ODB):
             "players": [],
             "gameName": None,
             "moves": [],
+            "availableMoves": [],
             "stability": 0
         }
 
@@ -161,6 +165,81 @@ class Game(ODB):
                     i+=1
 
         return d3
+
+    def check_content(self, **kwargs):
+        """
+        If the combination of ASCOPE, CRIMEFILLED, TYPE, and CATEGORY for a resource
+        is not in the content then add it to the content and save it.
+        :param kwargs:
+        :return:
+        """
+        message = "%s %s %s %s" % (kwargs['ascope'],
+                                   kwargs['crimefilled'],
+                                   kwargs['type'],
+                                   kwargs['category']
+                                   )
+        for c in self.content['resources']:
+            if c['ascope'] == kwargs['ascope']:
+                if c['crimefilled'] == kwargs['crimefilled']:
+                    if c['type'] != kwargs['type'] or c['category'] != kwargs['category']:
+                        message = message + " created as new resource."
+                        self.content['resources'].append({
+                            "ascope": kwargs['ascope'],
+                            "crimefilled":  kwargs['crimefilled'],
+                            "type": kwargs['type'],
+                            "category": kwargs['category']
+                        })
+                        with open(self.content_json, 'w') as json_file:
+                            json.dump(self.content, json_file)
+                        break
+
+        click.echo(message)
+
+    def custom_resource(self, **kwargs):
+        """
+        Create a resource based on custom entries. If the ascope, crimefilled, type, category combination is not in the
+        content, add it and save for future loading.
+        :param kwargs:
+        :return:
+        """
+        self.check_content(**kwargs)
+        xpos, ypos = self.get_nation_based_location(nation=kwargs['homeNation'])
+        resource = self.create_node(
+            class_name=sResource,
+            name="%s %s %s" % (kwargs['homeNation'], kwargs['ascope'], kwargs['crimefilled']),
+            ascope=kwargs['ascope'],
+            crimefilled=kwargs['crimefilled'],
+            type=kwargs['type'],
+            category=kwargs['category'],
+            created=get_datetime(),
+            description="%s %s %s" % (kwargs['type'], kwargs['ascope'], kwargs['crimefilled']),
+            icon="TBD",
+            offence=int(kwargs['offence']),
+            defence=int(kwargs['defence']),
+            hitpoints=int(kwargs['hitpoints']),
+            speed=int(kwargs['speed']),
+            xpos=xpos,
+            ypos=ypos,
+            group=kwargs['homeNation'],
+            zpos=int(np.random.normal(loc=self.norm['mean'], scale=self.norm['stdev'])),
+            active=True,
+            player=kwargs['player'],
+            color=self.styling[kwargs['crimefilled']],
+            symbolType=self.styling[kwargs['ascope']],
+            value=int(np.random.normal(loc=self.norm['mean'], scale=self.norm['stdev']))
+        )
+        self.create_edge(
+            fromNode=kwargs['playerId'],
+            fromClass=sPlayer,
+            toNode=resource['data']['key'],
+            toClass=sResource,
+            edgeType="Owns"
+        )
+
+        gameState = self.get_game(**kwargs)
+        gameState['message'] = resource['data']['key']
+
+        return gameState
 
     def create_resource(self, **kwargs):
         """
@@ -531,7 +610,6 @@ class Game(ODB):
                 effect = self.apply_effect(effect, offenceWin)
                 move['result'] = move['result'] + "\n[%s]: %s" % (effect['id'], effect['value'])
 
-
     def apply_effect(self, effect, result):
         """
         E 1469
@@ -591,6 +669,54 @@ class Game(ODB):
             currentMove['targetKeys'].append(m.oRecordData['r_key'])
         return currentMove
 
+    def check_available_moves(self):
+        """
+        With the game key, check the available moves for each player. Return a list of moves in the same format as
+        result from get_moves: 'key': ,'player':'round': ,'created': ,'gameKey': ,'effectKeys':,'resourceKeys':,
+        For each node in the gameState nodes:
+        1) If it is a Resource with a combination of ASCOPE, CRIMEFILLED, TYPE, and CATEGORY (ACTC) in a move requirement
+        2) If the player that owns the resource already has the Move in which the requirement fills, append the resource
+        2b) If the resource ACTC is not in the requirements, check it off
+        3) Else create a new move with the Player.MoveType as key and resources as an array to be filled
+        4) After the dictionary has been created, transfer it into a list
+        :param gameKey:
+        :return:
+        """
+        availableMoves = {}
+        for n in self.gameState['nodes']:
+            if n['class_name'] == sResource:
+                ACTC = "%s.%s.%s.%s" % (n['ascope'], n['crimefilled'], n['type'], n['category'])
+                for m in self.content['moveTypes']:
+                    if ACTC in m['reqs']:
+                        moveKey = '%s.%s' % (n['player'], m['name'])
+                        if moveKey in availableMoves.keys():
+                            availableMoves[moveKey]['resourceKeys'].append(n['id'])
+                            if ACTC not in availableMoves[moveKey]['rmet'].keys():
+                                availableMoves[moveKey]['reqs'].append(ACTC)
+                                availableMoves[moveKey]['ready'] = len(availableMoves[moveKey]['rmet']) / len(availableMoves[moveKey]['reqs'])
+                            else:
+                                # this type of resource is in the move so iterate the count of this requirement met
+                                availableMoves[moveKey]['rmet'][ACTC] += 1
+                        else:
+                            # Create an available Move with the naming convention PlayerName.MoveName
+                            availableMoves[moveKey] = {
+                                'name': m['name'],
+                                'type': m['type'],
+                                'crimefilled': m['crimefilled'],
+                                'resourceKeys': [n['id']],
+                                'reqs': m['reqs'],
+                                'rmet': {ACTC: 1},
+                                'ready': (1/len(m['reqs'])),
+                                'player': n['player'],
+                                'round': self.gameState['current_round'],
+                                'gameKey': self.gameState['key']
+                            }
+
+        availableMovesList = []
+        for m in availableMoves:
+            availableMovesList.append(availableMoves[m])
+        return availableMovesList
+
     def get_moves(self):
         """
         Get the moves based on match of resources and effects. Query returns all moves in the same format they are passed
@@ -607,7 +733,6 @@ class Game(ODB):
         until all players have entered at least 1 move. TODO prevent same move being added to the same round.
         :return:
         """
-
         query = self.client.command('''
         match {class: Resource, as: r}.in('Includes')
         {class: Move, as: m}.out('Includes')
@@ -669,6 +794,7 @@ class Game(ODB):
             "players": [],
             "gameName": None,
             "moves": [],
+            "availableMoves": [],
             "stability": 0,
             "current_round": 0
         }
@@ -749,7 +875,10 @@ class Game(ODB):
                     "target": Node['id'],
                     "value": random.randint(1,3)
                 })
+        if len(self.gameState['players']) == 0:
+            return "No Game found with key %s" % kwargs['gameKey']
         self.gameState['moves'] = self.get_moves()
+        self.gameState['availableMoves'] = self.check_available_moves()
         # Running moves might change the gameState so check to see if there was a change and then update
         if self.gameState['current_round'] != current_round:
             self.get_game(gameKey=kwargs['gameKey'])
@@ -771,7 +900,6 @@ class Game(ODB):
         return m.key, m.round, r.key, e.key, m.player, r.player, m.created
         ''' % kwargs['moveKey'])
         Move = {
-            'key': kwargs['moveKey'],
             'key': query[0].oRecordData['m_key'],
             'player': query[0].oRecordData['m_player'],
             'round': query[0].oRecordData['m_round'],

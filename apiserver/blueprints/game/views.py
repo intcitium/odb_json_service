@@ -107,6 +107,7 @@ def create_move():
         "ok": True
     })
 
+
 @game.route('/game/update_move', methods=['GET', 'POST'])
 def update_move():
     try:
@@ -125,6 +126,22 @@ def update_move():
     return jsonify({
         "status": 200,
         "message": "Move %s updated" % r['moveKey'],
+        "gameState": data,
+        "ok": True
+    })
+
+@game.route('/game/custom_resource', methods=['GET', 'POST'])
+def custom_resource():
+    try:
+        r = get_request_payload(request)
+    except Exception as e:
+        click.echo(e)
+
+    data = gameserver.custom_resource(**r)
+
+    return jsonify({
+        "status": 200,
+        "message": "Created custom resource with key %s " % data['message'],
         "gameState": data,
         "ok": True
     })

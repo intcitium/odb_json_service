@@ -3959,6 +3959,11 @@ content = {
         {"ascope": "Area", "crimefilled": "Legal", "type": "Zone", "category": "Annex"},
         {"ascope": "Area", "crimefilled": "Military", "type": "Base", "category": "Air Force"},
         {"ascope": "Organisation", "crimefilled": "Environment", "type": "Protection", "category": "Activism"},
+        {"ascope":  "Structure", "crimefilled":  "Military", "type":  "Launch site", "category":  "Mobile"},
+        {"ascope":  "Capability", "crimefilled":  "Military", "type":  "Munitions", "category":  "Missile"},
+        {"ascope":  "Structure", "crimefilled":  "Military", "type":  "Air defence", "category":  "Missile detection"},
+        {"ascope":  "Structure", "crimefilled":  "Military", "type":  "Launch site", "category":  "Fixed"},
+
 ],
     "nations": {
     "Heyanh Do": {"nwx": 0, "nwy": 0, "nex": 5, "ney": 0, "swx": 0, "swy": 6, "sex": 5, "sey": 6},
@@ -3971,5 +3976,27 @@ content = {
     "Dospazha": {"nwx": 3, "nwy": 12, "nex": 11, "ney": 12, "swx": 3, "swy": 18, "sex": 11, "sey": 18},
     "Elonia": {"nwx": 3, "nwy": 6, "nex": 11, "ney": 6, "swx": 3, "swy": 11, "sex": 11, "sey": 11},
     "Vanainen": {"nwx": 0, "nwy": 6, "nex": 3, "ney": 6, "swx": 0, "swy": 18, "sex": 3, "sey": 18}
-}
+},
+    "moveTypes": [
+        {
+            "key": "Military.Kinetic.Missile.Strike",
+            "crimefilled": "Military",
+            "type": "Kinetic",
+            "name": "Missile strike",
+            "reqs": [
+                'Capability.Military.Launch site.Missile',
+                'Capability.Military.Launch site.Munitions',
+            ]
+        },
+        {
+            "key": "Military.Kinetic.Tank.Blitz",
+            "crimefilled": "Military",
+            "type": "Kinetic",
+            "name": "Tank blitz",
+            "reqs": [
+                'Capability.Military.Tank.M1A1',
+                'Capability.Military.Launch site.Munitions',
+            ]
+        }
+    ]
 }
