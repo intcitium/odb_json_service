@@ -1,5 +1,5 @@
 import click, os
-import requests, json
+import requests, json, random
 import pandas as pd
 from apiserver.utils import get_datetime, clean, change_if_date, TWITTER_AUTH, format_graph
 from apiserver.blueprints.home.models import ODB
@@ -22,6 +22,9 @@ class OSINT(ODB):
         self.ICON_CONFLICT = "sap-icon://alert"
         self.ICON_CASE = "sap-icon://folder"
         self.ICON_STATUSES = ["Warning", "Error", "Success"]
+        self.ICON_TWEET = "sap-icon://jam"
+        self.ICON_TWITTER_USER = "sap-icon://customer-view"
+        self.ICON_HASHTAG = "sap-icon://number-sign"
         self.datapath = os.path.join(os.path.join(os.getcwd(), 'data'))
         self.basebook = None
         self.models = {
@@ -508,6 +511,17 @@ class OSINT(ODB):
 
         return
 
+    def run_osint_simulation(self):
+        """
+        1) Choose from a random social media profile (TODO Make social media profiles from basebook twitter and other accounts)
+        2) Create post based on social media profile type (TODO Get standard post types and content) - get tweets and label them
+        3) Create re-tweets from profiles that follow the chosen profile
+        :return:
+        """
+        # get social media profiles and their followers
+
+        return
+
     def get_twitter(self, **kwargs):
         """
         Optional uses of the Twitter API as configured in the settings. Process the tweets into a graph and then a thread
@@ -542,12 +556,118 @@ class OSINT(ODB):
             response = requests.get(api_url, auth=oauth, verify=False) # if ssl error use verify=False
             kwargs['request']+=1
             tweets = self.responseHandler(response, kwargs['username'])
+            tweets = self.processTweets(tweets=tweets)
             return tweets
 
-
     def processTweets(self, **kwargs):
+        """
+        Using the basic structure below, create a relationship between a user and all the tweets. Extract Hashtags
+        from tweets where applicable. Extract Locations where applicable.
+        Tweet structure:
+            uid: id, id_str, quoted_status_id
+        int:
+            favorite_count, retweet_count
+        dtg:
+            created_at
+        obj:
+            retweeted_status, entities, user
+        str:
+            lang, text
+        bin:
+            favorited, in_reply_to_screen_name, in_reply_to_status_id, in_reply_to_user_id,
+            is_quote_status, retweeted, truncated
+        user:
+            created_at, description, url, name, location, listed_count, profile_image_url_https
 
-        return
+        Node structure:
+            key=key,                            ## TweetID
+            class_name=kwargs['class_name'],    ## Event Tweet, Object User
+            title=title,
+            status=status,                      ## TODO sentiment
+            icon=icon,
+            attributes=attributes               ## [label, value]
+
+        :param kwargs:
+        :return:
+        """
+        graph = {
+            "nodes": [],
+            "lines": [],
+            "groups": []
+                 }
+        index = []
+        for t in kwargs['tweets']:
+            if t['id'] not in index:
+                index.append(t['id'])
+                hash_tags_str = ""
+                ht_count = 0
+                # Process Hashtags by creating a string and an entity. Then create a line to the HT from the Tweet
+                for ht in t['entities']['hashtags']:
+                    if ht_count == len(t['entities']['hashtags']):
+                        hash_tags_str = hash_tags_str + ht['text']
+                    else:
+                        hash_tags_str = hash_tags_str + ht['text']+ ", "
+                    ht_count+=1
+                    ht_id = "%s_hashtag_id" % ht['text']
+                    if ht_id not in index:
+                        graph['nodes'].append({
+                            "key": ht_id,
+                            "class_name": "Object",
+                            "title": "#%s" % ht['text'],
+                            "icon": self.ICON_HASHTAG,
+                            "attributes": [
+                                {"label": "Text", "value": ht['text']}
+                            ]
+                        })
+                    graph['lines'].append(
+                        {"to": ht_id, "from": t['id'], "description": "Included"}
+                    )
+                # Process the User by creating an entity. Then create a line from the User to the Tweet
+                if t['user']['id'] not in index:
+                    graph['nodes'].append({
+                        "key": t['user']['id'],
+                        "class_name": "Object",
+                        "title": t['user']['name'],
+                        "status": "Alert",
+                        "icon": self.ICON_TWITTER_USER,
+                        "attributes": [
+                            {"label": "Screen name", "value": t['user']['screen_name']},
+                            {"label": "Created", "value": t['user']['created_at']},
+                            {"label": "Description", "value": t['user']['description']},
+                            {"label": "Favorite", "value": t['user']['favourites_count']},
+                            {"label": "Followers", "value": t['user']['followers_count']},
+                            {"label": "Friends", "value": t['user']['friends_count']},
+                            {"label": "Following", "value": t['user']['following']},
+                            {"label": "listed_count", "value": t['user']['listed_count']},
+                            {"label": "statuses_count", "value": t['user']['statuses_count']},
+                            {"label": "Geo", "value": t['user']['geo_enabled']},
+                            {"label": "Location", "value": t['user']['location']},
+                            {"label": "Image", "value": t['user']['profile_image_url_https']},
+                            {"label": "Verified", "value": t['user']['verified']}
+                        ]
+                    })
+                graph['lines'].append(
+                    {"from": t['user']['id'], "to": t['id'], "description": "Tweeted"}
+                )
+                graph['nodes'].append({
+                    "key": t['id'],
+                    "class_name": "Event",
+                    "title": "Tweet from " + t['user']['name'],
+                    "status": random.choice(self.ICON_STATUSES),
+                    "icon": self.ICON_TWEET,
+                    "attributes": [
+                        {"label": "Created", "value": t['created_at']},
+                        {"label": "Text", "value": t['text']},
+                        {"label": "Language", "value": t['lang']},
+                        {"label": "Re-message", "value": t['retweet_count']},
+                        {"label": "Favorite", "value": t['favorite_count']},
+                        {"label": "URL", "value": t['source']},
+                        {"label": "Geo", "value": t['coordinates']},
+                        {"label": "Hashtags", "value": hash_tags_str},
+                    ]
+                })
+
+        return graph
 
     def responseHandler(self, response, searchterm):
 
