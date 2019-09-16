@@ -610,6 +610,7 @@ class OSINT(ODB):
                     ht_count+=1
                     ht_id = "%s_hashtag_id" % ht['text']
                     if ht_id not in index:
+                        index.append(ht_id)
                         graph['nodes'].append({
                             "key": ht_id,
                             "class_name": "Object",
@@ -624,6 +625,7 @@ class OSINT(ODB):
                     )
                 # Process the User by creating an entity. Then create a line from the User to the Tweet
                 if t['user']['id'] not in index:
+                    index.append(t['user']['id'])
                     graph['nodes'].append({
                         "key": t['user']['id'],
                         "class_name": "Object",
@@ -667,7 +669,8 @@ class OSINT(ODB):
                     ]
                 })
 
-        return graph
+        data = {"graph": graph, "geo": []}
+        return data
 
     def responseHandler(self, response, searchterm):
 
