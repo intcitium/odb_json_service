@@ -595,6 +595,7 @@ class OSINT(ODB):
             "lines": [],
             "groups": []
                  }
+        geo = []
         index = []
         for t in kwargs['tweets']:
             if t['id'] not in index:
@@ -669,7 +670,15 @@ class OSINT(ODB):
                     ]
                 })
 
-        data = {"graph": graph, "geo": []}
+        data = {
+            "graph": graph,
+            "geo": {
+                "Spots": {
+                    "items": geo
+                }
+            }
+        }
+
         return data
 
     def responseHandler(self, response, searchterm):
