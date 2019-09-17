@@ -668,8 +668,36 @@ class OSINT(ODB):
                         {"to": ht_id, "from": twt_id, "description": "Included"}
                     )
                 # Process Locations
-                if t['coordinates']:
-                    print(1)
+                if "place" in t.keys():
+                    if t['place']:
+                        if len(t['place']['bounding_box']['coordinates'][0]) > 0:
+                            loc_id = "TWT_Place_%s" % t['place']['id']
+                            if loc_id not in index:
+                                index.append(loc_id)
+                                graph['nodes'].append({
+                                    "key": loc_id,
+                                    "class_name": "Location",
+                                    "title": t['place']['name'],
+                                    "status": random.choice(self.ICON_STATUSES),
+                                    "icon": self.ICON_LOCATION,
+                                    "group": 3,
+                                    "attributes": [
+                                        {"label": "Re-message", "value": t['place']['url']},
+                                        {"label": "Country", "value": t['place']['country']},
+                                        {"label": "Longitude", "value": t['place']['bounding_box']['coordinates'][0][0][0]},
+                                        {"label": "Latitude", "value": t['place']['bounding_box']['coordinates'][0][0][1]},
+                                        {"label": "Type", "value": t['place']['place_type']},
+                                    ]
+                                })
+                                geo.append({
+                                    "pos": "%f;%f:0" % (
+                                        t['place']['bounding_box']['coordinates'][0][0][0],
+                                        t['place']['bounding_box']['coordinates'][0][0][1]),
+                                    "type": random.choice(self.ICON_STATUSES),
+                                    "tooltip": 9
+                                })
+                            graph['lines'].append({"from": twt_id, "to": loc_id, "description": "TweetedFrom"})
+
 
                 # Process the User by creating an entity. Then create a line from the User to the Tweet
                 user_id = "TWT_%s" % t['user']['id']
