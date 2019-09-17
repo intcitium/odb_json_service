@@ -694,7 +694,7 @@ class OSINT(ODB):
                                         t['place']['bounding_box']['coordinates'][0][0][0],
                                         t['place']['bounding_box']['coordinates'][0][0][1]),
                                     "type": random.choice(self.ICON_STATUSES),
-                                    "tooltip": 9
+                                    "tooltip": t['place']['name']
                                 })
                             graph['lines'].append({"from": twt_id, "to": loc_id, "description": "TweetedFrom"})
 
