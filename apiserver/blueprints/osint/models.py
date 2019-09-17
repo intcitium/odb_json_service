@@ -544,20 +544,56 @@ class OSINT(ODB):
         token = self.TWITTER_AUTH['token']
         token_secret = self.TWITTER_AUTH['token_secret']
         oauth  = OAuth1(client_key, client_secret, token, token_secret)
+        graphs = []
+        locationsChecked = False
 
         if "username" in kwargs.keys():
-            api_url  = "%s/statuses/user_timeline.json?" % self.base_twitter_url
-            api_url += "screen_name=%s&" % kwargs['username']
-            api_url += "count=%d" % kwargs['number_of_tweets']
+            if kwargs['username'] != "":
+                api_url  = "%s/statuses/user_timeline.json?" % self.base_twitter_url
+                api_url += "screen_name=%s&" % kwargs['username']
+                api_url += "count=%d" % kwargs['number_of_tweets']
 
-            if kwargs['max_id'] is not None:
-                api_url += "&max_id=%d" % kwargs['max_id']
-            # send request to Twitter
-            response = requests.get(api_url, auth=oauth, verify=False) # if ssl error use verify=False
-            kwargs['request']+=1
-            tweets = self.responseHandler(response, kwargs['username'])
-            tweets = self.processTweets(tweets=tweets)
-            return tweets
+                if kwargs['max_id'] is not None:
+                    api_url += "&max_id=%d" % kwargs['max_id']
+                # send request to Twitter
+                response = requests.get(api_url, auth=oauth, verify=False) # if ssl error use verify=False
+                kwargs['request']+=1
+                tweets = self.responseHandler(response, kwargs['username'])
+                tweets = self.processTweets(tweets=tweets)
+                graphs.append(tweets)
+
+        if "hashtag" in kwargs.keys():
+            if kwargs['hashtag'] != "":
+                api_url = "%s/search/tweets.json?" % self.base_twitter_url
+                api_url += "q=%%23%s&result_type=recent" % kwargs['hashtag']
+                if "latitude" in kwargs.keys() and "longitude" in kwargs.keys():
+                    api_url += "&geocode=%f,%f" % (float(kwargs['latitude']), float(kwargs['longitude']))
+                    if "radius" in kwargs:
+                        api_url += ",%dkm&count=%s" % (int(kwargs['radius']), kwargs['number_of_tweets'])
+                    else:
+                        api_url += ",5km&count=%s" % kwargs['number_of_tweets']
+                    locationsChecked = True
+                response = requests.get(api_url, auth=oauth, verify=False)
+                tweets = self.responseHandler(response, kwargs['hashtag'])
+                tweets = self.processTweets(tweets=tweets['statuses'])
+                graphs.append(tweets)
+
+        if "latitude" in kwargs.keys() and "longitude" in kwargs.keys()and not locationsChecked:
+            if kwargs['latitude'] != "" and kwargs['longitude'] != "":
+                api_url = "https://api.twitter.com/1.1/search/tweets.json?q=&geocode=%f,%f" % (
+                    float(kwargs['latitude']), float(kwargs['longitude']))
+                if "radius" in kwargs.keys():
+                    if kwargs['radius'] != "":
+                        api_url += ",%dkm&count=%s" % (int(kwargs['radius']), kwargs['number_of_tweets'])
+                    else:
+                        api_url += ",5km&count=%s" % kwargs['number_of_tweets']
+                response = requests.get(api_url, auth=oauth, verify=False)
+                tweets = self.responseHandler(response, "%s, %s" % (kwargs['latitude'], kwargs['longitude']))
+                graphs.append(tweets['statuses'])
+                tweets = self.processTweets(tweets=tweets['statuses'])
+                graphs.append(tweets)
+
+        return graphs
 
     def processTweets(self, **kwargs):
         """
@@ -598,8 +634,9 @@ class OSINT(ODB):
         geo = []
         index = []
         for t in kwargs['tweets']:
-            if t['id'] not in index:
-                index.append(t['id'])
+            twt_id = "TWT_%s" % t['id']
+            if twt_id not in index:
+                index.append(twt_id)
                 hash_tags_str = ""
                 ht_count = 0
                 # Process Hashtags by creating a string and an entity. Then create a line to the HT from the Tweet
@@ -617,21 +654,28 @@ class OSINT(ODB):
                             "class_name": "Object",
                             "title": "#%s" % ht['text'],
                             "icon": self.ICON_HASHTAG,
+                            "group": 4,
                             "attributes": [
                                 {"label": "Text", "value": ht['text']}
                             ]
                         })
                     graph['lines'].append(
-                        {"to": ht_id, "from": t['id'], "description": "Included"}
+                        {"to": ht_id, "from": twt_id, "description": "Included"}
                     )
+                # Process Locations
+                if t['coordinates']:
+                    print(1)
+
                 # Process the User by creating an entity. Then create a line from the User to the Tweet
-                if t['user']['id'] not in index:
-                    index.append(t['user']['id'])
+                user_id = "TWT_%s" % t['user']['id']
+                if user_id not in index:
+                    index.append(user_id)
                     graph['nodes'].append({
-                        "key": t['user']['id'],
+                        "key": user_id,
                         "class_name": "Object",
                         "title": t['user']['name'],
                         "status": "Alert",
+                        "group": 1,
                         "icon": self.ICON_TWITTER_USER,
                         "attributes": [
                             {"label": "Screen name", "value": t['user']['screen_name']},
@@ -646,18 +690,20 @@ class OSINT(ODB):
                             {"label": "Geo", "value": t['user']['geo_enabled']},
                             {"label": "Location", "value": t['user']['location']},
                             {"label": "Image", "value": t['user']['profile_image_url_https']},
-                            {"label": "Verified", "value": t['user']['verified']}
+                            {"label": "Verified", "value": t['user']['verified']},
+                            {"label": "Source", "value": "Twitter"}
                         ]
                     })
                 graph['lines'].append(
-                    {"from": t['user']['id'], "to": t['id'], "description": "Tweeted"}
+                    {"from": user_id, "to": twt_id, "description": "Tweeted"}
                 )
                 graph['nodes'].append({
-                    "key": t['id'],
+                    "key": twt_id,
                     "class_name": "Event",
                     "title": "Tweet from " + t['user']['name'],
                     "status": random.choice(self.ICON_STATUSES),
                     "icon": self.ICON_TWEET,
+                    "group": 2,
                     "attributes": [
                         {"label": "Created", "value": t['created_at']},
                         {"label": "Text", "value": t['text']},
