@@ -629,8 +629,13 @@ class OSINT(ODB):
         graph = {
             "nodes": [],
             "lines": [],
-            "groups": []
-                 }
+            "groups": [
+                {"key": 1, "title": "Profiles"},
+                {"key": 2, "title": "Posts"},
+                {"key": 3, "title": "Locations"},
+                {"key": 4, "title": "Hashtags"}
+            ]
+        }
         geo = []
         index = []
         for t in kwargs['tweets']:
