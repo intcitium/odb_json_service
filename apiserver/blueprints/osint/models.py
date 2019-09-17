@@ -589,7 +589,7 @@ class OSINT(ODB):
                         api_url += ",5km&count=%s" % kwargs['number_of_tweets']
                 response = requests.get(api_url, auth=oauth, verify=False)
                 tweets = self.responseHandler(response, "%s, %s" % (kwargs['latitude'], kwargs['longitude']))
-                graphs.append(tweets['statuses'])
+                #graphs.append(tweets['statuses'])
                 tweets = self.processTweets(tweets=tweets['statuses'])
                 graphs.append(tweets)
 
