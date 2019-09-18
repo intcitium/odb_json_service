@@ -746,6 +746,7 @@ class OSINT(ODB):
                         {"label": "URL", "value": t['source']},
                         {"label": "Geo", "value": t['coordinates']},
                         {"label": "Hashtags", "value": hash_tags_str},
+                        {"label": "User", "value": t['user']['screen_name']},
                     ]
                 })
 
