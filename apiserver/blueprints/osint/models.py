@@ -638,117 +638,118 @@ class OSINT(ODB):
         }
         geo = []
         index = []
-        for t in kwargs['tweets']:
-            twt_id = "TWT_%s" % t['id']
-            if twt_id not in index:
-                index.append(twt_id)
-                hash_tags_str = ""
-                ht_count = 0
-                # Process Hashtags by creating a string and an entity. Then create a line to the HT from the Tweet
-                for ht in t['entities']['hashtags']:
-                    if ht_count == len(t['entities']['hashtags']):
-                        hash_tags_str = hash_tags_str + ht['text']
-                    else:
-                        hash_tags_str = hash_tags_str + ht['text']+ ", "
-                    ht_count+=1
-                    ht_id = "%s_hashtag_id" % ht['text']
-                    if ht_id not in index:
-                        index.append(ht_id)
+        if kwargs['tweets']:
+            for t in kwargs['tweets']:
+                twt_id = "TWT_%s" % t['id']
+                if twt_id not in index:
+                    index.append(twt_id)
+                    hash_tags_str = ""
+                    ht_count = 0
+                    # Process Hashtags by creating a string and an entity. Then create a line to the HT from the Tweet
+                    for ht in t['entities']['hashtags']:
+                        if ht_count == len(t['entities']['hashtags']):
+                            hash_tags_str = hash_tags_str + ht['text']
+                        else:
+                            hash_tags_str = hash_tags_str + ht['text']+ ", "
+                        ht_count+=1
+                        ht_id = "%s_hashtag_id" % ht['text']
+                        if ht_id not in index:
+                            index.append(ht_id)
+                            graph['nodes'].append({
+                                "key": ht_id,
+                                "class_name": "Object",
+                                "title": "#%s" % ht['text'],
+                                "icon": self.ICON_HASHTAG,
+                                "group": 4,
+                                "attributes": [
+                                    {"label": "Text", "value": ht['text']}
+                                ]
+                            })
+                        graph['lines'].append(
+                            {"to": ht_id, "from": twt_id, "description": "Included"}
+                        )
+                    # Process Locations
+                    if "place" in t.keys():
+                        if t['place']:
+                            if len(t['place']['bounding_box']['coordinates'][0]) > 0:
+                                loc_id = "TWT_Place_%s" % t['place']['id']
+                                if loc_id not in index:
+                                    index.append(loc_id)
+                                    graph['nodes'].append({
+                                        "key": loc_id,
+                                        "class_name": "Location",
+                                        "title": t['place']['name'],
+                                        "status": random.choice(self.ICON_STATUSES),
+                                        "icon": self.ICON_LOCATION,
+                                        "group": 3,
+                                        "attributes": [
+                                            {"label": "Re-message", "value": t['place']['url']},
+                                            {"label": "Country", "value": t['place']['country']},
+                                            {"label": "Longitude", "value": t['place']['bounding_box']['coordinates'][0][0][0]},
+                                            {"label": "Latitude", "value": t['place']['bounding_box']['coordinates'][0][0][1]},
+                                            {"label": "Type", "value": t['place']['place_type']},
+                                        ]
+                                    })
+                                    geo.append({
+                                        "pos": "%f;%f:0" % (
+                                            t['place']['bounding_box']['coordinates'][0][0][0],
+                                            t['place']['bounding_box']['coordinates'][0][0][1]),
+                                        "type": random.choice(self.ICON_STATUSES),
+                                        "tooltip": t['place']['name']
+                                    })
+                                graph['lines'].append({"from": twt_id, "to": loc_id, "description": "TweetedFrom"})
+
+
+                    # Process the User by creating an entity. Then create a line from the User to the Tweet
+                    user_id = "TWT_%s" % t['user']['id']
+                    if user_id not in index:
+                        index.append(user_id)
                         graph['nodes'].append({
-                            "key": ht_id,
+                            "key": user_id,
                             "class_name": "Object",
-                            "title": "#%s" % ht['text'],
-                            "icon": self.ICON_HASHTAG,
-                            "group": 4,
+                            "title": t['user']['name'],
+                            "status": "Alert",
+                            "group": 1,
+                            "icon": self.ICON_TWITTER_USER,
                             "attributes": [
-                                {"label": "Text", "value": ht['text']}
+                                {"label": "Screen name", "value": t['user']['screen_name']},
+                                {"label": "Created", "value": t['user']['created_at']},
+                                {"label": "Description", "value": t['user']['description']},
+                                {"label": "Favorite", "value": t['user']['favourites_count']},
+                                {"label": "Followers", "value": t['user']['followers_count']},
+                                {"label": "Friends", "value": t['user']['friends_count']},
+                                {"label": "Following", "value": t['user']['following']},
+                                {"label": "listed_count", "value": t['user']['listed_count']},
+                                {"label": "statuses_count", "value": t['user']['statuses_count']},
+                                {"label": "Geo", "value": t['user']['geo_enabled']},
+                                {"label": "Location", "value": t['user']['location']},
+                                {"label": "Image", "value": t['user']['profile_image_url_https']},
+                                {"label": "Verified", "value": t['user']['verified']},
+                                {"label": "Source", "value": "Twitter"}
                             ]
                         })
                     graph['lines'].append(
-                        {"to": ht_id, "from": twt_id, "description": "Included"}
+                        {"from": user_id, "to": twt_id, "description": "Tweeted"}
                     )
-                # Process Locations
-                if "place" in t.keys():
-                    if t['place']:
-                        if len(t['place']['bounding_box']['coordinates'][0]) > 0:
-                            loc_id = "TWT_Place_%s" % t['place']['id']
-                            if loc_id not in index:
-                                index.append(loc_id)
-                                graph['nodes'].append({
-                                    "key": loc_id,
-                                    "class_name": "Location",
-                                    "title": t['place']['name'],
-                                    "status": random.choice(self.ICON_STATUSES),
-                                    "icon": self.ICON_LOCATION,
-                                    "group": 3,
-                                    "attributes": [
-                                        {"label": "Re-message", "value": t['place']['url']},
-                                        {"label": "Country", "value": t['place']['country']},
-                                        {"label": "Longitude", "value": t['place']['bounding_box']['coordinates'][0][0][0]},
-                                        {"label": "Latitude", "value": t['place']['bounding_box']['coordinates'][0][0][1]},
-                                        {"label": "Type", "value": t['place']['place_type']},
-                                    ]
-                                })
-                                geo.append({
-                                    "pos": "%f;%f:0" % (
-                                        t['place']['bounding_box']['coordinates'][0][0][0],
-                                        t['place']['bounding_box']['coordinates'][0][0][1]),
-                                    "type": random.choice(self.ICON_STATUSES),
-                                    "tooltip": t['place']['name']
-                                })
-                            graph['lines'].append({"from": twt_id, "to": loc_id, "description": "TweetedFrom"})
-
-
-                # Process the User by creating an entity. Then create a line from the User to the Tweet
-                user_id = "TWT_%s" % t['user']['id']
-                if user_id not in index:
-                    index.append(user_id)
                     graph['nodes'].append({
-                        "key": user_id,
-                        "class_name": "Object",
-                        "title": t['user']['name'],
-                        "status": "Alert",
-                        "group": 1,
-                        "icon": self.ICON_TWITTER_USER,
+                        "key": twt_id,
+                        "class_name": "Event",
+                        "title": "Tweet from " + t['user']['name'],
+                        "status": random.choice(self.ICON_STATUSES),
+                        "icon": self.ICON_TWEET,
+                        "group": 2,
                         "attributes": [
-                            {"label": "Screen name", "value": t['user']['screen_name']},
-                            {"label": "Created", "value": t['user']['created_at']},
-                            {"label": "Description", "value": t['user']['description']},
-                            {"label": "Favorite", "value": t['user']['favourites_count']},
-                            {"label": "Followers", "value": t['user']['followers_count']},
-                            {"label": "Friends", "value": t['user']['friends_count']},
-                            {"label": "Following", "value": t['user']['following']},
-                            {"label": "listed_count", "value": t['user']['listed_count']},
-                            {"label": "statuses_count", "value": t['user']['statuses_count']},
-                            {"label": "Geo", "value": t['user']['geo_enabled']},
-                            {"label": "Location", "value": t['user']['location']},
-                            {"label": "Image", "value": t['user']['profile_image_url_https']},
-                            {"label": "Verified", "value": t['user']['verified']},
-                            {"label": "Source", "value": "Twitter"}
+                            {"label": "Created", "value": t['created_at']},
+                            {"label": "Text", "value": t['text']},
+                            {"label": "Language", "value": t['lang']},
+                            {"label": "Re-message", "value": t['retweet_count']},
+                            {"label": "Favorite", "value": t['favorite_count']},
+                            {"label": "URL", "value": t['source']},
+                            {"label": "Geo", "value": t['coordinates']},
+                            {"label": "Hashtags", "value": hash_tags_str},
+                            {"label": "User", "value": t['user']['screen_name']},
                         ]
                     })
-                graph['lines'].append(
-                    {"from": user_id, "to": twt_id, "description": "Tweeted"}
-                )
-                graph['nodes'].append({
-                    "key": twt_id,
-                    "class_name": "Event",
-                    "title": "Tweet from " + t['user']['name'],
-                    "status": random.choice(self.ICON_STATUSES),
-                    "icon": self.ICON_TWEET,
-                    "group": 2,
-                    "attributes": [
-                        {"label": "Created", "value": t['created_at']},
-                        {"label": "Text", "value": t['text']},
-                        {"label": "Language", "value": t['lang']},
-                        {"label": "Re-message", "value": t['retweet_count']},
-                        {"label": "Favorite", "value": t['favorite_count']},
-                        {"label": "URL", "value": t['source']},
-                        {"label": "Geo", "value": t['coordinates']},
-                        {"label": "Hashtags", "value": hash_tags_str},
-                        {"label": "User", "value": t['user']['screen_name']},
-                    ]
-                })
 
         data = {
             "graph": graph,
