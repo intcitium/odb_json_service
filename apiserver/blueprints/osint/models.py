@@ -566,6 +566,16 @@ class OSINT(ODB):
                     message+= " %s tweets" % kwargs['username']
                 else:
                     message+= " %s protects tweets" % kwargs['username']
+                    graphs.append(        graph = {
+            "nodes": [],
+            "lines": [],
+            "groups": [
+                {"key": 1, "title": "Profiles"},
+                {"key": 2, "title": "Posts"},
+                {"key": 3, "title": "Locations"},
+                {"key": 4, "title": "Hashtags"}
+            ]
+        })
 
         if "hashtag" in kwargs.keys():
             if kwargs['hashtag'] != "":
