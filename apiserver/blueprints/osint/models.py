@@ -566,7 +566,7 @@ class OSINT(ODB):
             if kwargs['hashtag'] != "":
                 api_url = "%s/search/tweets.json?" % self.base_twitter_url
                 api_url += "q=%%23%s&result_type=recent" % kwargs['hashtag']
-                if "latitude" in kwargs.keys() and "longitude" in kwargs.keys():
+                if "latitude" in kwargs.keys() and "longitude" in kwargs.keys() and kwargs['latitude'] != "":
                     api_url += "&geocode=%f,%f" % (float(kwargs['latitude']), float(kwargs['longitude']))
                     if "radius" in kwargs:
                         api_url += ",%dkm&count=%s" % (int(kwargs['radius']), kwargs['number_of_tweets'])
