@@ -582,7 +582,7 @@ class OSINT(ODB):
                 tweets = self.responseHandler(response, kwargs['hashtag'])
                 tweets = self.processTweets(tweets=tweets['statuses'])
                 graphs.append(tweets)
-                message+= " %s resulted in %d records" % (kwargs['hashtag'], len(tweets['nodes']))
+                message+= " %s resulted in %d records" % (kwargs['hashtag'], len(tweets['graph']['nodes']))
 
         if "latitude" in kwargs.keys() and "longitude" in kwargs.keys()and not locationsChecked:
             if kwargs['latitude'] != "" and kwargs['longitude'] != "":
@@ -598,7 +598,7 @@ class OSINT(ODB):
                 #graphs.append(tweets['statuses'])
                 tweets = self.processTweets(tweets=tweets['statuses'])
                 graphs.append(tweets)
-                message += " %s resulted in %d, %d records" % (kwargs['latitude'], kwargs['latitude'], len(tweets['nodes']))
+                message += " %s resulted in %d, %d records" % (kwargs['latitude'], kwargs['latitude'], len(tweets['graph']['nodes']))
 
         return graphs, message
 
