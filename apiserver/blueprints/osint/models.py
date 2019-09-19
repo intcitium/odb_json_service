@@ -546,6 +546,7 @@ class OSINT(ODB):
         oauth  = OAuth1(client_key, client_secret, token, token_secret)
         graphs = []
         locationsChecked = False
+        message = "Retrieved twitter API: "
 
         if "username" in kwargs.keys():
             if kwargs['username'] != "":
@@ -559,8 +560,12 @@ class OSINT(ODB):
                 response = requests.get(api_url, auth=oauth, verify=False) # if ssl error use verify=False
                 kwargs['request']+=1
                 tweets = self.responseHandler(response, kwargs['username'])
-                tweets = self.processTweets(tweets=tweets)
-                graphs.append(tweets)
+                if response.status_code != 401:
+                    tweets = self.processTweets(tweets=tweets)
+                    graphs.append(tweets)
+                    message+= " %s tweets" % kwargs['username']
+                else:
+                    message+= " %s protects tweets" % kwargs['username']
 
         if "hashtag" in kwargs.keys():
             if kwargs['hashtag'] != "":
@@ -577,6 +582,7 @@ class OSINT(ODB):
                 tweets = self.responseHandler(response, kwargs['hashtag'])
                 tweets = self.processTweets(tweets=tweets['statuses'])
                 graphs.append(tweets)
+                message+= " %s resulted in %d records" % (kwargs['hashtag'], len(tweets['nodes']))
 
         if "latitude" in kwargs.keys() and "longitude" in kwargs.keys()and not locationsChecked:
             if kwargs['latitude'] != "" and kwargs['longitude'] != "":
@@ -592,8 +598,9 @@ class OSINT(ODB):
                 #graphs.append(tweets['statuses'])
                 tweets = self.processTweets(tweets=tweets['statuses'])
                 graphs.append(tweets)
+                message += " %s resulted in %d, %d records" % (kwargs['latitude'], kwargs['latitude'], len(tweets['nodes']))
 
-        return graphs
+        return graphs, message
 
     def processTweets(self, **kwargs):
         """

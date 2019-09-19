@@ -41,9 +41,9 @@ def ucdp():
 
 @osint.route('/osint/twitter', methods=['GET'])
 def twitter():
-
+    results, message = osintserver.get_twitter(**(get_request_payload(request)))
     return jsonify({
         "status": 200,
-        "message": "Results from Twitter API",
-        "data": osintserver.get_twitter(**(get_request_payload(request)))
+        "message": message,
+        "data": results
     })
