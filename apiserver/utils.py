@@ -209,6 +209,11 @@ def get_request_payload(request):
             r = json.loads(request.data)
         except Exception as e:
             click.echo(e, request)
+    if len(r.keys()) == 1:
+        for k in r.keys():
+            if len(k) > 100:
+                r = k[2:-2]
+                click.echo(type(r))
 
     return r
 
