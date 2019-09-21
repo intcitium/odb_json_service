@@ -214,6 +214,8 @@ def get_request_payload(request):
             if len(k) > 100:
                 r = k[2:-2]
                 click.echo(type(r))
+                r = json.loads(k)
+                click.echo("TTTT\n%s" % r)
 
     return r
 
