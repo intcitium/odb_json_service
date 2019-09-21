@@ -213,6 +213,7 @@ def get_request_payload(request):
         click.echo("Attempting misformed JSON")
         for k in r.keys():
             if len(k) > 100:
+                click.echo("The big KEY\n%s" % k)
                 newR = k[2:-2]
                 click.echo(newR)
                 r = json.loads(newR)
