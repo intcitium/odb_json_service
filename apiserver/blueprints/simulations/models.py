@@ -1,6 +1,6 @@
 import json, random
 import click
-from apiserver.utils import get_datetime, clean, get_time_based_id, format_graph
+from apiserver.utils import get_datetime, clean, format_graph
 from apiserver.blueprints.home.models import ODB
 import pandas as pd
 import numpy as np
@@ -450,7 +450,6 @@ class Pole(ODB):
         The core_age should be in the form of days old not years so that a more varied age can be applied to relatives.
         The core_age of parent A is determined through a normal distribution of parent ages
         The core_age of parent B is determined through a n dist of parent age differences and the core_age of parent A
-        TODO: Make sim dob time more random and not based on computer time
         :param core_age (int that will determine how many days old and then randomizes DateOfBirth based on today
         :return:
         """
@@ -469,7 +468,6 @@ class Pole(ODB):
         if 'LastName' in kwargs:
             LastName = kwargs['LastName']
         else:
-            # TODO Change to random choice lookup
             LastName = random.choice(self.LastNames)
 
         Message = "Created the %s family:\n" % LastName
@@ -529,11 +527,9 @@ class Pole(ODB):
                 GenderB = 'F'
 
         if GenderB == 'F':
-            # TODO Change to random choice lookup
             FirstName = random.choice(self.FemaleNames)
             Message = Message + "Mother: %s born on " % FirstName
         else:
-            # TODO Change to random choice lookup anyrandom.choice
             FirstName = random.choice(self.MaleNames)
             Message = Message + "Father: %s born on " % FirstName
         LastNameB = random.choice(self.LastNames)
@@ -861,7 +857,6 @@ class Pole(ODB):
                                 Latitude = eLocation['Latitude'] + random.randint(-1000, 1000) / 100000
                                 Longitude = eLocation['Longitude'] + random.randint(-1000, 1000) / 100000
                                 createNew = True
-                            # TODO use the SIM
                         # 'Crime', 'Education', 'Abuse', 'Health', 'Employment', 'SocialMedia'
                         if action == "Health":
                             Category = random.choice(self.LocationsHealth)
@@ -934,101 +929,6 @@ class Pole(ODB):
                        'different Locations' % (totalPeople, totalEvents, totalLocations),
             'data': S.to_dict()}
 
-    def save(self, r):
-        """
-        Checks if the Case already exists and if not, creates it.
-        Checks if the Nodes sent in the graphCase are already "Attached" to the Case if the Case does exist.
-        Expects a request with graphCase containing the graph from the user's canvas and assumes that all nodes have an
-        attribute "key". The creation of a node is only if the node is new and taken from a source that doesn't exist in
-        POLE yet.
-        TODO: Ensure duplicate relations not made. Need enhancement to get relation name
-        TODO: Implement classification and Owner/Reader relations
-        1) Match all
-        :param r:
-        :return:
-        """
-        current_nodes = []
-        newNodes = newLines = 0
-        fGraph = self.quality_check(self.format_graph(json.loads(r['graphCase'][2:-7])))
-        case = self.client.command(
-            "select key, class_name, Name, Owner, Classification, startDate from Case where Name = '%s' and Classification = '%s'" % (
-            clean(r['graphName']), r['classification'])
-        )
-        # UPDATE CASE if it was found
-        if len(case) > 0:
-            case = dict(case[0].oRecordData)
-            case_key = case['key']
-            message = "Updated %s" % case['Name']
-            Attached = self.client.command(
-                "match {class: Case, as: u, where: (key = '%s')}.out(Attached){class: V, as: e} return e.key" % case_key)
-            for k in Attached:
-                current_nodes.append(k.oRecordData['e_key'])
-        # SAVE CASE if it was not found
-        else:
-            message = "Saved %s" % r['graphName']
-            case = self.create_node(
-                key="C%s" % get_time_based_id(),
-                class_name="Case",
-                Name=clean(r["graphName"]),
-                Owner=r["userOwners"],
-                Classification=r["classification"],
-                startDate=get_datetime(),
-                NodeCount=len(fGraph['nodes']),
-                EdgeCount=len(fGraph['lines'])
-            )
-            case_key = case['data']['key']
-        # ATTACHMENTS of Nodes and Edges from the Request. If they are
-        if "nodes" in fGraph.keys() and "lines" in fGraph.keys():
-            for n in fGraph['nodes']:
-                if n['key'] not in current_nodes:
-                    newNodes+=1
-                    if 'class_name' not in n.keys():
-                        if 'startDate' in n.keys():
-                            n['class_name'] = "Event"
-                        else:
-                            n['class_name'] = "Object"
-                    self.create_node(**n)
-                    self.create_edge(fromNode=case_key, toNode=n['key'],
-                                     edgeType="Attached", fromClass="Case", toClass=n['class_name'])
-            lRels = []
-            rels = self.client.command(
-                '''
-                match {class: Case, as: u, where: (key = '%s')}.out(Attached)
-                {class: V, as: n1}.out(){class: V, as: n2} 
-                return n1.key, n2.key
-                ''' % case_key)
-            for rel in rels:
-                rel = rel.oRecordData
-                lRels.append({"fromNode": rel['n1_key'], "toNode": rel['n2_key']})
-            for l in fGraph['lines']:
-                if {"fromNode": l['from'], "toNode": l['to']} not in lRels:
-                    newLines+=1
-                    self.create_edge(fromNode=l['from'], fromClass=self.get_class_name(fGraph, l['from']),
-                                     toNode=l['to'], toClass=self.get_class_name(fGraph, l['to']),
-                                     edgeType=l['description'],
-                                     )
-            if newNodes == 0 and newLines == 0:
-                message = "No new data received. Case %s is up to date." % clean(r["graphName"])
-            else:
-                message = "%s with %d nodes and %d edges." % (message, newNodes, newLines)
-        return {
-            "data": case,
-            "message": message}
-
-    @staticmethod
-    def get_class_name(graph, key):
-        """
-        Needed for the SAPUI5 graph because relations/lines do not have class_names and this is needed to create an edge
-        :param graph:
-        :param key:
-        :return:
-        """
-        for n in graph['nodes']:
-            if n['key'] == key:
-                return n['class_name']
-        return
-
-
     def get_risks(self):
 
         risks = {"data": []}
@@ -1044,6 +944,22 @@ class Pole(ODB):
 
         return risks
 
-
-
+    def save_pole(self, **kwargs):
+        """
+        Checks if the Case already exists and if not, creates it.
+        Checks if the Nodes sent in the graphCase are already "Attached" to the Case if the Case does exist.
+        Expects a request with graphCase containing the graph from the user's canvas and assumes that all nodes have an
+        attribute "key". The creation of a node is only if the node is new and taken from a source that doesn't exist in
+        POLE yet.
+        TODO: Ensure duplicate relations not made. Need enhancement to get relation name
+        TODO: Implement classification and Owner/Reader relations
+        1) Match all
+        :param r:
+        :return:
+        """
+        fGraph = self.quality_check(format_graph(json.loads(kwargs['graphCase'][2:-7])))
+        return self.save(graphCase=fGraph,
+                  userOwners=kwargs['userOwners'],
+                  classification=kwargs['classification'],
+                  graphName=kwargs['graphName'])
 

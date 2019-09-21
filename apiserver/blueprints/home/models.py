@@ -1,7 +1,7 @@
 import pyorient
 import json, random
 import click
-from apiserver.utils import get_datetime, HOST_IP, change_if_number, clean
+from apiserver.utils import get_datetime, HOST_IP, change_if_number, clean, get_time_based_id, format_graph
 import pandas as pd
 import os
 import time
@@ -69,43 +69,6 @@ class ODB:
         except Exception as e:
             return str(e)
 
-    def delete_edge(self, **kwargs):
-        if change_if_number(kwargs['fromNode']) and change_if_number(kwargs['toNode']):
-            sql = '''
-            delete edge {edgeType} from 
-            (select from {fromClass} where key = {fromNode}) to 
-            (select from {toClass} where key = {toNode})
-            '''.format(edgeType=kwargs['edgeType'], fromNode=kwargs['fromNode'], toNode=kwargs['toNode'],
-                       fromClass=kwargs['fromClass'], toClass=kwargs['toClass'])
-
-        elif change_if_number(kwargs['fromNode']):
-            sql = '''
-            delete edge {edgeType} from 
-            (select from {fromClass} where key = {fromNode}) to 
-            (select from {toClass} where key = '{toNode}')
-            '''.format(edgeType=kwargs['edgeType'], fromNode=kwargs['fromNode'], toNode=kwargs['toNode'],
-                       fromClass=kwargs['fromClass'], toClass=kwargs['toClass'])
-        elif change_if_number(kwargs['toNode']):
-            sql = '''
-            delete edge {edgeType} from 
-            (select from {fromClass} where key = '{fromNode}') to 
-            (select from {toClass} where key = {toNode})
-            '''.format(edgeType=kwargs['edgeType'], fromNode=kwargs['fromNode'], toNode=kwargs['toNode'],
-                       fromClass=kwargs['fromClass'], toClass=kwargs['toClass'])
-        else:
-            sql = '''
-            delete edge {edgeType} from 
-            (select from {fromClass} where key = '{fromNode}') to 
-            (select from {toClass} where key = '{toNode}')
-            '''.format(edgeType=kwargs['edgeType'], fromNode=kwargs['fromNode'], toNode=kwargs['toNode'],
-                       fromClass=kwargs['fromClass'], toClass=kwargs['toClass'])
-
-        try:
-            self.client.command(sql)
-            return True
-        except Exception as e:
-            return str(e)
-
     def create_node(self, **kwargs):
         """
         Use the idseq to iterate the key and require a class name to create the node
@@ -123,10 +86,12 @@ class ODB:
                 labels = "(key"
                 values = "("
                 hadKey = True
+                thisKey = kwargs['key']
             else:
                 labels = "(key"
                 values = "(sequence('idseq').next()"
                 hadKey = False
+                thisKey = None
             icon = title = status = None
 
             for k in kwargs.keys():
@@ -167,26 +132,40 @@ class ODB:
                     status = kwargs[k]
                 if k != 'passWord':
                     attributes.append({"label": k, "value": kwargs[k]})
-            sql = '''
-            insert into {class_name} {labels} values {values} return @this.key
-            '''.format(class_name=kwargs['class_name'], labels=labels, values=values)
-            try:
-                key = self.client.command(sql)[0].oRecordData['result']
+            if thisKey:
                 formatted_node = self.format_node(
-                    key=key,
+                    key=thisKey,
                     class_name=kwargs['class_name'],
                     title=title,
                     status=status,
                     icon=icon,
                     attributes=attributes
                 )
-                message = '[%s_%s_create_node] Create node %s' % (get_datetime(), self.db_name, key)
+                message = '[%s_%s_create_node] Node %s exists' % (get_datetime(), self.db_name, thisKey)
                 return {"message": message, "data": formatted_node}
+            else:
+                sql = '''
+                insert into {class_name} {labels} values {values} return @this.key
+                '''.format(class_name=kwargs['class_name'], labels=labels, values=values)
+                try:
+                    key = self.client.command(sql)[0].oRecordData['result']
+                    formatted_node = self.format_node(
+                        key=key,
+                        class_name=kwargs['class_name'],
+                        title=title,
+                        status=status,
+                        icon=icon,
+                        attributes=attributes
+                    )
+                    message = '[%s_%s_create_node] Create node %s' % (get_datetime(), self.db_name, key)
+                    return {"message": message, "data": formatted_node}
 
-            except Exception as e:
-                message = '[%s_%s_create_node] ERROR %s\n%s' % (get_datetime(), self.db_name, str(e), sql)
-                click.echo(message)
-                return message
+                except Exception as e:
+                    if str(type(e)) == str(type(e)) == "<class 'pyorient.exceptions.PyOrientORecordDuplicatedException'>":
+                        return
+                    message = '[%s_%s_create_node] ERROR %s\n%s' % (get_datetime(), self.db_name, str(e), sql)
+                    click.echo(message)
+                    return message
 
         else:
             return None
@@ -403,5 +382,100 @@ class ODB:
             click.echo("Missing nodes or lines")
             return None
         return graph
+
+    def save(self, **kwargs):
+        """
+        Checks if the Case already exists and if not, creates it.
+        Checks if the Nodes sent in the graphCase are already "Attached" to the Case if the Case does exist.
+        Expects a request with graphCase containing the graph from the user's canvas and assumes that all nodes have an
+        attribute "key". The creation of a node is only if the node is new and taken from a source that doesn't exist in
+        POLE yet.
+        TODO: Ensure duplicate relations not made. Need enhancement to get relation name
+        TODO: Implement classification and Owner/Reader relations
+        1) Match all
+        :param r:
+        :return:
+        """
+        fGraph = kwargs['graphCase']
+        current_nodes = []
+        newNodes = newLines = 0
+        sql = ('''
+        select key, class_name, Name, Owner, Classification, startDate 
+        from Case where Name = '%s' and Classification = '%s'
+        ''' % (clean(kwargs['graphName']), kwargs['classification'])
+               )
+        case = self.client.command(sql)
+        # UPDATE CASE if it was found
+        if len(case) > 0:
+            case = dict(case[0].oRecordData)
+            case_key = case['key']
+            message = "Updated %s" % case['Name']
+            Attached = self.client.command(
+                "match {class: Case, as: u, where: (key = '%s')}.out(Attached){class: V, as: e} return e.key" % case_key)
+            for k in Attached:
+                current_nodes.append(k.oRecordData['e_key'])
+        # SAVE CASE if it was not found
+        else:
+            message = "Saved %s" % kwargs['graphName']
+            case = self.create_node(
+                key="C%s" % get_time_based_id(),
+                class_name="Case",
+                Name=clean(kwargs["graphName"]),
+                Owner=kwargs["userOwners"],
+                Classification=kwargs["classification"],
+                startDate=get_datetime(),
+                NodeCount=len(fGraph['nodes']),
+                EdgeCount=len(fGraph['lines'])
+            )
+            case_key = case['data']['key']
+        # ATTACHMENTS of Nodes and Edges from the Request. If they are
+        if "nodes" in fGraph.keys() and "lines" in fGraph.keys():
+            for n in fGraph['nodes']:
+                if n['key'] not in current_nodes:
+                    newNodes += 1
+                    if 'class_name' not in n.keys():
+                        if 'startDate' in n.keys():
+                            n['class_name'] = "Event"
+                        else:
+                            n['class_name'] = "Object"
+                    self.create_node(**n)
+                    self.create_edge(fromNode=case_key, toNode=n['key'],
+                                     edgeType="Attached", fromClass="Case", toClass=n['class_name'])
+            lRels = []  # Final check on lines between the fGraph and what is found already attached to the case
+            rels = self.client.command(
+                '''
+                match {class: Case, as: u, where: (key = '%s')}.out(Attached)
+                {class: V, as: n1}.out(){class: V, as: n2} 
+                return n1.key, n2.key
+                ''' % case_key)
+            for rel in rels:
+                rel = rel.oRecordData
+                lRels.append({"fromNode": rel['n1_key'], "toNode": rel['n2_key']})
+            for l in fGraph['lines']:
+                if {"fromNode": l['from'], "toNode": l['to']} not in lRels:
+                    newLines += 1
+                    self.create_edge(fromNode=l['from'], fromClass=self.get_class_name(fGraph, l['from']),
+                                     toNode=l['to'], toClass=self.get_class_name(fGraph, l['to']),
+                                     edgeType=l['description'],
+                                     )
+            if newNodes == 0 and newLines == 0:
+                message = "No new data received. Case %s is up to date." % clean(kwargs["graphName"])
+            else:
+                message = "%s with %d nodes and %d edges." % (message, newNodes, newLines)
+
+        return fGraph, message
+
+    @staticmethod
+    def get_class_name(graph, key):
+        """
+        Needed for the SAPUI5 graph because relations/lines do not have class_names and this is needed to create an edge
+        :param graph:
+        :param key:
+        :return:
+        """
+        for n in graph['nodes']:
+            if n['key'] == key:
+                return n['class_name']
+        return
 
 

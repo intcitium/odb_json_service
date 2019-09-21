@@ -1,9 +1,11 @@
-from flask import jsonify, Blueprint, request, render_template
+from flask import jsonify, Blueprint, request
 from apiserver.blueprints.home.models import ODB
+from apiserver.utils import get_request_payload
 
 home = Blueprint('home', __name__)
 odbserver = ODB()
 odbserver.open_db()
+
 
 
 @home.route('/', methods=['GET'])
@@ -24,5 +26,4 @@ def get_snapshot():
         "message": "Sample data from the file system",
         "data": odbserver.get_data()
     })
-
 

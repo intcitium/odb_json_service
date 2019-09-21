@@ -56,18 +56,6 @@ def run():
         })
 
 
-@simulations.route('/save', methods=['POST'])
-def save():
-
-    r = request.form.to_dict()
-    if 'graphCase' in r.keys():
-        rt = simserver.save(r)
-    else:
-        rt = {"message": "No graph found in request.", "data": None}
-
-    return jsonify(rt)
-
-
 @simulations.route('/simulations/get_risks', methods=['GET'])
 def get_risks():
 

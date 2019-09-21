@@ -1,7 +1,7 @@
 import click, os
 import requests, json, random
 import pandas as pd
-from apiserver.utils import get_datetime, clean, change_if_date, TWITTER_AUTH, format_graph
+from apiserver.utils import get_datetime, clean, change_if_date, TWITTER_AUTH, get_time_based_id, format_graph
 from apiserver.blueprints.home.models import ODB
 from requests_oauthlib import OAuth1
 import urllib3
@@ -566,12 +566,15 @@ class OSINT(ODB):
                     message+= " %s tweets" % kwargs['username']
                 else:
                     message+= " %s protects tweets" % kwargs['username']
-                    graphs.append({"nodes": [],"lines": [],             "groups": [
-                {"key": 1, "title": "Profiles"},
-                {"key": 2, "title": "Posts"},
-                {"key": 3, "title": "Locations"},
-                {"key": 4, "title": "Hashtags"}
-            ]})
+                    graphs.append({
+                        "nodes": [],
+                        "lines": [],
+                        "groups": [
+                            {"key": 1, "title": "Profiles"},
+                            {"key": 2, "title": "Posts"},
+                            {"key": 3, "title": "Locations"},
+                            {"key": 4, "title": "Hashtags"}
+                    ]})
 
         if "hashtag" in kwargs.keys():
             if kwargs['hashtag'] != "":
@@ -604,7 +607,86 @@ class OSINT(ODB):
                 #graphs.append(tweets['statuses'])
                 tweets = self.processTweets(tweets=tweets['statuses'])
                 graphs.append(tweets)
-                message += " %s resulted in %d, %d records" % (kwargs['latitude'], kwargs['latitude'], len(tweets['graph']['nodes']))
+                message += " %s resulted in %s, %d records" % (kwargs['latitude'], kwargs['latitude'], len(tweets['graph']['nodes']))
+
+        return graphs, message
+
+    def geo_spatial_view(self, **kwargs):
+        """
+        Create a record for every location->event->Vertex and for every location->Event. If there is a case in the
+        request, only get those items related to case. By book-ending the query with the case, there is no risk in
+        picking up data not part of the case. TODO Additional check on data to ensure classification does not break rule
+            {position: l.latitude, l.longitude, e.startDate
+            tooltip:
+            DependentData: time?  , v.type, v.category, e.type
+        Enables user in a geo view to filter on type, category and time windows (if position[2] in between time range or
+        other filter
+
+        :return:
+        """
+        if "caseKey" in kwargs.keys():
+            sql = '''
+            MATCH
+            {class:Case, where: (key = '%s')}.out("Attached")
+            {class:Location, as:l}.bothE(){as:l2e}.bothV()
+            {class:Event, as:e}.bothE(){as:e2v}.bothV()
+            {class:V, as:v}.in("Attached"){class:Case, where: (key = '%s')}
+            RETURN 
+            l.key, l.Longitude, l.Latitude, l.title, l.Category, l.Type, l.icon,  
+            l2e.@class as EventLocation, 
+            e.key, e.Description, e.Category, e.Civilians, e.Deaths, e.EndDate, e.icon, e.EndDate, e.Source,
+            e2v.@class as EventVertex,
+            v.key, v.title, v.icon, v.Description, v.Gender, v.LastName, v.FirstName, v.@class as class_name 
+            ''' % (kwargs['caseKey'], kwargs['caseKey'])
+        else:
+            sql = '''
+            MATCH
+            {class:Location, as:l}.bothE(){as:l2e}.bothV()
+            {class:Event, as:e}.bothE(){as:e2v}.bothV()
+            {class:V, as:v}
+            RETURN 
+            l.key, l.Longitude, l.Latitude, l.title, l.Category, l.Type, l.icon,  
+            l2e.@class as EventLocation, 
+            e.key, e.Description, e.Category, e.Civilians, e.Deaths, e.EndDate, e.icon, e.EndDate, e.Source,
+            e2v.@class as EventVertex,
+            v.key, v.title, v.icon, v.Description, v.Gender, v.LastName, v.FirstName, v.@class as class_name 
+            '''
+        r = self.client.command(sql)
+        curLocation = None
+        curEvent = None
+        index = []
+        for i in r:
+
+            click.echo(i.oRecordData)
+
+    def save_osint(self, **kwargs):
+        """
+        Checks if the Case already exists and if not, creates it.
+        Checks if the Nodes sent in the graphCase are already "Attached" to the Case if the Case does exist.
+        Expects a request with graphCase containing the graph from the user's canvas and assumes that all nodes have an
+        attribute "key". The creation of a node is only if the node is new and taken from a source that doesn't exist in
+        POLE yet.
+        TODO: Ensure duplicate relations not made. Need enhancement to get relation name
+        TODO: Implement classification and Owner/Reader relations
+        1) Match all
+        :param r:
+        :return:
+        """
+        fGraph = self.quality_check(format_graph(json.loads(kwargs['graphCase'][2:-7])))
+
+        case, message = self.save(graphCase=fGraph,
+                  userOwners=kwargs['userOwners'],
+                  classification=kwargs['classification'],
+                  graphName=kwargs['graphName'])
+        data = {
+            "graph": case,
+            "geo": {
+                "Spots": {
+                    "items": []
+                }
+            }
+        }
+        graphs = [data]
 
         return graphs, message
 

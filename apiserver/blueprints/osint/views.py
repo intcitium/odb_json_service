@@ -41,9 +41,32 @@ def ucdp():
 
 @osint.route('/osint/twitter', methods=['GET'])
 def twitter():
+
     results, message = osintserver.get_twitter(**(get_request_payload(request)))
     return jsonify({
         "status": 200,
         "message": message,
         "data": results
     })
+
+
+@osint.route('/osint/geo_spatial_view', methods=['GET'])
+def geo_spatial_view():
+
+    results, message = osintserver.geo_spatial_view(**(get_request_payload(request)))
+    return jsonify({
+        "status": 200,
+        "message": message,
+        "data": results
+    })
+
+@osint.route('/osint/save', methods=['POST'])
+def save():
+
+    case, message = osintserver.save_osint(**get_request_payload(request))
+    return jsonify({
+        "status": 200,
+        "message": message,
+        "data": case
+    })
+
