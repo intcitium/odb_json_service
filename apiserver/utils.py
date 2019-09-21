@@ -202,8 +202,6 @@ def get_request_payload(request):
 
     r = request.form.to_dict(flat=True)
     click.echo("Received request with %d keys" % len(r.keys()))
-    for k in r.keys():
-        click.echo("\t%s" % k)
     if len(r.keys()) == 0:
         # CAI sends POST as raw so need to get data
         click.echo("Attempting JSON loads of request.data")
@@ -215,9 +213,8 @@ def get_request_payload(request):
         click.echo("Attempting misformed JSON")
         for k in r.keys():
             if len(k) > 100:
-                r = k[2:-2]
-                click.echo(type(r), r)
-                r = json.loads(k)
+                newR = k[2:-2]
+                r = json.loads(newR)
                 click.echo("TTTT\n%s" % r)
 
     return r
