@@ -199,31 +199,15 @@ def get_request_payload(request):
     :param request: 
     :return:
     """
-    try:
-        click.echo("Request.data: %s %s" % (len(request.data), request.data))
-        r = request.data # If in binary state, it will have a length to dump into a dictionary
-        if len(r) < 10:
-            r = request.args.to_dict()
-            click.echo("Dict: %s" % r)
-        # It is a binary formatted dictionary
-        else:
-            r = json.loads(r)
-            if 'params' in r.keys():
-                r = r['params']
-            click.echo("Request binary data result: %s" % (r))
-        if len(r.keys()) == 0:
-            click.echo("Request.args: %s %s" % (len(request.args), request.args))
-            click.echo("Request.values:%s" % (request.values))
-            r = request.form.to_dict(flat=True)
-            if len(r.keys()) == 0:
-                # CAI sends POST as raw so need to get data
-                r = json.loads(request.data)
-                # React Axios stores data in "logs" key
-                if "logs" in r.keys():
-                    r = r["logs"]
-    except Exception as e:
-        click.echo("[utils.get_request_payload] ERROR: %s" % str(e))
-        r = request
+
+    r = request.form.to_dict(flat=True)
+    if len(r.keys()) == 0:
+        # CAI sends POST as raw so need to get data
+        try:
+            r = json.loads(request.data)
+            click.echo(r)
+        except Exception as e:
+            click.echo(e, request)
 
     return r
 
