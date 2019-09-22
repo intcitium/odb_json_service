@@ -230,7 +230,7 @@ def get_request_payload(request):
                 try:
                     r = json.loads(newR)
                 except:
-                    newR = r.replace('\'', "")
+                    newR = newR.replace('\'', "")
                     try:
                         r = json.loads(newR)
                     except Exception as e:
