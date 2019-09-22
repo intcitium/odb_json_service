@@ -221,7 +221,7 @@ def get_request_payload(request):
         for k in r.keys():
             if len(k) > 100:
                 click.echo("The big KEY\n%s" % k)
-                newR = str(r)[2:-2]
+                newR = str(r)[2:-2].replace('\'', "")
                 # Check begining of dictionary and ensure not {'{
                 if newR[:2] == "{'":
                     newR = newR[2:]
