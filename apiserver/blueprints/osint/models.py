@@ -672,7 +672,9 @@ class OSINT(ODB):
         :param r:
         :return:
         """
-        fGraph = self.quality_check(format_graph(json.loads(kwargs['graphCase'][2:-7])))
+
+        fGraph = {"graphCase": {"nodes": kwargs['nodes'], "lines": kwargs['lines'], "groups": kwargs['groups']}}
+        fGraph = self.quality_check(format_graph(fGraph['graphCase']))
 
         case, message = self.save(graphCase=fGraph,
                   userOwners=kwargs['userOwners'],
