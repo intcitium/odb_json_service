@@ -200,9 +200,11 @@ def get_request_payload(request):
     :return:
     """
 
+    click.echo("\n\n\n\n\n\n\nRequest")
+    click.echo(request)
     r = request.form.to_dict(flat=True)
     click.echo("\n\n\n\n\n\n\nRequest.Form")
-    click.echo(request.form)
+    click.echo(r)
     click.echo("\n\n\n\n\n\n\nRequest.Args")
     click.echo(request.args)
     click.echo("Received request with %d keys\n%s" % (len(r.keys()), r.keys()))
