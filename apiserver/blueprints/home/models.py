@@ -443,13 +443,13 @@ class ODB:
                     self.create_edge(fromNode=case_key, toNode=n['key'],
                                      edgeType="Attached", fromClass="Case", toClass=n['class_name'])
             lRels = []  # Final check on lines between the fGraph and what is found already attached to the case
-            rels = self.client.command(
-                '''
-                match {class: Case, as: u, where: (key = '%s')}.out(Attached)
-                {class: V, as: n1}.out(){class: V, as: n2} 
-                return n1.key, n2.key
-                ''' % case_key)
-            click.echo('[%s_%s_create_db] Compare existing case to new:\n\t%s' % (get_datetime(), "home.save", sql))
+            sql = ('''
+            match {class: Case, as: u, where: (key = '%s')}.out(Attached)
+            {class: V, as: n1}.out(){class: V, as: n2} 
+            return n1.key, n2.key
+            ''' % case_key)
+            rels = self.client.command(sql)
+            click.echo('[%s_%s_] Compare existing case to new:\n\t%s' % (get_datetime(), "home.save", sql))
             for rel in rels:
                 rel = rel.oRecordData
                 lRels.append({"fromNode": rel['n1_key'], "toNode": rel['n2_key']})
