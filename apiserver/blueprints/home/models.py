@@ -429,6 +429,7 @@ class ODB:
                 EdgeCount=len(fGraph['lines'])
             )
             case_key = case['data']['key']
+            click.echo('[%s_%s_create_db] Created Case:\n\t%s' % (get_datetime(), "home.save", case))
         # ATTACHMENTS of Nodes and Edges from the Request. If they are
         if "nodes" in fGraph.keys() and "lines" in fGraph.keys():
             for n in fGraph['nodes']:
