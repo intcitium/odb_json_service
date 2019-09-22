@@ -231,6 +231,8 @@ def get_request_payload(request):
                         newR = newR[:-1]
                         "chipping off end"
                 click.echo("The new Dictionary\n %s" % newR)
+                r = newR
+                '''
                 try:
                     r = json.loads(newR)
                 except:
@@ -240,6 +242,7 @@ def get_request_payload(request):
                     except Exception as e:
                         click.echo(str(e))
                 click.echo("Completed with ugly hacking to make the JSON fit\n%s" % r)
+                '''
 
     return r
 
