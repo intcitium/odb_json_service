@@ -201,7 +201,7 @@ def get_request_payload(request):
     """
 
     r = request.form.to_dict(flat=True)
-    click.echo("FORM: ", request.form.to_dict, "\n\n\n\n\n\n")
+    click.echo("FORM: ", request.form.to_dict(), "\n\n\n\n\n\n")
     click.echo("JSON: ", request.args, "\n\n\n\n\n\n")
     click.echo("Received request with %d keys\n%s" % (len(r.keys(), r.keys())))
     if len(r.keys()) == 0:
