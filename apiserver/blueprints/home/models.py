@@ -404,6 +404,7 @@ class ODB:
         from Case where Name = '%s' and Classification = '%s'
         ''' % (clean(kwargs['graphName']), kwargs['classification'])
                )
+        click.echo('[%s_%s_create_db] getting Case:\n\t%s' % (get_datetime(), "home.save", sql))
         case = self.client.command(sql)
         # UPDATE CASE if it was found
         if len(case) > 0:
@@ -448,6 +449,7 @@ class ODB:
                 {class: V, as: n1}.out(){class: V, as: n2} 
                 return n1.key, n2.key
                 ''' % case_key)
+            click.echo('[%s_%s_create_db] Compare existing case to new:\n\t%s' % (get_datetime(), "home.save", sql))
             for rel in rels:
                 rel = rel.oRecordData
                 lRels.append({"fromNode": rel['n1_key'], "toNode": rel['n2_key']})
@@ -462,7 +464,7 @@ class ODB:
                 message = "No new data received. Case %s is up to date." % clean(kwargs["graphName"])
             else:
                 message = "%s with %d nodes and %d edges." % (message, newNodes, newLines)
-
+        click.echo('[%s_%s_create_db] %s' % (get_datetime(), "home.save", message))
         return fGraph, message
 
     @staticmethod
