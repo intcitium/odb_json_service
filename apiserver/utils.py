@@ -241,7 +241,12 @@ def get_request_payload(request):
                     try:
                         r = json.loads(newR)
                     except Exception as e:
-                        click.echo(str(e))
+                        if "Extra data" in str(e):
+                            newR = newR[:-1]
+                            try:
+                                r = json.loads(newR)
+                            except:
+                                click.echo(str(e))
                 click.echo("Completed with ugly hacking to make the JSON fit\n%s" % r)
 
 
