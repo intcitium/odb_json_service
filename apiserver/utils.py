@@ -220,7 +220,7 @@ def get_request_payload(request):
         for k in r.keys():
             if len(k) > 100:
                 click.echo("The big KEY\n%s" % k)
-                newR = str(r)[5:-9]
+                newR = str(r)[5:-2]
                 click.echo("The new Dictionary\n %s" % newR)
                 r = json.loads(newR)
                 click.echo("TTTT\n%s" % r)
