@@ -222,6 +222,10 @@ def get_request_payload(request):
             if len(k) > 100:
                 click.echo("The big KEY\n%s" % k)
                 newR = str(r)[2:-2]
+                # Check begining of dictionary and ensure not {'{
+                if newR[:2] == "{'":
+                    newR = newR[2:]
+                # Check for the end of the string if proper for dict
                 if newR[-1] != "}":
                     while newR[-1] != "}":
                         newR = newR[:-1]
