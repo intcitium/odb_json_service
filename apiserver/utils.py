@@ -222,7 +222,12 @@ def get_request_payload(request):
             if len(k) > 100:
                 click.echo("The big KEY\n%s" % k)
                 newR = str(r)[2:-2]
+                if newR[-1] != "}":
+                    while newR[-1] != "}":
+                        newR = newR[:-1]
+                        "chipping off end"
                 click.echo("The new Dictionary\n %s" % newR)
+
                 r = json.loads(newR)
                 click.echo("TTTT\n%s" % r)
 
