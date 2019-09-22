@@ -230,9 +230,9 @@ def get_request_payload(request):
                 try:
                     r = json.loads(newR)
                 except:
-                    r = r.replace('\'', "")
+                    newR = r.replace('\'', "")
                     try:
-                        r = json.loads(r)
+                        r = json.loads(newR)
                     except Exception as e:
                         click.echo(str(e))
                 click.echo("Completed with ugly hacking to make the JSON fit\n%s" % r)
