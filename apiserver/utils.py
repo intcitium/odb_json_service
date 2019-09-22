@@ -200,10 +200,10 @@ def get_request_payload(request):
     :return:
     """
     debug = False
+    r = request.form.to_dict(flat=True)
     if debug:
         click.echo("\n\n\n\n\n\n\nRequest")
         click.echo(request)
-        r = request.form.to_dict(flat=True)
         click.echo("\n\n\n\n\n\n\nRequest.Form")
         click.echo(r)
         click.echo("\n\n\n\n\n\n\nRequest.Args")
