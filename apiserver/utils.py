@@ -227,9 +227,8 @@ def get_request_payload(request):
                         newR = newR[:-1]
                         "chipping off end"
                 click.echo("The new Dictionary\n %s" % newR)
-
                 r = json.loads(newR)
-                click.echo("TTTT\n%s" % r)
+                click.echo("Completed with ugly hacking to make the JSON fit\n%s" % r)
 
     return r
 
