@@ -223,26 +223,27 @@ def get_request_payload(request):
                 click.echo("The big KEY\n%s" % k)
                 newR = str(r)[2:-2].replace('\'', "")
                 # Check begining of dictionary and ensure not {'{
-                if newR[:2] == "{'":
-                    newR = newR[2:]
+                while newR[0:8] != '{"nodes"':
+                    newR = newR[1:]
+                    click.echo("%s... chipping off front" % newR[0:8])
                 # Check for the end of the string if proper for dict
-                if newR[-1] != "}":
-                    while newR[-1] != "}":
-                        newR = newR[:-1]
-                        "chipping off end"
+
+                while newR[-3:-1] != '"}':
+                    newR = newR[:-1]
+                    click.echo("%s... chipping off end" % newR[-3:-1])
                 click.echo("The new Dictionary\n %s" % newR)
                 r = newR
-                '''
+
                 try:
                     r = json.loads(newR)
                 except:
-                    newR = newR.replace('\'', "")
+                    newR = newR.replace("\\", "")
                     try:
                         r = json.loads(newR)
                     except Exception as e:
                         click.echo(str(e))
                 click.echo("Completed with ugly hacking to make the JSON fit\n%s" % r)
-                '''
+
 
     return r
 
