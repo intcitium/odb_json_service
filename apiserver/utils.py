@@ -199,15 +199,16 @@ def get_request_payload(request):
     :param request: 
     :return:
     """
-
-    click.echo("\n\n\n\n\n\n\nRequest")
-    click.echo(request)
-    r = request.form.to_dict(flat=True)
-    click.echo("\n\n\n\n\n\n\nRequest.Form")
-    click.echo(r)
-    click.echo("\n\n\n\n\n\n\nRequest.Args")
-    click.echo(request.args)
-    click.echo("Received request with %d keys\n%s" % (len(r.keys()), r.keys()))
+    debug = False
+    if debug:
+        click.echo("\n\n\n\n\n\n\nRequest")
+        click.echo(request)
+        r = request.form.to_dict(flat=True)
+        click.echo("\n\n\n\n\n\n\nRequest.Form")
+        click.echo(r)
+        click.echo("\n\n\n\n\n\n\nRequest.Args")
+        click.echo(request.args)
+        click.echo("Received request with %d keys\n%s" % (len(r.keys()), r.keys()))
     if len(r.keys()) == 0:
         # CAI sends POST as raw so need to get data
         click.echo("Attempting JSON loads of request.data")
@@ -220,7 +221,7 @@ def get_request_payload(request):
         for k in r.keys():
             if len(k) > 100:
                 click.echo("The big KEY\n%s" % k)
-                newR = str(r)[5:-2]
+                newR = str(r)[2:-2]
                 click.echo("The new Dictionary\n %s" % newR)
                 r = json.loads(newR)
                 click.echo("TTTT\n%s" % r)
