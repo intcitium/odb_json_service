@@ -499,7 +499,7 @@ class ODB:
                     newNodes += 1
                     # To add the Node with a new key, need to pop this node's key out and then replace in the lines
                     oldKey = n['key']
-                    click.echo("NODE\t", n, n.keys())
+                    click.echo("NODE\t %s, %s" % (n, n.keys()))
                     try:
                         n['class_name'] = self.get_node_att(n, 'className')
                     except:
