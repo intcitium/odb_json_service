@@ -407,11 +407,12 @@ class ODB:
         :return:
         """
         simScores = {}
-        keyString = str(keys)
+        keyString = str(keys).lower()
+        click.echo('[%s_%s] Running similarity on\n\t%s' % (get_datetime(), "home.key_comparison", keyString))
         for m in self.models:
-            mString = str(m.keys())
+            mString = str(self.models[m].keys()).lower()
             simScores[m] = SequenceMatcher(None, mString, keyString).ratio()
-        print(simScores)
+            click.echo('[%s_%s] Compared %s\nScore: %s' % (get_datetime(), "home.key_comparison", mString, simScores[m]))
         return min(simScores, key=simScores.get)
 
 
@@ -505,7 +506,11 @@ class ODB:
                     except:
                         n['class_name'] = self.get_node_att(n, 'class_name')
                     if not n['class_name']:
-                        n['class_name'] = self.key_comparison(list(n.keys()))
+                        keys_to_compare = [n.keys]
+                        if 'attributes' in n.keys():
+                            for a in n['attributes']:
+                                keys_to_compare.append(a['label'])
+                        n['class_name'] = self.key_comparison(keys_to_compare)
                     # Save the class name for use in the relationship since it is otherwise buried in the attributes
                     class_name = n['class_name']
                     n.pop("key")
