@@ -412,7 +412,7 @@ class ODB:
         click.echo('[%s_%s] Running similarity on\n\t%s' % (get_datetime(), "home.key_comparison", keys))
         for m in self.models:
             simScores[m] = 0
-            m_keys = map(lambda x: x.lower(), self.models.keys())
+            m_keys = map(lambda x: x.lower(), self.models[m].keys())
             for k in keys:
                 if k in m_keys:
                     simScores[m]+=1
