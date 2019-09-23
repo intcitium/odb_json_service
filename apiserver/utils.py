@@ -220,12 +220,19 @@ def get_request_payload(request):
         click.echo("Attempting misformed JSON")
         for k in r.keys():
             if len(k) > 100:
-                click.echo("The big KEY\n%s" % k)
                 newR = str(r)[2:-2].replace('\'', "")
                 # Check begining of dictionary and ensure not {'{
-                while newR[0:8] != '{"nodes"':
-                    newR = newR[1:]
-                    click.echo("%s... chipping off front" % newR[0:8])
+                front = False
+                while not front:
+                    if newR[0:8] == '{"nodes"':
+                        front = True
+                    elif newR[0:8] == '{"groups"':
+                        front = True
+                    elif newR[0:8] == '{"lines"':
+                        front = True
+                    else:
+                        newR = newR[1:]
+                        click.echo("%s... chipping off front" % newR[0:8])
                 # Check for the end of the string if proper for dict
 
                 while newR[-3:-1] != '"}':
@@ -248,7 +255,6 @@ def get_request_payload(request):
                             except:
                                 click.echo(str(e))
                 click.echo("Completed with ugly hacking to make the JSON fit\n%s" % r)
-
 
     return r
 
