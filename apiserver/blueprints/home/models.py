@@ -499,11 +499,11 @@ class ODB:
                     newNodes += 1
                     # To add the Node with a new key, need to pop this node's key out and then replace in the lines
                     oldKey = n['key']
+                    click.echo("NODE\t", n, n.keys())
                     try:
                         n['class_name'] = self.get_node_att(n, 'className')
                     except:
                         n['class_name'] = self.get_node_att(n, 'class_name')
-                        click.echo(n, n.keys())
                     if not n['class_name']:
                         n['class_name'] = self.key_comparison(list(n.keys()))
                     # Save the class name for use in the relationship since it is otherwise buried in the attributes
