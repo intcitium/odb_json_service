@@ -403,17 +403,22 @@ class ODB:
         Using the keys from a node, check the Databases models for the one with the most similar keys to
         determine the class_name. The SequenceMatcher returns a difference ratio. Therefore the lowest score
         is the class most similar to the keys received.
+        TODO change over to comparing lists and score count +
         :param keys:
         :return:
         """
         simScores = {}
-        keyString = str(keys).lower()
-        click.echo('[%s_%s] Running similarity on\n\t%s' % (get_datetime(), "home.key_comparison", keyString))
+        keys = map(lambda x:x.lower(),keys)
+        click.echo('[%s_%s] Running similarity on\n\t%s' % (get_datetime(), "home.key_comparison", keys))
         for m in self.models:
-            mString = str(self.models[m].keys()).lower()
-            simScores[m] = SequenceMatcher(None, mString, keyString).ratio()
-            click.echo('[%s_%s] Compared %s\nScore: %s' % (get_datetime(), "home.key_comparison", mString, simScores[m]))
-        return min(simScores, key=simScores.get)
+            simScores[m] = 0
+            m_keys = map(lambda x: x.lower(), self.models.keys())
+            for k in keys:
+                if k in m_keys:
+                    simScores[m]+=1
+
+            click.echo('[%s_%s] Compared %s\nScore: %s' % (get_datetime(), "home.key_comparison", m_keys, simScores[m]))
+        return max(simScores, key=simScores.get)
 
 
     def save(self, **kwargs):
