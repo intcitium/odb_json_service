@@ -5,6 +5,7 @@ from apiserver.utils import get_datetime, HOST_IP, change_if_number, clean, get_
 import pandas as pd
 import os
 import time
+from difflib import SequenceMatcher
 
 
 class ODB:
@@ -16,7 +17,19 @@ class ODB:
         self.pswd = 'admin'
         self.db_name = db_name
         self.path = os.getcwd()
-        self.data = os.path.join(self.path, "data")
+        self.datapath = os.path.join(self.path, 'data')
+        self.ICON_PERSON = "sap-icon://person-placeholder"
+        self.ICON_OBJECT = "sap-icon://add-product"
+        self.ICON_ORGANIZATION = "sap-icon://manager"
+        self.ICON_INFO_SOURCE = "sap-icon://newspaper"
+        self.ICON_LOCATION = "sap-icon://map"
+        self.ICON_EVENT = "sap-icon://date-time"
+        self.ICON_CONFLICT = "sap-icon://alert"
+        self.ICON_CASE = "sap-icon://folder"
+        self.ICON_STATUSES = ["Warning", "Error", "Success"]
+        self.ICON_TWEET = "sap-icon://jam"
+        self.ICON_TWITTER_USER = "sap-icon://customer-view"
+        self.ICON_HASHTAG = "sap-icon://number-sign"
         self.models = {
             "Vertex": {
                 "key": "integer",
@@ -132,6 +145,8 @@ class ODB:
                     status = kwargs[k]
                 if k != 'passWord':
                     attributes.append({"label": k, "value": kwargs[k]})
+            # If there is a key, a new record is not created but rather the formatted version.
+            # However, a Case is assigned a key and therefore should not be applied here
             if thisKey:
                 formatted_node = self.format_node(
                     key=thisKey,
@@ -259,7 +274,7 @@ class ODB:
         return details
 
     def get_data(self):
-        return self.open_file(os.path.join(self.data, "netgraph.json"))
+        return self.open_file(os.path.join(self.datapath, "netgraph.json"))
 
     def open_file(self, filename):
         """
@@ -383,43 +398,86 @@ class ODB:
             return None
         return graph
 
+    def key_comparison(self, keys):
+        """
+        Using the keys from a node, check the Databases models for the one with the most similar keys to
+        determine the class_name. The SequenceMatcher returns a difference ratio. Therefore the lowest score
+        is the class most similar to the keys received.
+        :param keys:
+        :return:
+        """
+        simScores = {}
+        keyString = str(keys)
+        for m in self.models:
+            mString = str(m.keys())
+            simScores[m] = SequenceMatcher(None, mString, keyString).ratio()
+        print(simScores)
+        return min(simScores, key=simScores.get)
+
+
     def save(self, **kwargs):
         """
-        Checks if the Case already exists and if not, creates it.
-        Checks if the Nodes sent in the graphCase are already "Attached" to the Case if the Case does exist.
         Expects a request with graphCase containing the graph from the user's canvas and assumes that all nodes have an
         attribute "key". The creation of a node is only if the node is new and taken from a source that doesn't exist in
         POLE yet.
-        TODO: Ensure duplicate relations not made. Need enhancement to get relation name
+        QUERY 1 Checks if the Case already exists and if not, creates it.
+        QUERY 2 Gets existing keys if the Nodes sent in the graphCase are already "Attached" to the Case from QUERY 1
+        QUERY 3 Compares edges between the new case and old case and only adds a new relation where one doesn't exist
+        Run a match query that returns only those nodes in the case and their relationships. The query uses the book-end
+        method in a manner: Case-Attached->Vertex1-(any)->Vertex2-Attached->Case. Return v1, v2 and the type of relation
+        TODO: Relation duplication quality - Include all edge attributes beyond description
         TODO: Implement classification and Owner/Reader relations
-        1) Match all
-        :param r:
-        :return:
+        :param kwargs:
+        :return: graph (in the UI form), message (summary of actions)
         """
+        # The graph being saved
         fGraph = kwargs['graphCase']
-        current_nodes = []
-        newNodes = newLines = 0
+        if "groups" in fGraph.keys():
+            groups = fGraph['groups']
+        else:
+            groups = []
+        # The new graph to be returned which includes nodes from fGraph with new keys if they are not stored yet
+        graph = {
+            "nodes": [],
+            "lines": [],
+            "groups": groups
+        }
+        # QUERY 1: Get the case by Name and Classification in the case there is no case key TODO include case key?
         sql = ('''
-        select key, class_name, Name, Owner, Classification, startDate 
-        from Case where Name = '%s' and Classification = '%s'
+            select key, class_name, Name, Owner, Classification, startDate 
+            from Case where Name = '%s' and Classification = '%s'
         ''' % (clean(kwargs['graphName']), kwargs['classification'])
                )
-        click.echo('[%s_%s_create_db] getting Case:\n\t%s' % (get_datetime(), "home.save", sql))
+        click.echo('[%s_%s] Q1: Getting Case:\n\t%s' % (get_datetime(), "home.save", sql))
         case = self.client.command(sql)
+        # Array for the node keys related to the case if it exists returned from Query 2
+        current_nodes = []
         # UPDATE CASE if it was found
         if len(case) > 0:
-            case = dict(case[0].oRecordData)
+            casedata = dict(case[0].oRecordData)
+            case = dict(key=casedata['key'], icon=self.ICON_CASE, status="CustomCase", title=casedata['Name'])
+            case['attributes'] = [
+                {"label": "Owners", "value": casedata['Owner']},
+                {"label": "Classification", "value": casedata['Classification']},
+                {"label": "startDate", "value": casedata['startDate']},
+                {"label": "className", "value": "Case"}
+            ]
             case_key = case['key']
-            message = "Updated %s" % case['Name']
-            Attached = self.client.command(
-                "match {class: Case, as: u, where: (key = '%s')}.out(Attached){class: V, as: e} return e.key" % case_key)
+            message = "Updated %s" % case['title']
+            # QUERY 2: Get the node keys related to the case that was found T
+            # TODO don't get just keys but attributes and compare
+            sql = '''
+            match {class: Case, as: u, where: (key = '%s')}.out(Attached)
+            {class: V, as: e} return e.key
+            '''  % case_key
+            click.echo('[%s_%s] Q2: Getting Case nodes:\n\t%s' % (get_datetime(), "home.save", sql))
+            Attached = self.client.command(sql)
             for k in Attached:
                 current_nodes.append(k.oRecordData['e_key'])
         # SAVE CASE if it was not found
         else:
             message = "Saved %s" % kwargs['graphName']
             case = self.create_node(
-                key="C%s" % get_time_based_id(),
                 class_name="Case",
                 Name=clean(kwargs["graphName"]),
                 Owner=kwargs["userOwners"],
@@ -430,43 +488,78 @@ class ODB:
             )
             case_key = case['data']['key']
             click.echo('[%s_%s_create_db] Created Case:\n\t%s' % (get_datetime(), "home.save", case))
-        # ATTACHMENTS of Nodes and Edges from the Request. If they are
+        # Attach the Case record to the nodes
+        graph['nodes'].append(case)
+        # ATTACHMENTS of Nodes and Edges from the Request.
+        newNodes = newLines = 0
         if "nodes" in fGraph.keys() and "lines" in fGraph.keys():
             for n in fGraph['nodes']:
+                # If the new Case node is not in the keys from the collection create a node
                 if n['key'] not in current_nodes:
                     newNodes += 1
-                    if 'class_name' not in n.keys():
-                        if 'startDate' in n.keys():
-                            n['class_name'] = "Event"
-                        else:
-                            n['class_name'] = "Object"
-                    self.create_node(**n)
-                    self.create_edge(fromNode=case_key, toNode=n['key'],
-                                     edgeType="Attached", fromClass="Case", toClass=n['class_name'])
-            lRels = []  # Final check on lines between the fGraph and what is found already attached to the case
+                    # To add the Node with a new key, need to pop this node's key out and then replace in the lines
+                    oldKey = n['key']
+                    try:
+                        n['class_name'] = self.get_node_att(n, 'className')
+                    except:
+                        n['class_name'] = self.get_node_att(n, 'class_name')
+                    if not n['class_name']:
+                        n['class_name'] = self.key_comparison(n.keys())
+                    # Save the class name for use in the relationship since it is otherwise buried in the attributes
+                    class_name = n['class_name']
+                    n.pop("key")
+                    n = self.create_node(**n)
+                    # Go through the lines and change the key to this new key
+                    for l in fGraph['lines']:
+                        if l['to'] == oldKey:
+                            l['to'] = n['data']['key']
+                        elif l['from'] == oldKey:
+                            l['from'] = n['data']['key']
+                    self.create_edge(fromNode=case_key, toNode=n['data']['key'],
+                                     edgeType="Attached", fromClass="Case", toClass=class_name)
+                    # Add the line to the graph linking the node and case
+                    graph['lines'].append({"from": case_key, "to": n['data']['key'], "description": "Attached"})
+                    # Add the node to the graph
+                    graph['nodes'].append(n['data'])
+                # Otherwise just add it as is to the new graph that will be sent back
+                else:
+                    graph['lines'].append({"from": case_key, "to": n['key'], "description": "Attached"})
+                    graph['nodes'].append(n)
+
+            # QUERY 3: Compare the edges between nodes from the saved case and the new case
+            # to determine if new edge is needed
+            oldRels = []
             sql = ('''
-            match {class: Case, as: u, where: (key = '%s')}.out(Attached)
-            {class: V, as: n1}.out(){class: V, as: n2} 
-            return n1.key, n2.key
-            ''' % case_key)
+            match
+            {class:Case, as:c, where: (key = '%s')}.out("Attached")
+            {class:V, as:v1}.outE(){as:v2e}.inV()
+            {class:V, as:v2}.in("Attached")
+            {class:Case, where: (key = '%s')}
+            return v1.key as from_key, v2.key as to_key, v2e.@class as description
+            ''' % (case_key, case_key))
             rels = self.client.command(sql)
-            click.echo('[%s_%s_] Compare existing case to new:\n\t%s' % (get_datetime(), "home.save", sql))
+            # Compare the rels that are currently stored with the ones in that were added during Case creation step 1
+            click.echo('[%s_%s] Q3: Compare existing case to new:\n\t%s' % (get_datetime(), "home.save", sql))
             for rel in rels:
                 rel = rel.oRecordData
-                lRels.append({"fromNode": rel['n1_key'], "toNode": rel['n2_key']})
-            for l in fGraph['lines']:
-                if {"fromNode": l['from'], "toNode": l['to']} not in lRels:
+                oldRels.append({"from": rel['from_key'], "to": rel['to_key'], "description": rel['description']})
+            for l in graph['lines']:
+                if {"fromNode": l['from'], "toNode": l['to'], "reltype": l['description']} not in oldRels:
                     newLines += 1
-                    self.create_edge(fromNode=l['from'], fromClass=self.get_class_name(fGraph, l['from']),
-                                     toNode=l['to'], toClass=self.get_class_name(fGraph, l['to']),
-                                     edgeType=l['description'],
-                                     )
+                    self.create_edge(fromNode=l['from'], fromClass=self.get_class_name(graph, l['from']),
+                                     toNode=l['to'], toClass=self.get_class_name(graph, l['to']),
+                                     edgeType=l['description'])
+            # Final Comparison of relations using the fGraph where keys of ne nodes are changed
+            for r in fGraph['lines']:
+                if {"from": r['from'], "to": r['to'], "description": r['description']} not in graph['lines']:
+                    graph['lines'].append({"from": r['from'], "to": r['to'], "description": r['description']})
+
             if newNodes == 0 and newLines == 0:
                 message = "No new data received. Case %s is up to date." % clean(kwargs["graphName"])
             else:
                 message = "%s with %d nodes and %d edges." % (message, newNodes, newLines)
-        click.echo('[%s_%s_create_db] %s' % (get_datetime(), "home.save", message))
-        return fGraph, message
+        click.echo('[%s_%s] %s' % (get_datetime(), "home.save", message))
+        return graph, message
 
     @staticmethod
     def get_class_name(graph, key):
@@ -478,7 +571,23 @@ class ODB:
         """
         for n in graph['nodes']:
             if n['key'] == key:
-                return n['class_name']
+                if 'class_name' in n.keys():
+                    return n['class_name']
+                elif 'attributes' in n.keys():
+                    for a in n['attributes']:
+                        if a['label'] == 'class_name' or a['label'] == 'className':
+                            return a['value']
         return
+
+    @staticmethod
+    def get_node_att(node, att):
+
+        try:
+            for a in node['attributes']:
+                if a['label'] == att:
+                    return a['value']
+            return None
+        except:
+            print(node)
 
 

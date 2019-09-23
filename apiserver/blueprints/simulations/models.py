@@ -44,11 +44,6 @@ class Pole(ODB):
     def __init__(self, db_name="POLE"):
         ODB.__init__(self, db_name)
         self.db_name = db_name
-        self.ICON_PERSON = "sap-icon://person-placeholder"
-        self.ICON_OBJECT = "sap-icon://add-product"
-        self.ICON_LOCATION = "sap-icon://map"
-        self.ICON_EVENT = "sap-icon://date-time"
-        self.ICON_STATUSES = ["Warning", "Error", "Success"]
         self.models = {
             "Person": {
                 "key": "integer",
@@ -106,7 +101,6 @@ class Pole(ODB):
                 "Classification": "string"
             }
         }
-        self.datapath = os.path.join(os.path.join(os.getcwd(), 'data'))
         self.basebook = None
         self.ParentA_Choices = ["F", "M"]
         self.ParentA_Weights = [.9, .1]
@@ -351,16 +345,6 @@ class Pole(ODB):
             self.DB['groups'].append({'title': kwargs['country'], 'key': kwargs['country']})
 
         return node
-
-    def get_node_att(self, node, att):
-
-        try:
-            for a in node['attributes']:
-                if a['label'] == att:
-                    return a['value']
-            return None
-        except:
-            print(node)
 
     def update_node_att(self, node, att, val):
 

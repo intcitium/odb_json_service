@@ -13,19 +13,6 @@ class OSINT(ODB):
     def __init__(self, db_name="OSINT"):
         ODB.__init__(self, db_name)
         self.db_name = db_name
-        self.ICON_PERSON = "sap-icon://person-placeholder"
-        self.ICON_OBJECT = "sap-icon://add-product"
-        self.ICON_ORGANIZATION = "sap-icon://manager"
-        self.ICON_INFO_SOURCE = "sap-icon://newspaper"
-        self.ICON_LOCATION = "sap-icon://map"
-        self.ICON_EVENT = "sap-icon://date-time"
-        self.ICON_CONFLICT = "sap-icon://alert"
-        self.ICON_CASE = "sap-icon://folder"
-        self.ICON_STATUSES = ["Warning", "Error", "Success"]
-        self.ICON_TWEET = "sap-icon://jam"
-        self.ICON_TWITTER_USER = "sap-icon://customer-view"
-        self.ICON_HASHTAG = "sap-icon://number-sign"
-        self.datapath = os.path.join(os.path.join(os.getcwd(), 'data'))
         self.basebook = None
         self.models = {
             "Person": {
@@ -672,9 +659,12 @@ class OSINT(ODB):
         :param r:
         :return:
         """
-
-        fGraph = {"graphCase": {"nodes": kwargs['nodes'], "lines": kwargs['lines'], "groups": kwargs['groups']}}
-        fGraph = self.quality_check(format_graph(fGraph['graphCase']))
+        if "nodes" in kwargs.keys():
+            fGraph = {"nodes": kwargs['nodes'], "lines": kwargs['lines'], "groups": kwargs['groups']}
+        else:
+            fGraph = {}
+            for k in kwargs.keys():
+                fGraph[k] = kwargs[k]
 
         case, message = self.save(graphCase=fGraph,
                   userOwners=kwargs['userOwners'],
