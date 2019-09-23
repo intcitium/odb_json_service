@@ -503,8 +503,9 @@ class ODB:
                         n['class_name'] = self.get_node_att(n, 'className')
                     except:
                         n['class_name'] = self.get_node_att(n, 'class_name')
+                        click.echo(n, n.keys())
                     if not n['class_name']:
-                        n['class_name'] = self.key_comparison(n.keys())
+                        n['class_name'] = self.key_comparison(list(n.keys()))
                     # Save the class name for use in the relationship since it is otherwise buried in the attributes
                     class_name = n['class_name']
                     n.pop("key")
