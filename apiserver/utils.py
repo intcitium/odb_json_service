@@ -223,6 +223,7 @@ def get_request_payload(request):
                 newR = str(r).replace('\'', "")
                 # Check begining of dictionary and ensure not {'{
                 front = False
+                chips = 0
                 while not front:
                     if newR[0:8] == '{"nodes"':
                         front = True
@@ -233,8 +234,13 @@ def get_request_payload(request):
                     else:
                         newR = newR[1:]
                         click.echo("%s... chipping off front" % newR[0:8])
+                    if chips > 100:
+                        return None
                 # Check for the end of the string if proper for dict
+                chips = 0
                 while newR[-3:-1] != '"}':
+                    if chips > 100:
+                        return None
                     newR = newR[:-1]
                     click.echo("%s... chipping off end" % newR[-3:-1])
                 r = newR
