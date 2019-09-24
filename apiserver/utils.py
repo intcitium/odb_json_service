@@ -228,7 +228,7 @@ def get_request_payload(request):
                     chips+=1
                     if newR[0:8] == '{"nodes"':
                         front = True
-                    elif newR[0:8] == '{"groups"':
+                    elif newR[0:9] == '{"groups"':
                         front = True
                     elif newR[0:8] == '{"lines"':
                         front = True
