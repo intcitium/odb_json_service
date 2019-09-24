@@ -408,18 +408,21 @@ class ODB:
         :return:
         """
         simScores = {}
-        keys = map(lambda x:x.lower(),keys)
+        c_keys = []
+        for k in keys:
+            c_keys.append(str(k).lower())
         click.echo('[%s_%s] Running similarity on\n\t%s' % (get_datetime(), "home.key_comparison", keys))
         for m in self.models:
             simScores[m] = 0
-            m_keys = map(lambda x: x.lower(), self.models[m].keys())
-            for k in keys:
+            m_keys = []
+            for k in list(self.models[m].keys()):
+                m_keys.append(str(k).lower())
+            for k in c_keys:
                 if k in m_keys:
                     simScores[m]+=1
 
             click.echo('[%s_%s] Compared %s\nScore: %s' % (get_datetime(), "home.key_comparison", m_keys, simScores[m]))
         return max(simScores, key=simScores.get)
-
 
     def save(self, **kwargs):
         """
@@ -511,7 +514,9 @@ class ODB:
                     except:
                         n['class_name'] = self.get_node_att(n, 'class_name')
                     if not n['class_name']:
-                        keys_to_compare = [n.keys]
+                        keys_to_compare = []
+                        for k in n.keys():
+                            keys_to_compare.append(k)
                         if 'attributes' in n.keys():
                             for a in n['attributes']:
                                 keys_to_compare.append(a['label'])
