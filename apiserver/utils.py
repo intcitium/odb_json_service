@@ -199,7 +199,7 @@ def get_request_payload(request):
     :param request: 
     :return:
     """
-    debug = False
+    debug = True
     r = request.form.to_dict(flat=True)
     if debug:
         click.echo("\n\n\n\n\n\n\nRequest")
