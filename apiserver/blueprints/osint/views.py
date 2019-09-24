@@ -62,11 +62,18 @@ def geo_spatial_view():
 
 @osint.route('/osint/save', methods=['POST'])
 def save():
-
-    case, message = osintserver.save_osint(**get_request_payload(request))
-    return jsonify({
-        "status": 200,
-        "message": message,
-        "data": case
-    })
+    payload = get_request_payload(request)
+    if payload:
+        case, message = osintserver.save_osint(**payload)
+        return jsonify({
+            "status": 200,
+            "message": message,
+            "data": case
+        })
+    else:
+        return jsonify({
+            "status": 503,
+            "message": "Error saving structure of graph received.",
+            "data": None
+        })
 
