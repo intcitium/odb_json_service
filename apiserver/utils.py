@@ -220,7 +220,7 @@ def get_request_payload(request):
         click.echo("Attempting misformed JSON")
         for k in r.keys():
             if len(k) > 100:
-                newR = str(r)[2:-2].replace('\'', "")
+                newR = str(r).replace('\'', "")
                 # Check begining of dictionary and ensure not {'{
                 front = False
                 while not front:
@@ -240,21 +240,36 @@ def get_request_payload(request):
                     click.echo("%s... chipping off end" % newR[-3:-1])
                 click.echo("The new Dictionary\n %s" % newR)
                 r = newR
-
-                try:
-                    r = json.loads(newR)
-                except:
-                    newR = newR.replace("\\", "")
+                # Automated Cleaning with rules implemented in debugging
+                current_error = ""
+                cleaned = False
+                while not cleaned:
                     try:
+                        newR = newR.replace("\\", "")
                         r = json.loads(newR)
+                        cleaned = True
                     except Exception as e:
-                        if "Extra data" in str(e):
-                            newR = newR[:-1]
-                            try:
-                                r = json.loads(newR)
-                            except:
-                                click.echo(str(e))
-                click.echo("Completed with ugly hacking to make the JSON fit\n%s" % r)
+                        # If the error repeated it is something else than the first correction attempt
+                        e = str(e)
+                        if e == current_error:
+                            # Error string end with (char nnnn). Below finds the ( ) and uses char length to trim. Then int it and -1
+                            error_index = int(e[e.find("(") + 6:e.find("}")]) - 1
+                            if newR[error_index] == '"':
+                                # Use the method of replacement finding <a tags for " "
+                                error_index_end = newR[error_index + 1:].find('"') + error_index + 2
+                                cleaned_part = newR[error_index:newR[error_index + 1:].find('"') + error_index + 2].replace('"', "")
+                                newR = newR[0:error_index] + cleaned_part + newR[error_index_end:]
+
+                        else:
+                            if "Extra data" in e:
+                                newR = newR[:-1]
+                            else:
+                                # Try to change it based on the href tags
+                                newR = newR.replace(
+                                    newR[newR.find("<a"):(newR.find("<a") + newR[newR.find("<a") + 1:].find("/a>") + 4)],
+                                    "")
+                        current_error = e
+                click.echo("Completed with chipping hack to make the JSON fit\n%s" % r)
 
     return r
 
