@@ -401,9 +401,8 @@ class ODB:
     def key_comparison(self, keys):
         """
         Using the keys from a node, check the Databases models for the one with the most similar keys to
-        determine the class_name. The SequenceMatcher returns a difference ratio. Therefore the lowest score
-        is the class most similar to the keys received.
-        TODO change over to comparing lists and score count +
+        determine the class_name. For each model, use the list of keys to compare against the input keys. Each time
+        there is a matching key, increase the similarity score
         :param keys:
         :return:
         """
@@ -411,7 +410,7 @@ class ODB:
         c_keys = []
         for k in keys:
             c_keys.append(str(k).lower())
-        click.echo('[%s_%s] Running similarity on\n\t%s' % (get_datetime(), "home.key_comparison", keys))
+        click.echo('[%s_%s] Running similarity on attributes:\n\t%s' % (get_datetime(), "home.key_comparison", keys))
         for m in self.models:
             simScores[m] = 0
             m_keys = []
@@ -421,8 +420,13 @@ class ODB:
                 if k in m_keys:
                     simScores[m]+=1
 
-            click.echo('[%s_%s] Compared %s\nScore: %s' % (get_datetime(), "home.key_comparison", m_keys, simScores[m]))
-        return max(simScores, key=simScores.get)
+            #click.echo('[%s_%s] Compared %s\nScore: %s' % (get_datetime(), "home.key_comparison", m_keys, simScores[m]))
+        class_name = max(simScores, key=simScores.get)
+        click.echo('[%s_%s] Most likely class is %s with score %d.' % (
+            get_datetime(), "home.key_comparison", class_name, simScores[max(simScores)]))
+
+
+        return class_name
 
     def save(self, **kwargs):
         """
