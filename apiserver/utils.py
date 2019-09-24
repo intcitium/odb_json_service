@@ -199,7 +199,7 @@ def get_request_payload(request):
     :param request: 
     :return:
     """
-    debug = True
+    debug = False
     r = request.form.to_dict(flat=True)
     if debug:
         click.echo("\n\n\n\n\n\n\nRequest")
@@ -234,21 +234,21 @@ def get_request_payload(request):
                         newR = newR[1:]
                         click.echo("%s... chipping off front" % newR[0:8])
                 # Check for the end of the string if proper for dict
-
                 while newR[-3:-1] != '"}':
                     newR = newR[:-1]
                     click.echo("%s... chipping off end" % newR[-3:-1])
-                click.echo("The new Dictionary\n %s" % newR)
                 r = newR
                 # Automated Cleaning with rules implemented in debugging
                 current_error = ""
                 cleaned = False
+                corrections = 0
                 while not cleaned:
                     try:
                         newR = newR.replace("\\", "")
                         r = json.loads(newR)
                         cleaned = True
                     except Exception as e:
+                        corrections+=1
                         # If the error repeated it is something else than the first correction attempt
                         e = str(e)
                         if e == current_error:
@@ -259,7 +259,6 @@ def get_request_payload(request):
                                 error_index_end = newR[error_index + 1:].find('"') + error_index + 2
                                 cleaned_part = newR[error_index:newR[error_index + 1:].find('"') + error_index + 2].replace('"', "")
                                 newR = newR[0:error_index] + cleaned_part + newR[error_index_end:]
-
                         else:
                             if "Extra data" in e:
                                 newR = newR[:-1]
@@ -269,7 +268,7 @@ def get_request_payload(request):
                                     newR[newR.find("<a"):(newR.find("<a") + newR[newR.find("<a") + 1:].find("/a>") + 4)],
                                     "")
                         current_error = e
-                click.echo("Completed with chipping hack to make the JSON fit\n%s" % r)
+                click.echo("Completed with automated formatting after %d corrections to make the JSON fit\n%s" % (corrections, r))
 
     return r
 
