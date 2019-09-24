@@ -225,6 +225,7 @@ def get_request_payload(request):
                 front = False
                 chips = 0
                 while not front:
+                    chips+=1
                     if newR[0:8] == '{"nodes"':
                         front = True
                     elif newR[0:8] == '{"groups"':
@@ -239,6 +240,7 @@ def get_request_payload(request):
                 # Check for the end of the string if proper for dict
                 chips = 0
                 while newR[-3:-1] != '"}':
+                    chips += 1
                     if chips > 100:
                         return None
                     newR = newR[:-1]
