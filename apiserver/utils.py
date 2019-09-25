@@ -217,7 +217,7 @@ def get_request_payload(request):
         except Exception as e:
             click.echo(e, request)
     if len(r.keys()) == 1:
-        click.echo("Attempting misformed JSON")
+        click.echo("Attempting misformed JSON\n%s" % str(r))
         for k in r.keys():
             if len(k) > 100:
                 newR = str(r).replace('\'', "")
