@@ -1,7 +1,8 @@
 from apiserver.blueprints.home.models import ODB, get_datetime
-from apiserver.utils import SECRET_KEY, SIGNATURE_EXPIRED, BLACK_LISTED, DB_ERROR, PROTECTED, send_mail, HOST_IP, HTTPS
+from apiserver.utils import SECRET_KEY, SIGNATURE_EXPIRED, BLACK_LISTED, DB_ERROR, PROTECTED, send_mail, HTTPS, randomString
 from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous import TimedJSONWebSignatureSerializer
+import click
 
 
 class userDB(ODB):
@@ -55,6 +56,49 @@ class userDB(ODB):
                 "class": "V"
             }
         }
+
+    def check_standard_users(self):
+        """
+        Sets up the initial users as channels to fill Application dependent lists. Users serve standard functions
+        that can be used in various automated situations
+        :return:
+        """
+        users = []
+        for r in self.client.command('''
+        select userName from User 
+        '''):
+            users.append(r.oRecordData['userName'])
+
+        if "GeoAnalyst" not in users:
+            click.echo('[%s_UserServer_init] Creating standard user GeoAnalyst' % (get_datetime()))
+            self.create_user({
+                "userName": "GeoAnalyst",
+                "email": "NetworkGraph@Support.mail",
+                "passWord": randomString(16),
+                "confirmed": "true",
+                "icon": self.ICON_GEOINT
+            })
+
+        if "SocAnalyst" not in users:
+            click.echo('[%s_UserServer_init] Creating standard user SocAnalyst' % (get_datetime()))
+            self.create_user({
+                "userName": "SocAnalyst",
+                "email": "NetworkGraph@Support.mail",
+                "passWord": randomString(16),
+                "confirmed": "true",
+                "icon": self.ICON_SOCINT
+            })
+
+        if "HumintAnalyst" not in users:
+            click.echo('[%s_UserServer_init] Creating standard user HumintAnalyst' % (get_datetime()))
+            self.create_user({
+                "userName": "HumintAnalyst",
+                "email": "NetworkGraph@Support.mail",
+                "passWord": randomString(16),
+                "confirmed": "true",
+                "icon": self.ICON_HUMINT
+            })
+
 
     def send_message(self, request):
         """
@@ -197,6 +241,35 @@ class userDB(ODB):
         bl = self.get_node(class_name="Blacklist", var="token", val=token)
         return bl
 
+    def get_users(self):
+        """
+        Get all the non-system users and return them in the form of graph nodes for use in the application
+        :return:
+        """
+        r = self.client.command('''
+        select userName, key, email, createDate, icon, confirmed from User 
+        ''')
+        users = {"data": []}
+        for u in r:
+            u = u.oRecordData
+            if u['email'] != "Chatbot@email.com" and u['userName'][:6] != "SYSTEM":
+                users["data"].append(self.format_node(
+                    key=u['key'],
+                    icon=u['icon'],
+                    class_name="User",
+                    title="User %s" % u['userName'],
+                    status="Information",
+                    attributes=[
+                        {"label": "Name", "value": u['userName']},
+                        {"label": "Email", "value": u['email']},
+                        {"label": "Confirmed", "value": u['confirmed']},
+                        {"label": "Created", "value": u['createDate']},
+                    ]
+                ))
+
+        users['message'] = "Found %d users" % len(users['data'])
+        return users
+
     def get_user(self, **kwargs):
 
         if "userName" in kwargs.keys():
@@ -284,6 +357,10 @@ class userDB(ODB):
         """
         if not self.get_user(userName=form['userName'], email=form['email']):
             passWord = self.encrypt_password(form['passWord'])
+            if "icon" in form.keys():
+                icon = form['icon']
+            else:
+                icon = self.ICON_USER
 
             userNode = self.create_node(
                 class_name="User",
@@ -291,7 +368,7 @@ class userDB(ODB):
                 userName=form['userName'],
                 email=form['email'],
                 createDate=get_datetime(),
-                icon=self.ICON_USER,
+                icon=icon,
                 confirmed="False"
             )
             if userNode:

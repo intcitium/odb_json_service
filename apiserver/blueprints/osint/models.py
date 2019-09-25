@@ -3,6 +3,7 @@ import requests, json, random
 import pandas as pd
 from apiserver.utils import get_datetime, clean, change_if_date, TWITTER_AUTH, get_time_based_id, format_graph
 from apiserver.blueprints.home.models import ODB
+from apiserver.blueprints.users.models import userDB
 from requests_oauthlib import OAuth1
 import urllib3
 urllib3.disable_warnings()
@@ -120,8 +121,12 @@ class OSINT(ODB):
                 "key": "string",
                 "class": "V",
                 "Name": "string",
-                "Owner": "string",
-                "Classification": "string"
+                "Owners": "string",
+                "Classification": "string",
+                "StartDate": "datetime",
+                "LastUpdate": "datetime",
+                "CreatedBy": "string",
+                "Members": "string"
             }
         }
         # In memory DB used for creating simulation data in the format for network graph UX rendering
@@ -666,9 +671,17 @@ class OSINT(ODB):
             for k in kwargs.keys():
                 fGraph[k] = kwargs[k]
 
+        for user in kwargs['Owners'].split(","):
+            # TODO SET UP POSTMAN TO RUN WITH NEW KEYS ENSURE UI5 is also updated with names
+            kwargs['OwnerKeys'] = userDB.get_user(userName=user)
+
+        for user in kwargs['Owners'].split(","):
+            # TODO SET UP POSTMAN TO RUN WITH NEW KEYS ENSURE UI5 is also updated with names
+            kwargs['OwnerKeys'] = userDB.get_user(userName=user)
+
         case, message = self.save(graphCase=fGraph,
-                  userOwners=kwargs['userOwners'],
-                  classification=kwargs['classification'],
+                  Owners=kwargs['OwnerKeys'],
+                  Classification=kwargs['Classification'],
                   graphName=kwargs['graphName'])
         data = {
             "graph": case,

@@ -1,11 +1,11 @@
 import pyorient
-import json, random
+import json
+import random
 import click
-from apiserver.utils import get_datetime, HOST_IP, change_if_number, clean, get_time_based_id, format_graph
 import pandas as pd
 import os
 import time
-from difflib import SequenceMatcher
+from apiserver.utils import get_datetime, HOST_IP, change_if_number, clean, get_time_based_id, format_graph
 
 
 class ODB:
@@ -24,6 +24,9 @@ class ODB:
         self.ICON_INFO_SOURCE = "sap-icon://newspaper"
         self.ICON_LOCATION = "sap-icon://map"
         self.ICON_EVENT = "sap-icon://date-time"
+        self.ICON_HUMINT = "sap-icon://collaborate"
+        self.ICON_GEOINT = "sap-icon://geographic-bubble-chart"
+        self.ICON_SOCINT = "sap-icon://hello-world"
         self.ICON_CONFLICT = "sap-icon://alert"
         self.ICON_CASE = "sap-icon://folder"
         self.ICON_STATUSES = ["Warning", "Error", "Success"]
@@ -425,7 +428,6 @@ class ODB:
         click.echo('[%s_%s] Most likely class is %s with score %d.' % (
             get_datetime(), "home.key_comparison", class_name, simScores[max(simScores)]))
 
-
         return class_name
 
     def save(self, **kwargs):
@@ -440,6 +442,11 @@ class ODB:
         method in a manner: Case-Attached->Vertex1-(any)->Vertex2-Attached->Case. Return v1, v2 and the type of relation
         TODO: Relation duplication quality - Include all edge attributes beyond description
         TODO: Implement classification and Owner/Reader relations
+        - get the users from the Users DB
+        - create an array of the names and check if all are in the members. If no members, no update. If member not in, add
+        - Need user id
+        - create relationship between each user
+        TODO: Implement LastUpdated attribute
         :param kwargs:
         :return: graph (in the UI form), message (summary of actions)
         """
@@ -455,9 +462,9 @@ class ODB:
             "lines": [],
             "groups": groups
         }
-        # QUERY 1: Get the case by Name and Classification in the case there is no case key TODO include case key?
+        # QUERY 1: Get the case by Name and Classification in the case there is no case key
         sql = ('''
-            select key, class_name, Name, Owner, Classification, startDate 
+            select key, class_name, Name, Owners, Classification, StartDate,  
             from Case where Name = '%s' and Classification = '%s'
         ''' % (clean(kwargs['graphName']), kwargs['classification'])
                )
@@ -472,7 +479,7 @@ class ODB:
             case['attributes'] = [
                 {"label": "Owners", "value": casedata['Owner']},
                 {"label": "Classification", "value": casedata['Classification']},
-                {"label": "startDate", "value": casedata['startDate']},
+                {"label": "StartDate", "value": casedata['StartDate']},
                 {"label": "className", "value": "Case"}
             ]
             case_key = case['key']
@@ -495,7 +502,7 @@ class ODB:
                 Name=clean(kwargs["graphName"]),
                 Owner=kwargs["userOwners"],
                 Classification=kwargs["classification"],
-                startDate=get_datetime(),
+                StartDate=get_datetime(),
                 NodeCount=len(fGraph['nodes']),
                 EdgeCount=len(fGraph['lines'])
             )

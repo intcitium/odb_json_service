@@ -1,9 +1,14 @@
 from flask import jsonify, Blueprint, request
 from apiserver.blueprints.users.models import userDB
-
+from apiserver.blueprints.home.models import get_datetime
+import click
+# Application Route specific object instantiation
 users = Blueprint('users', __name__)
 odbserver = userDB()
 odbserver.open_db()
+odbserver.check_standard_users()
+click.echo('[%s_UserServer_init] Complete' % (get_datetime()))
+
 
 @users.route('/users', methods=['GET'])
 def index():
@@ -140,6 +145,22 @@ def get():
             return jsonify({
                 "status": 204,
                 "message": auth["message"]
+            })
+
+@users.route('/users/get_user_nodes', methods=['GET'])
+def get_user_nodes():
+
+    users = odbserver.get_users()
+    if users["data"]:
+        return jsonify({
+            "status": 200,
+            "message": users['message'],
+            "data": users["data"]
+        })
+    else:
+        return jsonify({
+            "status": 204,
+            "message": "No users found"
             })
 
 @users.route('/users/message', methods=['POST'])

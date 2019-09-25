@@ -97,8 +97,12 @@ class Pole(ODB):
                 "key": "string",
                 "class": "V",
                 "Name": "string",
-                "Owner": "string",
-                "Classification": "string"
+                "Owners": "string",
+                "Classification": "string",
+                "StartDate": "datetime",
+                "LastUpdate": "datetime",
+                "CreatedBy": "string",
+                "Members": "string"
             }
         }
         self.basebook = None
