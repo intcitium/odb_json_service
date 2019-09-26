@@ -215,7 +215,7 @@ def get_request_payload(request):
         try:
             r = json.loads(request.data)
         except Exception as e:
-            click.echo(e, request)
+            click.echo(e)
     if len(r.keys()) == 1:
         click.echo("Attempting misformed JSON\n%s" % str(r))
         for k in r.keys():
