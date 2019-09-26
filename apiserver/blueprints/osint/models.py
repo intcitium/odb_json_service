@@ -1,7 +1,7 @@
 import click, os
 import requests, json, random
 import pandas as pd
-from apiserver.utils import get_datetime, clean, change_if_date, TWITTER_AUTH, get_time_based_id, format_graph
+from apiserver.utils import get_datetime, clean, change_if_date, TWITTER_AUTH
 from apiserver.blueprints.home.models import ODB
 from apiserver.blueprints.users.models import userDB
 from requests_oauthlib import OAuth1
@@ -671,16 +671,9 @@ class OSINT(ODB):
             for k in kwargs.keys():
                 fGraph[k] = kwargs[k]
 
-        for user in kwargs['Owners'].split(","):
-            # TODO SET UP POSTMAN TO RUN WITH NEW KEYS ENSURE UI5 is also updated with names
-            kwargs['OwnerKeys'] = userDB.get_user(userName=user)
-
-        for user in kwargs['Owners'].split(","):
-            # TODO SET UP POSTMAN TO RUN WITH NEW KEYS ENSURE UI5 is also updated with names
-            kwargs['OwnerKeys'] = userDB.get_user(userName=user)
-
         case, message = self.save(graphCase=fGraph,
-                  Owners=kwargs['OwnerKeys'],
+                  Owners=kwargs['Owners'],
+                  Members=kwargs['Members'],
                   Classification=kwargs['Classification'],
                   graphName=kwargs['graphName'])
         data = {

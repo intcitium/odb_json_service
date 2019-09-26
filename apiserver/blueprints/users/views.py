@@ -1,6 +1,7 @@
 from flask import jsonify, Blueprint, request
 from apiserver.blueprints.users.models import userDB
 from apiserver.blueprints.home.models import get_datetime
+from apiserver.utils import get_request_payload
 import click
 # Application Route specific object instantiation
 users = Blueprint('users', __name__)
@@ -193,5 +194,23 @@ def confirm_email():
 @users.route('/users/confirm/<token>')
 def confirm(token):
     return jsonify(odbserver.confirm(token=token))
+
+@users.route('/users/get_cases', methods=['GET'])
+def get_cases():
+    r = get_request_payload(request)
+    if r and 'userName' in r.keys():
+        data = odbserver.get_user_cases(userName=r['userName'])
+        return jsonify({
+            "status": 200,
+            "message": data['message'],
+            "data": data['data']
+        })
+    else:
+        return jsonify({
+            "status": 200,
+            "message": "Failed to process request",
+            "data": None
+        })
+
 
 

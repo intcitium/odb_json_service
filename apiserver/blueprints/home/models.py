@@ -192,7 +192,7 @@ class ODB:
         """
         Build the schema in OrientDB using the models established in __init__
         1) Cycle through the model configuration
-        2) Use a rule that if 'id' is part of the model, then it should have an index
+        2) Use custom rules as part of the model to trigger an index
         :return:
         """
         self.client.db_create(self.db_name, pyorient.DB_TYPE_GRAPH)
@@ -203,7 +203,10 @@ class ODB:
             for k in self.models[m].keys():
                 if k != 'class':
                     sql = sql+"create property %s.%s %s;\n" % (m, k, self.models[m][k])
-                    if (str(k)).lower() in ["key", "id", "uid", "userid"]:
+                    # Custom rules for establishing indexing
+                    if (str(k)).lower() in ["key", "id", "uid", "userid"] \
+                            or (self.db_name == "Users" and str(k).lower == "username")\
+                            or (m == "Case" and k == "Name"):
                         sql = sql + "create index %s_%s on %s (%s) UNIQUE ;\n" % (m, k, m, k)
 
         sql = sql + "create sequence idseq type ordered;"
@@ -441,7 +444,11 @@ class ODB:
         Run a match query that returns only those nodes in the case and their relationships. The query uses the book-end
         method in a manner: Case-Attached->Vertex1-(any)->Vertex2-Attached->Case. Return v1, v2 and the type of relation
         TODO: Relation duplication quality - Include all edge attributes beyond description
-        TODO: Implement classification and Owner/Reader relations
+        TODO: Implement classification and
+        Owner/Member relations are maintained by storing the key of the user in the Case.Owners string. The string is
+        split into a list to compare with the incoming keys. If there is a gap, the string is updated. When the user logs
+        in from the User Database side, it can call each other database to find out which cases the user belongs to.
+
         - get the users from the Users DB
         - create an array of the names and check if all are in the members. If no members, no update. If member not in, add
         - Need user id
@@ -464,20 +471,41 @@ class ODB:
         }
         # QUERY 1: Get the case by Name and Classification in the case there is no case key
         sql = ('''
-            select key, class_name, Name, Owners, Classification, StartDate,  
+            select key, class_name, Name, Owners, Classification, Members, StartDate  
             from Case where Name = '%s' and Classification = '%s'
-        ''' % (clean(kwargs['graphName']), kwargs['classification'])
+        ''' % (clean(kwargs['graphName']), kwargs['Classification'])
                )
         click.echo('[%s_%s] Q1: Getting Case:\n\t%s' % (get_datetime(), "home.save", sql))
         case = self.client.command(sql)
         # Array for the node keys related to the case if it exists returned from Query 2
         current_nodes = []
         # UPDATE CASE if it was found
+        ownersString = str(kwargs['Owners']).strip('[]').replace("'", "")
+        membersString = str(kwargs['Members']).strip('[]').replace("'", "")
         if len(case) > 0:
+            # Settings for the update
+            updateCaseWorkers = False
             casedata = dict(case[0].oRecordData)
+
+            # CHECK users to see if there are new ones to be added
+            for user in kwargs['Owners']:
+                if user not in casedata['Owners'].split(","):
+                    ownersString+=",%s" % user
+                    updateCaseWorkers = True
+            if updateCaseWorkers:
+                print("update attribute")
+            for user in kwargs['Members']:
+                if user not in casedata['Members'].split(","):
+                    membersString+=",%s" % user
+                    updateCaseWorkers = True
+            if updateCaseWorkers:
+                print("update attribute")
+
+            # Run others
             case = dict(key=casedata['key'], icon=self.ICON_CASE, status="CustomCase", title=casedata['Name'])
             case['attributes'] = [
-                {"label": "Owners", "value": casedata['Owner']},
+                {"label": "Owners", "value": casedata['Owners']},
+                {"label": "Members", "value": casedata['Members']},
                 {"label": "Classification", "value": casedata['Classification']},
                 {"label": "StartDate", "value": casedata['StartDate']},
                 {"label": "className", "value": "Case"}
@@ -500,8 +528,9 @@ class ODB:
             case = self.create_node(
                 class_name="Case",
                 Name=clean(kwargs["graphName"]),
-                Owner=kwargs["userOwners"],
-                Classification=kwargs["classification"],
+                Owners=ownersString,
+                Members=membersString,
+                Classification=kwargs["Classification"],
                 StartDate=get_datetime(),
                 NodeCount=len(fGraph['nodes']),
                 EdgeCount=len(fGraph['lines'])
@@ -596,13 +625,16 @@ class ODB:
         :return:
         """
         for n in graph['nodes']:
-            if n['key'] == key:
-                if 'class_name' in n.keys():
-                    return n['class_name']
-                elif 'attributes' in n.keys():
-                    for a in n['attributes']:
-                        if a['label'] == 'class_name' or a['label'] == 'className':
-                            return a['value']
+            try:
+                if n['key'] == key:
+                    if 'class_name' in n.keys():
+                        return n['class_name']
+                    elif 'attributes' in n.keys():
+                        for a in n['attributes']:
+                            if a['label'] == 'class_name' or a['label'] == 'className':
+                                return a['value']
+            except:
+                print(n)
         return
 
     @staticmethod

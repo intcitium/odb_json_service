@@ -4,7 +4,6 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous import TimedJSONWebSignatureSerializer
 import click
 
-
 class userDB(ODB):
 
     def __init__(self, db_name="Users"):
@@ -155,9 +154,57 @@ class userDB(ODB):
 
         return session
 
+    def get_user_cases(self, **kwargs):
+        """
+        Check each available database and get the cases that include that user in either Members, Owners, or CreatedBy
+        The return should be the complete model for the user to get all related data from in other models. The keys
+        :param kwargs:
+        :return:
+        """
+        from apiserver.blueprints.osint.models import OSINT
+        osintserver = OSINT()
+        osintserver.open_db()
+        cases = {"data": [], "Unclassified": 0, "Confidential": 0}
+        cOSINT = osintserver.client.command(
+            '''select key, Name, CreatedBy, Owners, Members, Classification, StartDate, LastUpdate from Case
+            ''')
+        for c in cOSINT:
+            role = None
+            c = c.oRecordData
+            if kwargs['userName'] in c['Members'].split(","):
+                role = "Member"
+            elif kwargs['userName'] in c['Owners'].split(","):
+                role = "Owner"
+            elif kwargs['userName'] == c['CreatedBy']:
+                role = "Owner"
+            if role:
+                cases['data'].append({
+                    "key": c['key'],
+                    "Name": c['Name'],
+                    "CreatedBy": c['CreatedBy'],
+                    "Owners": c['Owners'],
+                    "Members": c['Members'],
+                    "Classification": c['Classification'],
+                    "StartDate": c['StartDate'],
+                    "LastUpdate": c['LastUpdate'],
+                    "Role": role
+                })
+                if c['Classification'] == "Unclassified":
+                    cases['Unclassified']+=1
+                elif c['Classification'] == "Confidential":
+                    cases['Confidential']+=1
+        if len(cases['data']) == 1:
+            c_count = "case"
+        else:
+            c_count = "cases"
+
+        cases['message'] = "%d %s found for %s" % (len(cases['data']), c_count, kwargs['userName'])
+        return cases
+
     def login(self, request):
         """
         Check the user confirmation status and password based on the supplied userName
+        TODO - Select from Case where Case.Owners.containsText(userKey) to return the cases
         :param form:
         :return: token or none
         """
@@ -187,6 +234,7 @@ class userDB(ODB):
                     response["token"] = token
                     response["session"] = session["data"]["key"]
                     response["data"] = self.get_activity(userName=form['userName'])
+                    response["data"]["cases"] = self.get_user_cases()
                 else:
                     response["message"] = "Incorrect password"
 
