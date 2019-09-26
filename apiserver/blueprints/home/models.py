@@ -97,6 +97,13 @@ class ODB:
         :return:
         """
         attributes = []
+        # In the case attributes as an array is received instead of directly in kwargs, fix and then pop attributes out
+        if 'attributes' in kwargs.keys():
+            if type(kwargs['attributes']) == list:
+                attributes = kwargs['attributes']
+                for a in kwargs['attributes']:
+                    kwargs[a['label']] = a['value']
+                kwargs.pop('attributes')
         if 'class_name' in kwargs.keys():
             if "key" in kwargs.keys():
                 labels = "(key"
@@ -149,7 +156,8 @@ class ODB:
                 if k != 'passWord':
                     attributes.append({"label": k, "value": kwargs[k]})
             # If there is a key, a new record is not created but rather the formatted version.
-            # However, a Case is assigned a key and therefore should not be applied here
+            # However, a Case is assigned a key and therefore should not be applied here.
+            # For cases within cases, fix below where Duplicate record will be triggered for case with same name
             if thisKey:
                 formatted_node = self.format_node(
                     key=thisKey,
@@ -180,7 +188,16 @@ class ODB:
 
                 except Exception as e:
                     if str(type(e)) == str(type(e)) == "<class 'pyorient.exceptions.PyOrientORecordDuplicatedException'>":
-                        return
+                        if kwargs['title'] == "Case":
+                            node = self.get_node(val=kwargs['Name'], var="Name", class_name="Case")
+                            return {"data" : self.format_node(
+                                key=node['key'],
+                                icon=node['icon'],
+                                status=node['status'],
+                                title=node['title'],
+                                class_name=node['class_name'],
+                                attributes=attributes
+                            )}
                     message = '[%s_%s_create_node] ERROR %s\n%s' % (get_datetime(), self.db_name, str(e), sql)
                     click.echo(message)
                     return message
@@ -513,7 +530,7 @@ class ODB:
                 {"label": "CreatedBy", "value": casedata['CreatedBy']}
             ]
             # Carry the case_key over to the relationship creation
-            case_key = case['key']
+            case_key = str(case['key'])
             message = "Updated %s" % case['title']
             # QUERY 2: Get the node keys related to the case that was found T
             # TODO don't get just keys but attributes and compare
@@ -540,7 +557,7 @@ class ODB:
                 NodeCount=len(fGraph['nodes']),
                 EdgeCount=len(fGraph['lines'])
             )['data']
-            case_key = case['key']
+            case_key = str(case['key'])
             click.echo('[%s_%s_create_db] Created Case:\n\t%s' % (get_datetime(), "home.save", case))
         # Attach the Case record to the nodes
         graph['nodes'].append(case)
@@ -569,26 +586,28 @@ class ODB:
                     class_name = n['class_name']
                     n.pop("key")
                     n = self.create_node(**n)
+                    n_key = str(n['data']['key'])
                     # Go through the lines and change the key to this new key
                     for l in fGraph['lines']:
                         if l['to'] == oldKey:
-                            l['to'] = n['data']['key']
+                            l['to'] = n_key
                         elif l['from'] == oldKey:
-                            l['from'] = n['data']['key']
-                    self.create_edge(fromNode=case_key, toNode=n['data']['key'],
-                                     edgeType="Attached", fromClass="Case", toClass=class_name)
-                    # Add the line to the graph linking the node and case
-                    graph['lines'].append({"from": case_key, "to": n['data']['key'], "description": "Attached"})
+                            l['from'] = n_key
+                    if {"from": case_key, "to": n_key, "description": "Attached"} not in graph['lines']:
+                        self.create_edge(fromNode=case_key, toNode=n['data']['key'],
+                                         edgeType="Attached", fromClass="Case", toClass=class_name)
+                        graph['lines'].append({"from": case_key, "to": n_key, "description": "Attached"})
+
                     # Add the node to the graph
                     graph['nodes'].append(n['data'])
                 # Otherwise just add it as is to the new graph that will be sent back
                 else:
-                    graph['lines'].append({"from": case_key, "to": n['key'], "description": "Attached"})
+                    graph['lines'].append({"from": str(case_key), "to": str(n['key']), "description": "Attached"})
                     graph['nodes'].append(n)
 
             # QUERY 3: Compare the edges between nodes from the saved case and the new case
             # to determine if new edge is needed
-            oldRels = []
+            oldRels = graph['lines']
             sql = ('''
             match
             {class:Case, as:c, where: (key = '%s')}.out("Attached")
@@ -604,7 +623,7 @@ class ODB:
                 rel = rel.oRecordData
                 oldRels.append({"from": rel['from_key'], "to": rel['to_key'], "description": rel['description']})
             for l in graph['lines']:
-                if {"fromNode": l['from'], "toNode": l['to'], "reltype": l['description']} not in oldRels:
+                if {"from": l['from'], "to": l['to'], "description": l['description']} not in oldRels:
                     newLines += 1
                     self.create_edge(fromNode=l['from'], fromClass=self.get_class_name(graph, l['from']),
                                      toNode=l['to'], toClass=self.get_class_name(graph, l['to']),
@@ -613,6 +632,9 @@ class ODB:
             for r in fGraph['lines']:
                 if {"from": r['from'], "to": r['to'], "description": r['description']} not in graph['lines']:
                     graph['lines'].append({"from": r['from'], "to": r['to'], "description": r['description']})
+                    self.create_edge(fromNode=r['from'], fromClass=self.get_class_name(graph, r['from']),
+                                     toNode=r['to'], toClass=self.get_class_name(graph, r['to']),
+                                     edgeType=r['description'])
 
             if newNodes == 0 and newLines == 0:
                 message = "No new data received. Case %s is up to date." % clean(kwargs["graphName"])
@@ -631,15 +653,15 @@ class ODB:
         """
         for n in graph['nodes']:
             try:
-                if n['key'] == key:
+                if str(n['key']) == str(key):
                     if 'class_name' in n.keys():
                         return n['class_name']
                     elif 'attributes' in n.keys():
                         for a in n['attributes']:
                             if a['label'] == 'class_name' or a['label'] == 'className':
                                 return a['value']
-            except:
-                print(n)
+            except Exception as e:
+                click.echo("ERROR in get_class_name: %s" % str(e) )
         return
 
     @staticmethod

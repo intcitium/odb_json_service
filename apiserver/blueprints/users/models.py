@@ -171,12 +171,21 @@ class userDB(ODB):
         for c in cOSINT:
             role = None
             c = c.oRecordData
-            if kwargs['userName'] in c['Members'].split(","):
+            # QUALITY check on records
+            if 'Members' not in c.keys():
+                 c['Members'] = ""
+            if 'Owners' not in c.keys():
+                c['Owners'] = ""
+            if 'CreatedBy' not in c.keys():
+                c['CreatedBy'] = ""
+            # User linkage check
+            if c['Members'] != "" and kwargs['userName'] in c['Members'].split(","):
                 role = "Member"
-            elif kwargs['userName'] in c['Owners'].split(","):
+            elif c['Owners'] != "" and kwargs['userName'] in c['Owners'].split(","):
                 role = "Owner"
             elif kwargs['userName'] == c['CreatedBy']:
                 role = "Owner"
+            # If linked then add the case with the role
             if role:
                 cases['data'].append({
                     "key": c['key'],
