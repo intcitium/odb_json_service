@@ -221,6 +221,7 @@ def get_request_payload(request):
             click.echo(r)
             try:
                 r = json.loads(r)
+                return r
             except Exception as e:
                 click.echo(e)
 
