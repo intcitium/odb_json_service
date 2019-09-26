@@ -438,23 +438,20 @@ class ODB:
         Expects a request with graphCase containing the graph from the user's canvas and assumes that all nodes have an
         attribute "key". The creation of a node is only if the node is new and taken from a source that doesn't exist in
         POLE yet.
+        If it is an existing case, set the LastUpdate to the current date time.
         QUERY 1 Checks if the Case already exists and if not, creates it.
         QUERY 2 Gets existing keys if the Nodes sent in the graphCase are already "Attached" to the Case from QUERY 1
         QUERY 3 Compares edges between the new case and old case and only adds a new relation where one doesn't exist
         Run a match query that returns only those nodes in the case and their relationships. The query uses the book-end
         method in a manner: Case-Attached->Vertex1-(any)->Vertex2-Attached->Case. Return v1, v2 and the type of relation
         TODO: Relation duplication quality - Include all edge attributes beyond description
-        TODO: Implement classification and
-        Owner/Member relations are maintained by storing the key of the user in the Case.Owners string. The string is
-        split into a list to compare with the incoming keys. If there is a gap, the string is updated. When the user logs
-        in from the User Database side, it can call each other database to find out which cases the user belongs to.
+        TODO: Implement classification on related nodes
 
-        - get the users from the Users DB
-        - create an array of the names and check if all are in the members. If no members, no update. If member not in, add
-        - Need user id
-        - create relationship between each user
-        TODO: Implement LastUpdated attribute
-        :param kwargs:
+        Owner/Member relations are maintained by storing the unique UserName of the user in the Case.Owners/Members
+        string. The string is split into a list to compare with the incoming keys. If there is a gap, the string is
+        updated. When the user logs in from the User Database side, it can call each other database to find out which
+        cases the user belongs to and return those in an object.
+        :param kwargs: graphCase, graphName, Classification, Owners, Members, CreatedBy
         :return: graph (in the UI form), message (summary of actions)
         """
         # The graph being saved
@@ -471,7 +468,7 @@ class ODB:
         }
         # QUERY 1: Get the case by Name and Classification in the case there is no case key
         sql = ('''
-            select key, class_name, Name, Owners, Classification, Members, StartDate  
+            select key, class_name, Name, Owners, Classification, Members, StartDate, CreatedBy  
             from Case where Name = '%s' and Classification = '%s'
         ''' % (clean(kwargs['graphName']), kwargs['Classification'])
                )
@@ -501,15 +498,21 @@ class ODB:
             if updateCaseWorkers:
                 print("update attribute")
 
-            # Run others
+            # Store the other variables for the return value
             case = dict(key=casedata['key'], icon=self.ICON_CASE, status="CustomCase", title=casedata['Name'])
+            # UPDATE the LastUpdate attribute and carry the variable over to the return value
+            LastUpdate = get_datetime()
+            self.update(class_name="Case", var="LastUpdate", val=LastUpdate, key=case['key'])
             case['attributes'] = [
                 {"label": "Owners", "value": casedata['Owners']},
                 {"label": "Members", "value": casedata['Members']},
                 {"label": "Classification", "value": casedata['Classification']},
                 {"label": "StartDate", "value": casedata['StartDate']},
-                {"label": "className", "value": "Case"}
+                {"label": "LastUpdate", "value": LastUpdate},
+                {"label": "className", "value": "Case"},
+                {"label": "CreatedBy", "value": casedata['CreatedBy']}
             ]
+            # Carry the case_key over to the relationship creation
             case_key = case['key']
             message = "Updated %s" % case['title']
             # QUERY 2: Get the node keys related to the case that was found T
@@ -528,14 +531,16 @@ class ODB:
             case = self.create_node(
                 class_name="Case",
                 Name=clean(kwargs["graphName"]),
+                CreatedBy=clean(kwargs["CreatedBy"]),
                 Owners=ownersString,
                 Members=membersString,
                 Classification=kwargs["Classification"],
                 StartDate=get_datetime(),
+                LastUpdate=get_datetime(),
                 NodeCount=len(fGraph['nodes']),
                 EdgeCount=len(fGraph['lines'])
-            )
-            case_key = case['data']['key']
+            )['data']
+            case_key = case['key']
             click.echo('[%s_%s_create_db] Created Case:\n\t%s' % (get_datetime(), "home.save", case))
         # Attach the Case record to the nodes
         graph['nodes'].append(case)
