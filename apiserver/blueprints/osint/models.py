@@ -671,11 +671,13 @@ class OSINT(ODB):
             for k in kwargs.keys():
                 fGraph[k] = kwargs[k]
 
-        case, message = self.save(graphCase=fGraph,
-                  Owners=kwargs['Owners'],
-                  Members=kwargs['Members'],
-                  Classification=kwargs['Classification'],
-                  graphName=kwargs['graphName'])
+        case, message = self.save(
+            graphCase=fGraph,
+            Owners=kwargs['Owners'],
+            Members=kwargs['Members'],
+            CreatedBy=kwargs['CreatedBy'],
+            Classification=kwargs['Classification'],
+            graphName=kwargs['graphName'])
         data = {
             "graph": case,
             "geo": {
