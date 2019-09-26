@@ -212,6 +212,7 @@ def get_request_payload(request):
     if len(r.keys()) == 0:
         # CAI sends POST as raw so need to get data
         click.echo("Attempting JSON loads of request.data")
+        click.echo()
         try:
             r = json.loads(request.data)
         except Exception as e:
@@ -219,64 +220,65 @@ def get_request_payload(request):
     if len(r.keys()) == 1:
         click.echo("Attempting misformed JSON\n%s" % str(r))
         for k in r.keys():
-            if len(k) > 100:
-                newR = str(r).replace('\'', "")
-                # Check begining of dictionary and ensure not {'{
-                front = False
-                chips = 0
-                while not front:
-                    chips+=1
-                    if newR[0:8] == '{"nodes"':
-                        front = True
-                    elif newR[0:9] == '{"groups"':
-                        front = True
-                    elif newR[0:8] == '{"lines"':
-                        front = True
+            newR = str(r).replace('\'', "")
+            # Check begining of dictionary and ensure not {'{
+            front = False
+            chips = 0
+            while not front:
+                chips+=1
+                if newR[0:8] == '{"nodes"':
+                    front = True
+                elif newR[0:9] == '{"groups"':
+                    front = True
+                elif newR[0:8] == '{"lines"':
+                    front = True
+                elif newR[0:11] == '{"userName"':
+                    front = True
+                else:
+                    newR = newR[1:]
+                    click.echo("%s... chipping off front" % newR[0:8])
+                if chips > 100:
+                    return None
+            # Check for the end of the string if proper for dict
+            chips = 0
+            while newR[-3:-1] != '"}':
+                chips += 1
+                if chips > 100:
+                    return None
+                newR = newR[:-1]
+                click.echo("%s... chipping off end" % newR[-3:-1])
+            r = newR
+            # Automated Cleaning with rules implemented in debugging
+            current_error = ""
+            cleaned = False
+            corrections = 0
+            while not cleaned:
+                try:
+                    newR = newR.replace("\\", "")
+                    r = json.loads(newR)
+                    cleaned = True
+                except Exception as e:
+                    corrections+=1
+                    # If the error repeated it is something else than the first correction attempt
+                    e = str(e)
+                    if e == current_error:
+                        # Error string end with (char nnnn). Below finds the ( ) and uses char length to trim. Then int it and -1
+                        error_index = int(e[e.find("(") + 6:e.find("}")]) - 1
+                        if newR[error_index] == '"':
+                            # Use the method of replacement finding <a tags for " "
+                            error_index_end = newR[error_index + 1:].find('"') + error_index + 2
+                            cleaned_part = newR[error_index:newR[error_index + 1:].find('"') + error_index + 2].replace('"', "")
+                            newR = newR[0:error_index] + cleaned_part + newR[error_index_end:]
                     else:
-                        newR = newR[1:]
-                        click.echo("%s... chipping off front" % newR[0:8])
-                    if chips > 100:
-                        return None
-                # Check for the end of the string if proper for dict
-                chips = 0
-                while newR[-3:-1] != '"}':
-                    chips += 1
-                    if chips > 100:
-                        return None
-                    newR = newR[:-1]
-                    click.echo("%s... chipping off end" % newR[-3:-1])
-                r = newR
-                # Automated Cleaning with rules implemented in debugging
-                current_error = ""
-                cleaned = False
-                corrections = 0
-                while not cleaned:
-                    try:
-                        newR = newR.replace("\\", "")
-                        r = json.loads(newR)
-                        cleaned = True
-                    except Exception as e:
-                        corrections+=1
-                        # If the error repeated it is something else than the first correction attempt
-                        e = str(e)
-                        if e == current_error:
-                            # Error string end with (char nnnn). Below finds the ( ) and uses char length to trim. Then int it and -1
-                            error_index = int(e[e.find("(") + 6:e.find("}")]) - 1
-                            if newR[error_index] == '"':
-                                # Use the method of replacement finding <a tags for " "
-                                error_index_end = newR[error_index + 1:].find('"') + error_index + 2
-                                cleaned_part = newR[error_index:newR[error_index + 1:].find('"') + error_index + 2].replace('"', "")
-                                newR = newR[0:error_index] + cleaned_part + newR[error_index_end:]
+                        if "Extra data" in e:
+                            newR = newR[:-1]
                         else:
-                            if "Extra data" in e:
-                                newR = newR[:-1]
-                            else:
-                                # Try to change it based on the href tags
-                                newR = newR.replace(
-                                    newR[newR.find("<a"):(newR.find("<a") + newR[newR.find("<a") + 1:].find("/a>") + 4)],
-                                    "")
-                        current_error = e
-                click.echo("Completed with automated formatting after %d corrections to make the JSON fit\n%s" % (corrections, r))
+                            # Try to change it based on the href tags
+                            newR = newR.replace(
+                                newR[newR.find("<a"):(newR.find("<a") + newR[newR.find("<a") + 1:].find("/a>") + 4)],
+                                "")
+                    current_error = e
+            click.echo("Completed with automated formatting after %d corrections to make the JSON fit\n%s" % (corrections, r))
 
     return r
 
