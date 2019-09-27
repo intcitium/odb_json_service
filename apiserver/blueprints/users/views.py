@@ -195,6 +195,7 @@ def confirm_email():
 def confirm(token):
     return jsonify(odbserver.confirm(token=token))
 
+
 @users.route('/users/get_cases', methods=['GET'])
 def get_cases():
     r = get_request_payload(request)
@@ -213,4 +214,19 @@ def get_cases():
         })
 
 
-
+@users.route('/users/get_messages', methods=['GET'])
+def get_messages():
+    r = get_request_payload(request)
+    if r and 'userName' in r.keys():
+        data = odbserver.get_messages(userName=r['userName'])
+        return jsonify({
+            "status": 200,
+            "message": data['message'],
+            "data": data['data']
+        })
+    else:
+        return jsonify({
+            "status": 200,
+            "message": "Failed to process request",
+            "data": None
+        })

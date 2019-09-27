@@ -98,7 +98,6 @@ class userDB(ODB):
                 "icon": self.ICON_HUMINT
             })
 
-
     def send_message(self, request):
         """
         Create a message and then wire relationships as following
@@ -111,10 +110,11 @@ class userDB(ODB):
         if str(type(request)) == "<class 'werkzeug.local.LocalProxy'>":
             form = request.form.to_dict()
             sessionId = request.headers['SESSIONID']
-        else: # For internal requests not coming from HTTP
+        # For internal requests not coming from HTTP
+        else:
             form = request
             sessionId = request['sessionId']
-
+        # Create the Message Node
         msg = self.create_node(
             class_name="Message",
             text=form['text'],
@@ -123,16 +123,49 @@ class userDB(ODB):
             receiver=form['receiver'],
             createDate=get_datetime(),
             icon=self.ICON_POST)
-
-        # create relations from sender to post and post to receiver
-        senderKey = self.get_user(userName=form['sender'])[0].oRecordData['key']
-        receiverKey = self.get_user(userName=form['receiver'])[0].oRecordData['key']
+        # Create relations from sender to post and post to receiver.
+        try:
+            senderKey = self.get_user(userName=form['sender'])[0].oRecordData['key']
+        except:
+            msg['message'] = "No sender identified with key %s" % form['sender']
+            return msg
+        try:
+            receiverKey = self.get_user(userName=form['receiver'])[0].oRecordData['key']
+        except:
+            msg['message'] = "No receiver identified with key %s" % form['receiver']
+            return msg
         msgKey = msg['data']['key']
+        msg['message'] = "Message sent from %s with subject %s to %s on %s" % (
+            form['sender'], form['title'], form['receiver'], get_datetime())
         self.create_edge(fromNode=sessionId, fromClass="Session", toNode=msgKey, toClass="Message", edgeType="Logged")
         self.create_edge(fromNode=senderKey, fromClass="User", toNode=msgKey, toClass="Message", edgeType="Sent")
         self.create_edge(fromNode=msgKey, fromClass="Message", toNode=receiverKey, toClass="User", edgeType="SentTo")
-        # for tag in tags create a new node and relate it
+        # for tag in tags create a new node and relate it TODO
         return msg
+
+    def get_messages(self, **kwargs):
+        """
+        Get messages associated with the userName and return a list of selectable items for each Sent and Received
+        TODO:
+        1) Able to see read, flagged,
+        2) sort by sender/receiver, subject
+        TODO:
+        1) Update message as read
+        :param kwargs:
+        :return:
+        """
+        data = {
+            "data": []
+        }
+        for msg_type in ['sender', 'receiver']:
+            for m in self.client.command('''
+            select key, sender, receiver, createDate as sentOn, text, icon from Message where %s = '%s'
+            ''' % (msg_type, kwargs['userName'])):
+                data['data'].append(m.oRecordData)
+
+        data['message'] = "Found %s sent and %s received messages for %s" % (
+            len(data['data']), len(data['data']), kwargs['userName'])
+        return data
 
     def create_session(self, form, ip_address, token):
         """
@@ -158,6 +191,7 @@ class userDB(ODB):
         """
         Check each available database and get the cases that include that user in either Members, Owners, or CreatedBy
         The return should be the complete model for the user to get all related data from in other models. The keys
+        TODO Put a status based on Classification Maybe in create class or keep as a CustomCase code dependent on View
         :param kwargs:
         :return:
         """
