@@ -1,5 +1,6 @@
 from apiserver.blueprints.home.models import ODB, get_datetime
-from apiserver.utils import SECRET_KEY, SIGNATURE_EXPIRED, BLACK_LISTED, DB_ERROR, PROTECTED, send_mail, HTTPS, randomString
+from apiserver.utils import SECRET_KEY, SIGNATURE_EXPIRED, BLACK_LISTED, DB_ERROR, PROTECTED, change_if_date,\
+    send_mail, HTTPS, randomString
 from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous import TimedJSONWebSignatureSerializer
 import click
@@ -146,25 +147,84 @@ class userDB(ODB):
     def get_messages(self, **kwargs):
         """
         Get messages associated with the userName and return a list of selectable items for each Sent and Received
-        TODO:
-        1) Able to see read, flagged,
-        2) sort by sender/receiver, subject
-        TODO:
-        1) Update message as read
+        ODB 2.2 requires the select from a match to apply the sorting "order by".
+        The sorting of the m_key sets sets the list so a chronology of the message life cycle is shown and loaded
+        into the return value.
+        The message can be determined as new for a user if there is nothing in the read column. To ensure this is
+        consistent for messages received and read by other users, the condition for checking on sender or receiver
+        equal to kwargs['userName'] is implemented.
+        :param kwargs:
+        :return:
+        """
+        msg_index = {}
+        current_key = None
+        for msg in self.client.command('''
+            select from (match
+            {class:User, as:u}.bothE()
+            {class:E, as: e}.bothV()
+            {class:Message, as:m, where: (sender = '%s')}
+            return u.key, u.userName, 
+            e.DTG, e.@class, 
+            m.key, m.title, m.icon, m.text, m.sender, m.receiver, m.createDate)
+            order by m.key
+        ''' % kwargs['userName']):
+            # If still the current message, add the new information
+            if current_key == msg.oRecordData['m_key']:
+                if msg.oRecordData['e_DTG'] and (
+                        msg_index[current_key]['receiver'] == kwargs['userName'] or
+                        msg_index[current_key]['sender'] == kwargs['userName']):
+                    msg_index[current_key]['activity'].append({
+                        "read_by": msg.oRecordData['m_receiver'],
+                        "read_on": msg.oRecordData['e_DTG']
+                    })
+                    if msg_index[current_key]['read']:
+                        new_date = change_if_date(msg.oRecordData['e_DTG'])
+                        if new_date > change_if_date(msg_index[current_key]['read']):
+                            msg_index[current_key]['read'] = msg.oRecordData['e_DTG']
+                    else:
+                        msg_index[current_key]['read'] = msg.oRecordData['e_DTG']
+            else:
+                current_key = msg.oRecordData['m_key']
+                msg_index[current_key] = {
+                    'key': msg.oRecordData['m_key'],
+                    'sender': msg.oRecordData['m_sender'],
+                    'receiver': msg.oRecordData['m_receiver'],
+                    'title': msg.oRecordData['m_title'],
+                    'icon': msg.oRecordData['m_icon'],
+                    'text': msg.oRecordData['m_text'],
+                    'sent': msg.oRecordData['m_createDate'],
+                    'activity': [],
+                    'read': False
+                }
+        data = {'data': []}
+        for m in msg_index:
+            data['data'].append(msg_index[m])
+        data['message'] = "Found %s sent and %s received messages for %s" % (
+            len(data['data']), len(data['data']), kwargs['userName'])
+        return data
+
+    def read_message(self, **kwargs):
+        """
+        Update a message as read by the receiver with a new edge from the UserKey to the MessageKey
+        Return an updated list of messages to refresh the inbox
         :param kwargs:
         :return:
         """
         data = {
             "data": []
         }
-        for msg_type in ['sender', 'receiver']:
-            for m in self.client.command('''
-            select key, sender, receiver, createDate as sentOn, text, icon from Message where %s = '%s'
-            ''' % (msg_type, kwargs['userName'])):
-                data['data'].append(m.oRecordData)
+        sql = '''
+        create edge {edgeType} from 
+        (select from {fromClass} where key = {fromNode}) to 
+        (select from {toClass} where key = {toNode}) set DTG = '{DTG}'
+        '''.format(edgeType="Read", fromNode=kwargs['userKey'], toNode=kwargs['msgKey'],
+                   fromClass="User", toClass="Message", DTG=get_datetime())
+        try:
+            self.client.command(sql)
+        except Exception as e:
+            click.echo("Error reading message %s" % str(e))
 
-        data['message'] = "Found %s sent and %s received messages for %s" % (
-            len(data['data']), len(data['data']), kwargs['userName'])
+        data['message'] = "Message %s read" % (kwargs['msgKey'])
         return data
 
     def create_session(self, form, ip_address, token):
