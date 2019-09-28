@@ -1,6 +1,36 @@
 # odb_json_service
 Provides API within an HTTPS environment using OrientDB 2.2 and Pyorient with OAuth, email confirmation and tokenized/timed sessions to control user access.
 
+## OrientDB Service Setup
+Install Orientdb 2.2 on the system. Detailed instructions at the link or follow the 2 steps below.
+https://orientdb.com/docs/last/Unix-Service.html
+### Create a service file
+```python
+# vi /etc/systemd/system/orientdb.service
+
+#
+# Copyright (c) OrientDB LTD (http://http://orientdb.com/)
+#
+
+[Unit]
+Description=OrientDB Server
+After=network.target
+After=syslog.target
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+User=ORIENTDB_USER
+Group=ORIENTDB_GROUP
+ExecStart=$ORIENTDB_HOME/bin/server.sh
+```
+### Enable the service
+Then enable the service to startup on system reset
+```python
+# systemctl start orientdb.service
+```
+## API Service Setup
 With an orientDB 2.2 set up behind an HTTPS server, modify the config.py file within the apiserver to your settings:
 ```python
 HOST_IP = "YOUR SERVER IP THAT IS EXPOSED TO THE INTERNET"
