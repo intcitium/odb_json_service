@@ -230,3 +230,21 @@ def get_messages():
             "message": "Failed to process request",
             "data": None
         })
+
+
+@users.route('/users/read_message', methods=['POST'])
+def read_message():
+    r = get_request_payload(request)
+    if r and 'userKey' in r.keys() and 'msgKey' in r.keys():
+        data = odbserver.read_message(userKey=r['userKey'], msgKey=r['msgKey'])
+        return jsonify({
+            "status": 200,
+            "message": data['message'],
+            "data": data['data']
+        })
+    else:
+        return jsonify({
+            "status": 200,
+            "message": "Failed to process request",
+            "data": None
+        })
