@@ -199,7 +199,7 @@ def get_request_payload(request):
     :param request: 
     :return:
     """
-    debug = True
+    debug = False
     r = request.form.to_dict(flat=True)
     if debug:
         click.echo("\n\n\n\n\n\n\nRequest")
@@ -223,7 +223,7 @@ def get_request_payload(request):
                 r = json.loads(r)
                 return r
             except Exception as e:
-                click.echo(e)
+                click.echo("Second error %s" % str(e))
 
     if len(r.keys()) == 1:
         click.echo("Attempting misformed JSON\n%s" % str(r))
@@ -240,6 +240,8 @@ def get_request_payload(request):
             elif newR[0:8] == '{"lines"':
                 front = True
             elif newR[0:11] == '{"userName"':
+                front = True
+            elif newR[0:2] == '{"':
                 front = True
             else:
                 newR = newR[1:]
