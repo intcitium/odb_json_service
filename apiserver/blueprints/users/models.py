@@ -158,7 +158,7 @@ class userDB(ODB):
         """
         msg_index = {}
         current_key = None
-        for msg in self.client.command('''
+        sql = '''
             select from (match
             {class:User, as:u}.bothE()
             {class:E, as: e}.bothV()
@@ -167,7 +167,9 @@ class userDB(ODB):
             e.DTG, e.@class, 
             m.key, m.title, m.icon, m.text, m.sender, m.receiver, m.createDate)
             order by m.key
-        ''' % kwargs['userName']):
+        ''' % kwargs['userName']
+        click.echo(sql)
+        for msg in self.client.command(sql):
             # If still the current message, add the new information
             if current_key == msg.oRecordData['m_key']:
                 if msg.oRecordData['e_DTG'] and (
