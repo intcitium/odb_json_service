@@ -198,11 +198,15 @@ class userDB(ODB):
                     'activity': [],
                     'read': False
                 }
-        data = {'data': []}
+        data = {'data': [], 'notifications': []}
         for m in msg_index:
             data['data'].append(msg_index[m])
-        data['message'] = "Found %s sent and %s received messages for %s" % (
-            len(data['data']), len(data['data']), kwargs['userName'])
+        for m in data['data']:
+            if not m['read'] and m['receiver'] == kwargs['userName']:
+                data['notifications'].append(m)
+        data['count'] = len(data['notifications'])
+        data['message'] = "Found %s notifications and %s total messages for %s" % (
+            len(data['notifications']), len(data['data']), kwargs['userName'])
         return data
 
     def read_message(self, **kwargs):
