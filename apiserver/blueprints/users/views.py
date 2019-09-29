@@ -222,7 +222,7 @@ def get_messages():
         return jsonify({
             "status": 200,
             "message": data['message'],
-            "data": data['data']
+            "data": data
         })
     else:
         return jsonify({
