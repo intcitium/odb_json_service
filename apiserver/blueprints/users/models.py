@@ -160,14 +160,14 @@ class userDB(ODB):
         current_key = None
         sql = '''
             select from (match
-            {class:User, as:u}.bothE()
-            {class:E, as: e}.bothV()
-            {class:Message, as:m, where: (sender = '%s')}
+            {class:User, as:u}.outE()
+            {class:E, as:e}.inV()
+            {class:Message, as:m, where: (sender = '%s' or receiver = '%s') }
             return u.key, u.userName, 
             e.DTG, e.@class, 
             m.key, m.title, m.icon, m.text, m.sender, m.receiver, m.createDate)
             order by m.key
-        ''' % kwargs['userName']
+        ''' % (kwargs['userName'], kwargs['userName'])
         click.echo(sql)
         for msg in self.client.command(sql):
             # If still the current message, add the new information
