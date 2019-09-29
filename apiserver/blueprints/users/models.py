@@ -205,7 +205,7 @@ class userDB(ODB):
             if not m['read'] and m['receiver'] == kwargs['userName']:
                 data['notifications'].append(m)
         data['count'] = len(data['notifications'])
-        data['notifications'].sort(key=lambda item:['sent'], reverse=True)
+        data['notifications'].sort(key=lambda item:['key'], reverse=True)
         data['message'] = "Found %s notifications and %s total messages for %s" % (
             len(data['notifications']), len(data['data']), kwargs['userName'])
         return data
