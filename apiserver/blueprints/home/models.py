@@ -5,12 +5,13 @@ import click
 import pandas as pd
 import os
 import time
-from apiserver.utils import get_datetime, HOST_IP, change_if_number, clean, get_time_based_id, format_graph
+import hashlib
+from apiserver.utils import get_datetime, HOST_IP, change_if_number, clean, clean_concat
 
 
 class ODB:
 
-    def __init__(self, db_name="GratefulDeadConcerts"):
+    def __init__(self, db_name="GratefulDeadConcerts", models=None):
 
         self.client = pyorient.OrientDB(HOST_IP, 2424)
         self.user = 'root'
@@ -33,22 +34,39 @@ class ODB:
         self.ICON_TWEET = "sap-icon://jam"
         self.ICON_TWITTER_USER = "sap-icon://customer-view"
         self.ICON_HASHTAG = "sap-icon://number-sign"
-        self.models = {
-            "Vertex": {
-                "key": "integer",
-                "tags": "string",
-                "class": "V"
-            },
-            "Line":{
-                "class": "E",
-                "tags": "string"
+        self.index = {"nodes": {}, "edges": []}
+        # Keeping the nodeKeys in this order assures that matches will be checked in the same consistent string
+        self.nodeKeys = ['class_name', 'title', 'FirstName', 'LastName', 'Gender', 'DateOfBirth', 'PlaceOfBirth',
+                    'Name', 'Owner', 'Classification', 'Category', 'Latitude', 'Longitude', 'Description',
+                    'EndDate', 'StartDate', 'DateCreated']
+        if not models:
+            self.models = {
+                "Vertex": {
+                    "key": "integer",
+                    "tags": "string",
+                    "hash": "string",
+                    "class": "V"
+                },
+                "Line":{
+                    "class": "E",
+                    "tags": "string"
+                }
             }
-        }
         self.standard_classes = ['OFunction', 'OIdentity', 'ORestricted',
                                  'ORole', 'OSchedule', 'OSequence', 'OTriggered',
                                  'OUser', '_studio' ]
 
+        #self.create_index()
+
+    def csv_to_graph(self, **kwargs):
+
+        return
+
     def create_edge(self, **kwargs):
+        if self.check_index_edges("%sTo%sFrom%s" % (kwargs['edgeType'], kwargs['fromNode'], kwargs['toNode'])):
+            return
+        else:
+            self.index['edges'].append("%sTo%sFrom%s" % (kwargs['edgeType'], kwargs['fromNode'], kwargs['toNode']))
         if change_if_number(kwargs['fromNode']) and change_if_number(kwargs['toNode']):
             sql = '''
             create edge {edgeType} from 
@@ -93,6 +111,11 @@ class ODB:
         While creating the sql, save attributes for formatting to a SAPUI5 node
         If there is a key, set the key as the label but wait to determine if the key is a number or string before
         adding to the values part of the sql insert statement
+        Create a hashkey that will be used to resolve entity keys on merged entities
+        TODO Method to update the hashkey on merge and another method to add the multiple hashkeys to the index.
+        index: {entity1: 1, entityOne, 1}
+        Add the node to the index
+
         :param kwargs: str(db_name), str(class_name), list(properties{property: str, value: str)
         :return:
         """
@@ -116,7 +139,21 @@ class ODB:
                 hadKey = False
                 thisKey = None
             icon = title = status = None
-
+            # Check the index
+            hash_key, check = self.check_index_nodes(**kwargs)
+            if check:
+                formatted_node = self.format_node(
+                    key=hash_key,
+                    class_name=kwargs['class_name'],
+                    title=title,
+                    status=status,
+                    icon=icon,
+                    attributes=attributes
+                )
+                message = '[%s_%s_create_node] Node %s exists' % (get_datetime(), self.db_name, thisKey)
+                return {"message": message, "data": formatted_node}
+            labels = labels + ", hashkey"
+            values = values + ", '%s'" % hash_key
             for k in kwargs.keys():
                 if list(kwargs.keys())[-1] == k:
                     # Close the labels and values with a ')'
@@ -175,6 +212,8 @@ class ODB:
                 '''.format(class_name=kwargs['class_name'], labels=labels, values=values)
                 try:
                     key = self.client.command(sql)[0].oRecordData['result']
+                    # Update the index with the hash_key identified before and the key created by the DB
+                    self.index['nodes'][hash_key] = key
                     formatted_node = self.format_node(
                         key=key,
                         class_name=kwargs['class_name'],
@@ -204,6 +243,88 @@ class ODB:
 
         else:
             return None
+
+    def check_index_nodes(self, **kwargs):
+        """
+        Use the nodeKeys to cycle through in sequential order and match the input attributes to build a hash string in
+        the same format of previous nodes. If the node exists, return the key. Otherwise return None.
+        self.nodeKeys = ['class_name', 'title', 'FirstName', 'LastName', 'Gender', 'DateOfBirth', 'PlaceOfBirth',
+            'Name', 'Owner', 'Classification', 'Category', 'Latitude', 'Longitude', 'Description',
+            'EndDate', 'StartDate', 'DateCreated']
+        :param kwargs:
+        :return:
+        """
+        hash_str = ""
+        for k in self.nodeKeys:
+            if k in kwargs.keys():
+                if kwargs[k] != "":
+                    # Remove commas since this will be a str treated as a list
+                    hash_str += clean_concat(str(kwargs[k]).replace(",", ""))
+        # Change the str to a hash string value TODO: evaluate method for robustness in terms of unique values produced
+                hash_str = hashlib.md5(str(hash_str).encode()).hexdigest()
+        if hash_str in self.index['nodes'].keys():
+            return self.index['nodes'][hash_str], True
+        else:
+            return hash_str, False
+
+    def check_index_edges(self, edge):
+        """
+        Use the edge hash to check if it is in the index
+        :param kwargs:
+        :return:
+        """
+        if edge in self.index['edges']:
+            return True
+        else:
+            return False
+
+    def get_hash_keys(self):
+        """
+        Get the key, hash_key pair that is used for the index
+        :return:
+        """
+        r = self.client.command('''
+        select key, hash from V
+        ''')
+
+    def create_index(self):
+        """
+        Fill the index of a database to be used for entity resolution in data collection
+        :return:
+        """
+
+        self.open_db()
+        r = self.client.command('''
+        select key, hashkey, title, class_name,  
+        DateOfBirth, PlaceOfBirth, FirstName, LastName, Gender, 
+        Name, Owner, Classification,
+        Category, Latitude, Longitude, Description, 
+        EndDate, StartDate, DateCreated, 
+        In().key as InKeys, OUT().key as OutKeys, OutE().@class, InE().@class from V
+        ''')
+        for i in r:
+            hash = ""
+            rec = i.oRecordData
+            # Create a single string to assign to the key TODO change to get hashkey and sep where comma
+            for k in self.nodeKeys:
+                if k in rec.keys():
+                    if rec[k] != "":
+                        hash+=str(rec[k])
+            hash = clean_concat(hash)
+            if hash not in self.index.keys():
+                self.index['nodes'][hash] = rec['key']
+            # Make
+            if len(rec['OutKeys']) > 0:
+                if len(rec['OutKeys']) == len(rec['OutE']):
+                    for rkey, rtyp in zip(rec['OutKeys'], rec['OutE']):
+                        self.index['edges'].append("%sTo%sFrom%s" % (rtyp, rec['key'], rkey))
+            if len(rec['InKeys']) > 0:
+                if len(rec['InKeys']) == len(rec['InE']):
+                    for rkey, rtyp in zip(rec['InKeys'], rec['InE']):
+                        self.index['edges'].append("%sTo%sFrom%s" % (rtyp, rkey, rec['key']))
+
+        click.echo('[%s_%s_create_index] Created index with %s nodes and %s edges' % (
+            get_datetime(), self.db_name, len(self.index['nodes']), len(self.index['edges'])))
 
     def create_db(self):
         """
@@ -420,6 +541,86 @@ class ODB:
             click.echo("Missing nodes or lines")
             return None
         return graph
+
+    def merge_nodes(self, **kwargs):
+        """
+        Enforces the value of a 3 step process in which records are assigned a single key based on DB sequence but also
+        a hashkey that represents several instances of the same record. The first step is to normalize all new records
+        into a hashkey that uses basic attributes/fields of a record. The normalization process changes the record into
+        a lowercase string with all spaces and punctuation removed. For example a person's names and DoB if available are
+        reduced. Then the record is hashed and compared against an index of DB_key and hash pairs. A DB_Key to hash_pair
+        is 1 to many. When a new record is created, the hash_key is compared to the index and assigned to the key of that
+        hashed normalized string. This reduces entire bodies of text down to a single hash that can be compared. When
+        merged, the B record is destroyed and replaced with the A key.
+        Input: node_A key, node_B key
+        Get the hash of each
+        Update the node_A hash_str to be a combination of the 2 with a , sep
+        Update the index by changing the key of the node_B hash to the node_A key
+        :param kwargs:
+        :return:
+        """
+        if 'node_A' in kwargs.keys() and 'node_B' in kwargs.keys():
+            results = "Merged node %d into %d resulting in " % (kwargs['node_B'], kwargs['node_A'])
+            # Get the relationships and hashkeys for both the A and B nodes
+            r = self.client.command('''
+                select hashkey, @class, key,
+                In().key as InKeys, In().class_name as n_in_class, 
+                Out().key as OutKeys, Out().class_name as n_out_class, OutE().@class, InE().@class 
+                from V where key in [%d, %d]''' % (kwargs['node_A'], kwargs['node_B']))
+            try:
+                A = r[0].oRecordData
+            except:
+                return "No record for %d" % kwargs['node_A']
+            try:
+                B = r[1].oRecordData
+            except:
+                return "No record for %d" % kwargs['node_A']
+
+            A['rels'] = []
+            B['rels'] = []
+            # Format A and B so relations can easily be compared through dictionaries within lists. Use a dir for direction
+            for n in [A, B]:
+                if (len(n['OutKeys']) == len(n['OutE'])) and len(n['OutKeys']) > 0:
+                    for k, l, c in zip(n['OutKeys'], n['OutE'], n['n_out_class']):
+                        n['rels'].append({
+                            "to": k,
+                            "edgeType": l,
+                            "dir": "out",
+                            "class": c
+                        })
+                # change of the from since it's an incoming edge
+                if (len(n['InKeys']) == len(n['InE'])) and len(n['InKeys']) > 0:
+                    for k, l, c in zip(n['InKeys'], n['InE'], n['n_in_class']):
+                        n['rels'].append({
+                            "from": k,
+                            "edgeType": l,
+                            "dir": "in",
+                            "class": c
+                        })
+
+            # Check all the relationships for B and if it is not in A's relationships, create the rel using the dir
+            i = 0
+            for rel in B['rels']:
+                if rel not in A['rels']:
+                    i+=1
+                    if rel['dir'] == "out":
+                        self.create_edge(fromClass=A['class'], fromNode=A['key'], toClass=rel['class'],
+                                         toNode=rel['to'], edgeType=rel['edgeType'])
+                    else:
+                        self.create_edge(fromClass=rel['class'], fromNode=rel['to'], toClass=A['class'],
+                                         toNode=A['key'], edgeType=rel['edgeType'])
+            results+= "%d new relations." % i
+
+            # Update the hashkey of the A node for future indexing
+            newHashKey = A['hashkey'] + "," + B['hashkey']
+            self.update(key=A['key'], var="hashkey", val=newHashKey, class_name=A['class'])
+
+            # Delete the B node
+            self.delete_node(key=B['key'], class_name=B['class'])
+
+        else:
+            results = "Need both an A node and B node."
+        return results
 
     def key_comparison(self, keys):
         """
