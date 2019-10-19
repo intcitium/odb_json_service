@@ -55,9 +55,13 @@ def return_files_tut():
 def csv_to_graph():
 
     if "file" not in request.files:
+        keys = ""
+        for k in request.files.keys():
+            keys+=k + ","
+
         return jsonify({
             "status": 200,
-            "message": "No file parts found. Ensure 'file' is within the keys of the payload sent.",
+            "message": "No file parts found. Ensure 'file' is within the keys of the payload sent. Found: %s" % keys,
             "data": None
         })
     else:
