@@ -15,6 +15,7 @@ SIGNATURE_EXPIRED = 'Signature expired'
 BLACK_LISTED = 'Blacklisted token'
 DB_ERROR = "Database error"
 PROTECTED = ["password"]
+ALLOWED_EXTENSIONS = ['txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'csv']
 
 
 # mail settingspy
@@ -37,7 +38,6 @@ MAIL_DEFAULT_SENDER = 'from@example.com'
 
 # osint API tokens
 TWITTER_AUTH = TWITTER_AUTH
-
 
 def send_mail(**kwargs):
 
@@ -317,3 +317,8 @@ def format_graph(g):
                     newNode[str(a['label']).replace(" ", "_")] = a['value']
         newDict['nodes'].append(newNode)
     return newDict
+
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
