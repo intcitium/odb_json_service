@@ -5,6 +5,7 @@ import click
 import pandas as pd
 import os
 import time
+import operator
 import hashlib
 from apiserver.utils import get_datetime, HOST_IP, change_if_number, clean, clean_concat
 
@@ -55,12 +56,219 @@ class ODB:
         self.standard_classes = ['OFunction', 'OIdentity', 'ORestricted',
                                  'ORole', 'OSchedule', 'OSequence', 'OTriggered',
                                  'OUser', '_studio' ]
+        self.keyLists = {
+            "twitter": [
+                'userid', 'user_display_name', 'user_screen_name','user_reported_location',
+                'user_profile_description','user_profile_url', 'follower_count', 'following_count',
+                'account_creation_date', 'account_language'
+            ],
+            "eppm": [
+                'itm_portfolio_guid', 'itm_portfolio_text', 'itm_bucket_guid','itm_bucket_text', 'itm_bucket_id',
+                'lpr_key', 'lpr_text', 'itm_initiative_guid', 'itm_initiative_text', 'itm_initiative_id',
+                'itm_guid', 'itm_text', 'itm_id', 'itm_project_guid', 'itm_external_id', 'itm_project_text',
+                'itm_internal_order', 'bic_pporatag', 'cat_name', 'itm_zpr_prg_id', 'itm_delivery_name_long',
+                'bucket_status', 'bucket_status_text', 'bucket_cp_start_date', 'bucket_cp_end_date',
+                'bucket_fp_start_date', 'bucket_fp_end_date', 'itm_bucket_category', 'bucket_category_text',
+                'pporadm', 'pporadm_txt', 'pporacdat', 'pporaddat', 'pporapc', 'pporapc_txt', 'pporapls',
+                'pporapls_txt', 'pporah', 'pporah_txt', 'pporaprc', 'pporaprc_txt', 'pporaprsc', 'pporaprsc_txt',
+                'pporarlq', 'pporasb', 'pporasb_txt', 'pporassr', 'pporassr_txt', 'pporardu', 'pporardu_txt',
+                'cc_age_in_years', 'initiative_category', 'initiative_category_text', 'initiative_status',
+                'initiative_status_text', 'initiative_start_date', 'initiative_end_date', 'itm_status',
+                'itm_status_text', 'itm_type', 'itm_type_text', 'item_start_date', 'item_end_date', 'itm_p1',
+                'itm_p1_text', 'itm_p2', 'itm_p2_text', 'itm_p3', 'itm_p3_text', 'itm_p4', 'itm_p4_text',
+                'itm_project_resp', 'itm_project_resp_name', 'itm_project_sys_status', 'itm_project_sys_status_text'
+            ]
+        }
 
         #self.create_index()
 
     def csv_to_graph(self, **kwargs):
+        """
+        Change a file into a graph based on the file type
+        :param kwargs:
+        :return:
+        """
+        csv = pd.read_csv(kwargs['filename'])
+        ftype = self.file_type_check(csv.keys())
+        if ftype == 'eppm':
+            data = self.graph_eppm(csv)
+            return {
+                "filetype": ftype,
+                "data": data
+            }
 
-        return
+        return csv
+
+    def graph_eppm(self, data):
+        print( '[%s_graph_eppm] Starting' % (get_datetime()))
+        r = {
+            "nodes": [],
+            "lines": [],
+            "groups": [
+                {"key": "CProjects", "title": "cProjects"},
+                {"key": "items", "title": "Items"},
+                {"key": "elements", "title": "Portfolio Elements"},
+                {"key": "InternalOrders", "title": "Internal Orders"},
+                {"key": "Programs", "title": "Programs"},
+                {"key": "portfolio", "title": "Portfolio"},
+                {"key": "Products", "title": "Products"}
+            ],
+
+            "index": []
+        }
+
+        def get_status(status):
+
+            if status in ["Active", "2", "10", "Created"]:
+                return "Success"
+            if status == "Inactive":
+                return "None"
+            if status in ["To be Archived", "Closed", "Flagged for Archiving"]:
+                return "Warning"
+
+
+
+        def make_line(**kwargs):
+            if({"to": kwargs['r_to'], "from": kwargs['r_from'], "description": kwargs['r_type']}) not in r['lines']:
+                r['lines'].append({"to": kwargs['r_to'], "from": kwargs['r_from'], "description": kwargs['r_type']})
+
+        def check_node(n_dict):
+            n_dict['key'] = self.hash_node(n_dict)
+            if n_dict['key'] not in r['index']:
+                r['index'].append(n_dict['key'])
+                r['nodes'].append(n_dict)
+
+            return n_dict['key']
+
+        for index, row in data.iterrows():
+            portfolio = check_node({
+                "key": str(row['ITM_PORTFOLIO_GUID']),
+                "title": str(row['ITM_PORTFOLIO_TEXT']),
+                "group": "portfolio",
+                "icon": "sap-icon://tree"
+            })
+            portfolio_element = check_node({
+                "key": str(row['ITM_BUCKET_GUID']),
+                "group": "elements",
+                "status": get_status(str(row['BUCKET_STATUS_TEXT'])),
+                "title": str(row['ITM_BUCKET_TEXT']),
+                "icon": "sap-icon://manager-insight",
+                "attributes": [
+                    {"label": "startDate", "value": str(row['BUCKET_CP_START_DATE'])},
+                    {"label": "endDate", "value": str(row['BUCKET_CP_END_DATE'])},
+                    {"label": "startDateFP", "value": str(row['BUCKET_FP_START_DATE'])},
+                    {"label": "endDateFP", "value": str(row['BUCKET_FP_END_DATE'])},
+                    {"label": "category_id", "value": str(row['ITM_BUCKET_CATEGORY'])},
+                    {"label": "category", "value": str(row['BUCKET_CATEGORY_TEXT'])}
+                ]
+            })
+            logical_product = check_node({
+                "key": str(row['LPR_KEY']),
+                "group": "Products",
+                "status": "None",
+                "title": str(row['LPR_TEXT']),
+                "icon": "sap-icon://product",
+                "attributes": [
+                    {"label": "Environment", "value": str(row['PPORADM'])},
+                    {"label": "Environment text", "value": str(row['PPORADM_TXT'])},
+                    {"label": "startDate", "value": str(row['PPORACDAT'])},
+                    {"label": "Product", "value": str(row['PPORAPC_TXT'])},
+                ]
+            })
+            initiative = check_node({
+                "key": str(row['ITM_INITIATIVE_GUID']),
+                "group": "Products",
+                "status": get_status(str(row['INITIATIVE_STATUS_TEXT'])),
+                "title": str(row['ITM_INITIATIVE_TEXT']),
+                "icon": "sap-icon://begin",
+                "attributes": [
+                    {"label": "ID", "value": str(row['ITM_INITIATIVE_ID'])},
+                    {"label": "Category text", "value": str(row['INITIATIVE_CATEGORY_TEXT'])},
+                    {"label": "Status", "value": str(row['INITIATIVE_STATUS_TEXT'])},
+                    {"label": "startDate", "value": str(row['INITIATIVE_START_DATE'])},
+                    {"label": "startDate", "value": str(row['INITIATIVE_END_DATE'])},
+                ]
+            })
+            item = check_node({
+                "key": str(row['ITM_GUID']),
+                "group": "items",
+                "status": "None",
+                "title": str(row['ITM_TEXT']),
+                "icon": "sap-icon://checklist-item",
+                "attributes": [
+                    {"label": "ID", "value": str(row['ITM_ID'])},
+                ]
+            })
+            cproject = check_node({
+                "key": str(row['ITM_PROJECT_GUID']),
+                "group": "CProjects",
+                "status": "None",
+                "title": str(row['ITM_PROJECT_TEXT']),
+                "icon": "sap-icon://capital-projects",
+                "attributes": [
+                    {"label": "ID", "value": str(row['ITM_EXTERNAL_ID'])},
+                    {"label": "Responsible", "value": str(row['ITM_PROJECT_RESP'])},
+                    {"label": "Name", "value": str(row['ITM_PROJECT_RESP_NAME'])},
+                    {"label": "Status", "value": str(row['ITM_PROJECT_SYS_STATUS_TEXT'])}
+                ]
+            })
+            internal_order = check_node({
+                "key": str(row['ITM_INTERNAL_ORDER']),
+                "group": "InternalOrders",
+                "status": "None",
+                "title": "IO %s" % str(row['ITM_INTERNAL_ORDER']),
+                "icon": "sap-icon://customer-order-entry"
+            })
+            program = check_node({
+                "key": str(row['ITM_ZPR_PRG_ID']),
+                "group": "Programs",
+                "status": "None",
+                "title": "Program %s" % str(row['ITM_ZPR_PRG_ID']),
+                "icon": "sap-icon://program-triangles-2"
+            })
+
+            make_line(r_to=portfolio, r_from=portfolio_element, r_type="PartOf")
+            make_line(r_to=portfolio_element, r_from=logical_product, r_type="PartOf")
+            make_line(r_to=logical_product, r_from=initiative, r_type="PartOf")
+            make_line(r_to=initiative, r_from=item, r_type="PartOf")
+            make_line(r_to=item, r_from=cproject, r_type="PartOf")
+            make_line(r_to=cproject, r_from=internal_order, r_type="PartOf")
+            make_line(r_to=program, r_from=cproject, r_type="PartOf")
+            if index > 50:
+                return({"graphs": [
+                    {
+                        "nodes": r['nodes'],
+                        "lines": r['lines'],
+                        "groups": r['groups']
+                    }
+                ]})
+        print('[%s_graph_eppm] Ending' % (get_datetime()))
+        return r
+
+    def hash_node(self, node):
+
+        node_id = ""
+        for k in node.keys():
+            node_id+=str(node[k])
+            node_id = hashlib.md5(str(node_id).encode()).hexdigest()
+
+        return node_id
+
+    def file_type_check(self, key_list):
+        """
+        Expects a set of keys to compare to the known keys.
+        Compares the lists to return the file type with the max score
+        :param key_list:
+        :return:
+        """
+        key_list = [x.lower().replace(' ', '') for x in key_list.to_list()]
+        score = {}
+        for ftype in self.keyLists:
+            score[ftype] = 0
+            for k in key_list:
+                if k in self.keyLists[ftype]:
+                    score[ftype]+=1
+        return max(score.items(), key=operator.itemgetter(1))[0]
 
     def create_edge(self, **kwargs):
         if self.check_index_edges("%sTo%sFrom%s" % (kwargs['edgeType'], kwargs['fromNode'], kwargs['toNode'])):
