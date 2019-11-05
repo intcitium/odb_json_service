@@ -97,7 +97,33 @@ class ODB:
                 "data": data
             }
 
-        return csv
+        return {
+            "filetype": ftype,
+            "data": csv
+        }
+
+    def xlsx_to_graph(self, **kwargs):
+        """
+        Change a file into a graph based on the file type
+        :param kwargs:
+        :return:
+        """
+        xl = pd.read_excel(kwargs['filename'])
+        ftype = self.file_type_check(xl.keys())
+        if ftype == 'eppm':
+            data = self.graph_eppm(xl)
+            return {
+                "ftype": ftype,
+                "data": data,
+                "message": "Uploaded  "
+            }
+        else:
+            return {
+                "headers": list(xl.columns),
+                "ftype": ftype,
+                "message": "Prepared "
+            }
+
 
     def graph_eppm(self, data):
         print( '[%s_graph_eppm] Starting' % (get_datetime()))
@@ -119,14 +145,12 @@ class ODB:
 
         def get_status(status):
 
-            if status in ["Active", "2", "10", "Created"]:
+            if status in ["Active", "2", "10", "Created", "Approved", "Completed"]:
                 return "Success"
-            if status == "Inactive":
-                return "None"
-            if status in ["To be Archived", "Closed", "Flagged for Archiving"]:
+            if status in ["Inactive", "Deletion Request", "Ready for Decision", "Canceled"]:
+                return "Error"
+            if status in ["To be Archived", "Closed", "Flagged for Archiving", "Released"]:
                 return "Warning"
-
-
 
         def make_line(**kwargs):
             if({"to": kwargs['r_to'], "from": kwargs['r_from'], "description": kwargs['r_type']}) not in r['lines']:
@@ -145,7 +169,8 @@ class ODB:
                 "key": str(row['ITM_PORTFOLIO_GUID']),
                 "title": str(row['ITM_PORTFOLIO_TEXT']),
                 "group": "portfolio",
-                "icon": "sap-icon://tree"
+                "icon": "sap-icon://tree",
+                "status": "CustomPortfolio"
             })
             portfolio_element = check_node({
                 "key": str(row['ITM_BUCKET_GUID']),
@@ -154,23 +179,28 @@ class ODB:
                 "title": str(row['ITM_BUCKET_TEXT']),
                 "icon": "sap-icon://manager-insight",
                 "attributes": [
-                    {"label": "startDate", "value": str(row['BUCKET_CP_START_DATE'])},
-                    {"label": "endDate", "value": str(row['BUCKET_CP_END_DATE'])},
-                    {"label": "startDateFP", "value": str(row['BUCKET_FP_START_DATE'])},
-                    {"label": "endDateFP", "value": str(row['BUCKET_FP_END_DATE'])},
-                    {"label": "category_id", "value": str(row['ITM_BUCKET_CATEGORY'])},
-                    {"label": "category", "value": str(row['BUCKET_CATEGORY_TEXT'])}
+                    {"label": "StartDate", "value": str(row['BUCKET_CP_START_DATE'])},
+                    {"label": "EndDate", "value": str(row['BUCKET_CP_END_DATE'])},
+                    {"label": "StartDate FP", "value": str(row['BUCKET_FP_START_DATE'])},
+                    {"label": "EndDate FP", "value": str(row['BUCKET_FP_END_DATE'])},
+                    {"label": "Category_id", "value": str(row['ITM_BUCKET_CATEGORY'])},
+                    {"label": "Category", "value": str(row['BUCKET_CATEGORY_TEXT'])},
+                    {"label": "ID", "value": str(row['ITM_BUCKET_ID'])},
+                    {"label": "Status code", "value": str(row['BUCKET_STATUS'])},
+                    {"label": "category", "value": str(row['ITM_BUCKET_ID'])},
                 ]
             })
             logical_product = check_node({
                 "key": str(row['LPR_KEY']),
                 "group": "Products",
-                "status": "None",
+                "status": "CustomLogicalProduct",
                 "title": str(row['LPR_TEXT']),
                 "icon": "sap-icon://product",
                 "attributes": [
                     {"label": "Environment", "value": str(row['PPORADM'])},
                     {"label": "Environment text", "value": str(row['PPORADM_TXT'])},
+                    {"label": "startDate", "value": str(row['PPORACDAT'])},
+                    {"label": "Product", "value": str(row['PPORAPC_TXT'])},
                     {"label": "startDate", "value": str(row['PPORACDAT'])},
                     {"label": "Product", "value": str(row['PPORAPC_TXT'])},
                 ]
@@ -187,22 +217,38 @@ class ODB:
                     {"label": "Status", "value": str(row['INITIATIVE_STATUS_TEXT'])},
                     {"label": "startDate", "value": str(row['INITIATIVE_START_DATE'])},
                     {"label": "startDate", "value": str(row['INITIATIVE_END_DATE'])},
+                    {"label": "Category", "value": str(row['INITIATIVE_CATEGORY'])},
+                    {"label": "Status code", "value": str(row['INITIATIVE_STATUS'])},
                 ]
             })
+            # Should ITM_P# be their own entities?
             item = check_node({
                 "key": str(row['ITM_GUID']),
                 "group": "items",
-                "status": "None",
+                "status": get_status(str(row['ITM_STATUS_TEXT'])),
                 "title": str(row['ITM_TEXT']),
                 "icon": "sap-icon://checklist-item",
                 "attributes": [
                     {"label": "ID", "value": str(row['ITM_ID'])},
+                    {"label": "Type code", "value": str(row['ITM_TYPE'])},
+                    {"label": "Type", "value": str(row['ITM_TYPE_TEXT'])},
+                    {"label": "StartDate", "value": str(row['ITEM_START_DATE'])},
+                    {"label": "EndDate", "value": str(row['ITEM_END_DATE'])},
+                    {"label": "P1 code", "value": str(row['ITM_P1'])},
+                    {"label": "P1", "value": str(row['ITM_P1_TEXT'])},
+                    {"label": "P2 code", "value": str(row['ITM_P2'])},
+                    {"label": "P2", "value": str(row['ITM_P2_TEXT'])},
+                    {"label": "P3 code", "value": str(row['ITM_P3'])},
+                    {"label": "P3", "value": str(row['ITM_P3_TEXT'])},
+                    {"label": "P4 code", "value": str(row['ITM_P4'])},
+                    {"label": "P4", "value": str(row['ITM_P4_TEXT'])},
+                    {"label": "Status code", "value": str(row['ITM_STATUS'])},
                 ]
             })
             cproject = check_node({
                 "key": str(row['ITM_PROJECT_GUID']),
                 "group": "CProjects",
-                "status": "None",
+                "status": get_status(str(row['ITM_PROJECT_SYS_STATUS_TEXT'])),
                 "title": str(row['ITM_PROJECT_TEXT']),
                 "icon": "sap-icon://capital-projects",
                 "attributes": [
@@ -215,16 +261,30 @@ class ODB:
             internal_order = check_node({
                 "key": str(row['ITM_INTERNAL_ORDER']),
                 "group": "InternalOrders",
-                "status": "None",
+                "status": "CustomInternalOrders",
                 "title": "IO %s" % str(row['ITM_INTERNAL_ORDER']),
                 "icon": "sap-icon://customer-order-entry"
             })
             program = check_node({
                 "key": str(row['ITM_ZPR_PRG_ID']),
                 "group": "Programs",
-                "status": "None",
+                "status": "CustomProgram",
                 "title": "Program %s" % str(row['ITM_ZPR_PRG_ID']),
                 "icon": "sap-icon://program-triangles-2"
+            })
+            classification = check_node({
+                "key": str(row['BIC_PPORATAG']),
+                "group": "Classifications",
+                "status": "CustomClassification",
+                "title": "Classification %s" % str(row['CAT_NAME']),
+                "icon": "sap-icon://blank-tag"
+            })
+            delivery = check_node({
+                "key": str(row['ITM_DELIVERY_NAME_LONG']),
+                "group": "Delivery",
+                "status": "CustomDelivery",
+                "title": str(row['ITM_DELIVERY_NAME_LONG']),
+                "icon": "sap-icon://supplier"
             })
 
             make_line(r_to=portfolio, r_from=portfolio_element, r_type="PartOf")
@@ -234,6 +294,8 @@ class ODB:
             make_line(r_to=item, r_from=cproject, r_type="PartOf")
             make_line(r_to=cproject, r_from=internal_order, r_type="PartOf")
             make_line(r_to=program, r_from=cproject, r_type="PartOf")
+            make_line(r_to=classification, r_from=internal_order, r_type="ClassifiedAs")
+            make_line(r_to=delivery, r_from=internal_order, r_type="DeliveredBy")
             if index > 50:
                 return({"graphs": [
                     {

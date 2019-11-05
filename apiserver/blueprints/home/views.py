@@ -1,3 +1,4 @@
+import os
 from flask import jsonify, Blueprint, send_file, request
 from apiserver.blueprints.home.models import ODB
 from apiserver.utils import get_request_payload, allowed_file
@@ -75,8 +76,19 @@ def csv_to_graph():
         else:
             if file and allowed_file(file.filename):
                 filename = secure_filename(file.filename)
+                file.save(os.path.join(odbserver.datapath, filename))
+                if file.filename[-4:] == "xlsx":
+                    graph = odbserver.xlsx_to_graph(filename=os.path.join(odbserver.datapath, filename))
+                else:
+                    graph = odbserver.csv_to_graph(filename=os.path.join(odbserver.datapath, filename))
                 return jsonify({
                     "status": 200,
-                    "message": "Uploaded %s to the server" % filename,
-                    "data": filename
+                    "data": graph,
+                    "filename": filename
+                })
+            else:
+                return jsonify({
+                    "status": 200,
+                    "message": "File extension not allowed",
+                    "data": file.filename,
                 })
