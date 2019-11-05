@@ -15,7 +15,7 @@ SIGNATURE_EXPIRED = 'Signature expired'
 BLACK_LISTED = 'Blacklisted token'
 DB_ERROR = "Database error"
 PROTECTED = ["password"]
-ALLOWED_EXTENSIONS = ['txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'csv']
+ALLOWED_EXTENSIONS = ['txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'csv', 'xlsx']
 
 
 # mail settingspy
@@ -320,5 +320,5 @@ def format_graph(g):
 
 
 def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
