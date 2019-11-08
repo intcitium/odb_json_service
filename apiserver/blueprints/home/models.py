@@ -123,7 +123,7 @@ class ODB:
                 data = self.graph_eppm(file)
                 message = "Uploaded file with model type %s." % (check["name"])
             except Exception as e:
-                data = file.sample(n=10).fillna(None).to_dict()
+                data = file.sample(n=10).fillna(value="null").to_dict()
                 message = "Attempted with %s file type model but file is missing %s" % (
                     check["name"], str(e)
                 )
@@ -134,7 +134,7 @@ class ODB:
             }
         else:
             return {
-                "data": file.sample(n=10).to_dict(),
+                "data": file.sample(n=10).fillna(value="null").to_dict(),
                 "headers": list(file.columns),
                 "ftype": check,
                 "message": "Could not identify the file type. Prepared %s for configuration." % (filename)
