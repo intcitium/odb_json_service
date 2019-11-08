@@ -109,6 +109,7 @@ class ODB:
             }
         check = self.file_type_check(file.keys())
         check["size"] = str(os.stat(os.path.join(self.datapath, filename)).st_size) + " bytes"
+        check["source"] = filename
         if check["score"] > .9999:
             if check["name"] == 'eppm':
                 data = self.graph_eppm(file)
