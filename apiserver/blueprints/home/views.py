@@ -52,8 +52,8 @@ def return_files_tut():
     return send_file('/var/www/PythonProgramming/PythonProgramming/static/images/python.jpg', attachment_filename='python.jpg')
 
 
-@home.route('/csv_to_graph', methods=['POST'])
-def csv_to_graph():
+@home.route('/file_to_graph', methods=['POST'])
+def file_to_graph():
 
     if "file" not in request.files:
         keys = ""
@@ -77,10 +77,7 @@ def csv_to_graph():
             if file and allowed_file(file.filename):
                 filename = secure_filename(file.filename)
                 file.save(os.path.join(odbserver.datapath, filename))
-                if file.filename[-4:] == "xlsx":
-                    graph = odbserver.xlsx_to_graph(filename=os.path.join(odbserver.datapath, filename))
-                else:
-                    graph = odbserver.csv_to_graph(filename=os.path.join(odbserver.datapath, filename))
+                graph = odbserver.file_to_graph(filename)
                 return jsonify({
                     "status": 200,
                     "data": graph,

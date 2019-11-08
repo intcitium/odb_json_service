@@ -82,47 +82,114 @@ class ODB:
 
         #self.create_index()
 
-    def csv_to_graph(self, **kwargs):
+    def file_to_graph(self, filename):
         """
-        Change a file into a graph based on the file type
-        :param kwargs:
+        Based on acceptable file extensions but not necessarily known file types in terms of content, the function
+        checks which of the acceptable extensions the file is so that it can change it into a standard format to read.
+        In most cases tabular data is expected in which Pandas dataframes provide a way to get the headers and data into
+        a dictionary/JSON friendly format.
+
+        If the file is recognized based on keys and the matched model extraction is successfully completed, it will
+        return data as a graph. If not the data is returned as a sample of the file to provide content for configuration.
+        
+        TODO need a way to save known headers to permanent storage.
+        :param filename:
         :return:
         """
-        csv = pd.read_csv(kwargs['filename'])
-        ftype = self.file_type_check(csv.keys())
-        if ftype == 'eppm':
-            data = self.graph_eppm(csv)
+        if filename[-4:] == "xlsx":
+            file = pd.read_excel(os.path.join(self.datapath, filename))
+        elif filename[-3:] == "csv":
+            file = pd.read_csv(os.path.join(self.datapath, filename))
+        else:
             return {
-                "filetype": ftype,
-                "data": data
+                "data": None,
+                "headers": None,
+                "ftype": "Unknown",
+                "message": "Rejected %s." % (filename)
             }
-
-        return {
-            "filetype": ftype,
-            "data": csv
-        }
-
-    def xlsx_to_graph(self, **kwargs):
-        """
-        Change a file into a graph based on the file type
-        :param kwargs:
-        :return:
-        """
-        xl = pd.read_excel(kwargs['filename'])
-        ftype = self.file_type_check(xl.keys())
-        if ftype == 'eppm':
-            data = self.graph_eppm(xl)
+        check = self.file_type_check(file.keys())
+        check["size"] = str(os.stat(os.path.join(self.datapath, filename)).st_size) + " bytes"
+        if check["score"] > .9999:
+            if check["name"] == 'eppm':
+                data = self.graph_eppm(file)
+                return {
+                    "data": data,
+                    "ftype": check,
+                    "message": "Uploaded file with file type model %s." % (check["name"])
+                }
+        elif check["score"] > 0:
+            # Can check if the file run against the model works but do so with a try to return the result
+            try:
+                data = self.graph_eppm(file)
+                message = "Uploaded file with file type model %s." % (check["name"])
+            except Exception as e:
+                data = file.sample(n=10).to_dict()
+                message = "Attempted with %s file type model but file is missing %s" % (
+                    check["name"], str(e)
+                )
             return {
-                "ftype": ftype,
                 "data": data,
-                "message": "Uploaded  "
+                "ftype": check,
+                "message": message
             }
         else:
             return {
-                "headers": list(xl.columns),
-                "ftype": ftype,
-                "message": "Prepared "
+                "data": file.sample(n=10).to_dict(),
+                "headers": list(file.columns),
+                "ftype": check,
+                "message": "Could not identify the file type. Prepared %s for configuration." % (filename)
             }
+
+    def graph_etl_model(self, model, data):
+        """
+        The model should be a dictionary containing all the entities and their attributes. The attributes are mapped
+        to headers within the data which is expected to be in a tabular format.
+        Data
+            Animal_name: [Abe, Babe...]
+            Animal_color: [Red, Blue...]
+        Model
+            Entities:
+                Animal: {Id: key, name : Animal_name}
+                Color: {Id: key, label: Animal_color}
+            Relations:
+                HasColor: {from: Animal, to: Color}
+        Function
+            # Go through each row in the data
+            for row in data:
+                # Based on the entities in the model, get IDs that can be used to create relationships
+                rowConfig = { }
+                for e in Entities:
+                    # If the unique combination doesn't exist in index, create the entity
+                    if makeKey(e, row) not in index)
+                        # Create the entity using the dictionary representation and the row of data much like the makeKey
+                        entityGUID = createEntity(**e, )
+                    # Else use the ID that matched from the key
+                        entityGUID = index[makeKey(...)]
+
+                    # Save the entity to a dictionary with the ID as value
+                    rowConfig[e] = entityGUID
+                for r in Relations:
+                    # Use the entity names that are saved into the relation to and from to assign the row config entity key
+                    create_relation( from: rowConfig[r[from]], to: rowConfig[r[to]], description: r }
+
+            makeKey(entity, row)
+                # Check the entity attributes to create a string
+                keystring = ""
+                for a in entity.keys() as keys:
+                    if(key !== key)
+                        keyString+=a, data[a]
+                return hash(keyString)
+
+        :param model:
+        :param data:
+        :return:
+        """
+        for row in data:
+            rowConfig = {}
+
+
+
+        return
 
 
     def graph_eppm(self, data):
@@ -131,7 +198,7 @@ class ODB:
             "nodes": [],
             "lines": [],
             "groups": [
-                {"key": "CProjects", "title": "cProjects"},
+                {"key": "EPPMProjects", "title": "EPPM Projects"},
                 {"key": "items", "title": "Items"},
                 {"key": "elements", "title": "Portfolio Elements"},
                 {"key": "InternalOrders", "title": "Internal Orders"},
@@ -142,7 +209,6 @@ class ODB:
 
             "index": []
         }
-
         def get_status(status):
 
             if status in ["Active", "2", "10", "Created", "Approved", "Completed"]:
@@ -157,20 +223,24 @@ class ODB:
                 r['lines'].append({"to": kwargs['r_to'], "from": kwargs['r_from'], "description": kwargs['r_type']})
 
         def check_node(n_dict):
-            n_dict['key'] = self.hash_node(n_dict)
-            if n_dict['key'] not in r['index']:
+            newKey = self.hash_node(n_dict)
+            if newKey not in r['index']:
                 r['index'].append(n_dict['key'])
                 r['nodes'].append(n_dict)
 
             return n_dict['key']
 
         for index, row in data.iterrows():
+            i = 100
             portfolio = check_node({
                 "key": str(row['ITM_PORTFOLIO_GUID']),
                 "title": str(row['ITM_PORTFOLIO_TEXT']),
                 "group": "portfolio",
                 "icon": "sap-icon://tree",
-                "status": "CustomPortfolio"
+                "status": "CustomPortfolio",
+                "attributes": [
+                    {"label": "EntityType", "value": "Portfolio"},
+                ]
             })
             portfolio_element = check_node({
                 "key": str(row['ITM_BUCKET_GUID']),
@@ -179,6 +249,7 @@ class ODB:
                 "title": str(row['ITM_BUCKET_TEXT']),
                 "icon": "sap-icon://manager-insight",
                 "attributes": [
+                    {"label": "EntityType", "value": "Portfolio Element"},
                     {"label": "StartDate", "value": str(row['BUCKET_CP_START_DATE'])},
                     {"label": "EndDate", "value": str(row['BUCKET_CP_END_DATE'])},
                     {"label": "StartDate FP", "value": str(row['BUCKET_FP_START_DATE'])},
@@ -187,7 +258,7 @@ class ODB:
                     {"label": "Category", "value": str(row['BUCKET_CATEGORY_TEXT'])},
                     {"label": "ID", "value": str(row['ITM_BUCKET_ID'])},
                     {"label": "Status code", "value": str(row['BUCKET_STATUS'])},
-                    {"label": "category", "value": str(row['ITM_BUCKET_ID'])},
+                    {"label": "BucketID", "value": str(row['ITM_BUCKET_ID'])},
                 ]
             })
             logical_product = check_node({
@@ -197,6 +268,7 @@ class ODB:
                 "title": str(row['LPR_TEXT']),
                 "icon": "sap-icon://product",
                 "attributes": [
+                    {"label": "EntityType", "value": "Logical Product"},
                     {"label": "Environment", "value": str(row['PPORADM'])},
                     {"label": "Environment text", "value": str(row['PPORADM_TXT'])},
                     {"label": "startDate", "value": str(row['PPORACDAT'])},
@@ -207,16 +279,18 @@ class ODB:
             })
             initiative = check_node({
                 "key": str(row['ITM_INITIATIVE_GUID']),
-                "group": "Products",
+                "group": "Initiatives",
                 "status": get_status(str(row['INITIATIVE_STATUS_TEXT'])),
                 "title": str(row['ITM_INITIATIVE_TEXT']),
                 "icon": "sap-icon://begin",
                 "attributes": [
+                    {"label": "EntityType", "value": "Initiative"},
+                    {"label": "GUID", "value": str(row['ITM_INITIATIVE_GUID'])},
                     {"label": "ID", "value": str(row['ITM_INITIATIVE_ID'])},
                     {"label": "Category text", "value": str(row['INITIATIVE_CATEGORY_TEXT'])},
                     {"label": "Status", "value": str(row['INITIATIVE_STATUS_TEXT'])},
                     {"label": "startDate", "value": str(row['INITIATIVE_START_DATE'])},
-                    {"label": "startDate", "value": str(row['INITIATIVE_END_DATE'])},
+                    {"label": "endDate", "value": str(row['INITIATIVE_END_DATE'])},
                     {"label": "Category", "value": str(row['INITIATIVE_CATEGORY'])},
                     {"label": "Status code", "value": str(row['INITIATIVE_STATUS'])},
                 ]
@@ -229,6 +303,8 @@ class ODB:
                 "title": str(row['ITM_TEXT']),
                 "icon": "sap-icon://checklist-item",
                 "attributes": [
+                    {"label": "EntityType", "value": "Item"},
+                    {"label": "GUID", "value": str(row['ITM_GUID'])},
                     {"label": "ID", "value": str(row['ITM_ID'])},
                     {"label": "Type code", "value": str(row['ITM_TYPE'])},
                     {"label": "Type", "value": str(row['ITM_TYPE_TEXT'])},
@@ -247,11 +323,13 @@ class ODB:
             })
             cproject = check_node({
                 "key": str(row['ITM_PROJECT_GUID']),
-                "group": "CProjects",
+                "group": "EPPMProjects",
                 "status": get_status(str(row['ITM_PROJECT_SYS_STATUS_TEXT'])),
                 "title": str(row['ITM_PROJECT_TEXT']),
                 "icon": "sap-icon://capital-projects",
                 "attributes": [
+                    {"label": "EntityType", "value": "Project"},
+                    {"label": "GUID", "value": str(row['ITM_PROJECT_GUID'])},
                     {"label": "ID", "value": str(row['ITM_EXTERNAL_ID'])},
                     {"label": "Responsible", "value": str(row['ITM_PROJECT_RESP'])},
                     {"label": "Name", "value": str(row['ITM_PROJECT_RESP_NAME'])},
@@ -263,40 +341,54 @@ class ODB:
                 "group": "InternalOrders",
                 "status": "CustomInternalOrders",
                 "title": "IO %s" % str(row['ITM_INTERNAL_ORDER']),
-                "icon": "sap-icon://customer-order-entry"
+                "icon": "sap-icon://customer-order-entry",
+                "attributes": [
+                    {"label": "EntityType", "value": "Internal Order"},
+                ]
             })
             program = check_node({
                 "key": str(row['ITM_ZPR_PRG_ID']),
                 "group": "Programs",
                 "status": "CustomProgram",
                 "title": "Program %s" % str(row['ITM_ZPR_PRG_ID']),
-                "icon": "sap-icon://program-triangles-2"
+                "icon": "sap-icon://program-triangles-2",
+                "attributes": [
+                    {"label": "EntityType", "value": "Program"},
+                ]
             })
             classification = check_node({
                 "key": str(row['BIC_PPORATAG']),
                 "group": "Classifications",
                 "status": "CustomClassification",
                 "title": "Classification %s" % str(row['CAT_NAME']),
-                "icon": "sap-icon://blank-tag"
+                "icon": "sap-icon://blank-tag",
+                "attributes": [
+                    {"label": "EntityType", "value": "Classification"},
+                ]
             })
             delivery = check_node({
                 "key": str(row['ITM_DELIVERY_NAME_LONG']),
                 "group": "Delivery",
                 "status": "CustomDelivery",
                 "title": str(row['ITM_DELIVERY_NAME_LONG']),
-                "icon": "sap-icon://supplier"
+                "icon": "sap-icon://supplier",
+                "attributes": [
+                    {"label": "EntityType", "value": "Delivery"},
+                ]
             })
+            # Break out person responsible
 
             make_line(r_to=portfolio, r_from=portfolio_element, r_type="PartOf")
             make_line(r_to=portfolio_element, r_from=logical_product, r_type="PartOf")
             make_line(r_to=logical_product, r_from=initiative, r_type="PartOf")
             make_line(r_to=initiative, r_from=item, r_type="PartOf")
             make_line(r_to=item, r_from=cproject, r_type="PartOf")
-            make_line(r_to=cproject, r_from=internal_order, r_type="PartOf")
-            make_line(r_to=program, r_from=cproject, r_type="PartOf")
-            make_line(r_to=classification, r_from=internal_order, r_type="ClassifiedAs")
-            make_line(r_to=delivery, r_from=internal_order, r_type="DeliveredBy")
-            if index > 50:
+            make_line(r_to=internal_order, r_from=cproject, r_type="CollectsWith")
+            make_line(r_to=cproject, r_from=program, r_type="PartOf")
+            make_line(r_to=classification, r_from=portfolio_element, r_type="ClassifiedAs")
+            make_line(r_to=cproject, r_from=delivery, r_type="DeliveredBy")
+            if index > i:
+                print('[%s_graph_eppm] Ending' % (get_datetime()))
                 return({"graphs": [
                     {
                         "nodes": r['nodes'],
@@ -304,6 +396,7 @@ class ODB:
                         "groups": r['groups']
                     }
                 ]})
+
         print('[%s_graph_eppm] Ending' % (get_datetime()))
         return r
 
@@ -330,7 +423,19 @@ class ODB:
             for k in key_list:
                 if k in self.keyLists[ftype]:
                     score[ftype]+=1
-        return max(score.items(), key=operator.itemgetter(1))[0]
+        ftype = max(score.items(), key=operator.itemgetter(1))[0]
+        if score[ftype] == 0:
+            check = {
+                "name": None,
+                "score": 0
+            }
+        # Divide the length of the key_list with the length of the ftype.keys to return a probability rather than integer
+        else:
+            check = {
+                "name": ftype,
+                "score": len(key_list) / len(self.keyLists[ftype])
+            }
+        return check
 
     def create_edge(self, **kwargs):
         if self.check_index_edges("%sTo%sFrom%s" % (kwargs['edgeType'], kwargs['fromNode'], kwargs['toNode'])):
