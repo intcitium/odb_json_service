@@ -122,15 +122,21 @@ class ODB:
             try:
                 data = self.graph_eppm(file)
                 message = "Uploaded file with model type %s." % (check["name"])
+                return {
+                    "data": data,
+                    "ftype": check,
+                    "message": message
+                }
             except Exception as e:
                 data = file.sample(n=10).fillna(value="null").to_dict()
                 message = "Attempted with %s file type model but file is missing %s" % (
                     check["name"], str(e)
                 )
-            return {
-                "data": data,
-                "ftype": check,
-                "message": message
+                return {
+                    "headers": list(file.columns),
+                    "data": file.sample(n=10).fillna(value="null").to_dict(),
+                    "ftype": check,
+                    "message": message
             }
         else:
             return {
