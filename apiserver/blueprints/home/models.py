@@ -91,7 +91,7 @@ class ODB:
 
         If the file is recognized based on keys and the matched model extraction is successfully completed, it will
         return data as a graph. If not the data is returned as a sample of the file to provide content for configuration.
-        
+
         TODO need a way to save known headers to permanent storage.
         :param filename:
         :return:
@@ -121,9 +121,9 @@ class ODB:
             # Can check if the file run against the model works but do so with a try to return the result
             try:
                 data = self.graph_eppm(file)
-                message = "Uploaded file with file type model %s." % (check["name"])
+                message = "Uploaded file with model type %s." % (check["name"])
             except Exception as e:
-                data = file.sample(n=10).to_dict()
+                data = file.sample(n=10).fillna(None).to_dict()
                 message = "Attempted with %s file type model but file is missing %s" % (
                     check["name"], str(e)
                 )
