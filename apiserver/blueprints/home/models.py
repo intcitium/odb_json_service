@@ -20,6 +20,7 @@ class ODB:
         self.db_name = db_name
         self.path = os.getcwd()
         self.datapath = os.path.join(self.path, 'data')
+        self.mapspath = os.path.join(self.datapath, 'maps.json')
         self.ICON_PERSON = "sap-icon://person-placeholder"
         self.ICON_OBJECT = "sap-icon://add-product"
         self.ICON_ORGANIZATION = "sap-icon://manager"
@@ -53,34 +54,52 @@ class ODB:
                     "tags": "string"
                 }
             }
+        self.get_maps()
         self.standard_classes = ['OFunction', 'OIdentity', 'ORestricted',
                                  'ORole', 'OSchedule', 'OSequence', 'OTriggered',
                                  'OUser', '_studio' ]
-        self.keyLists = {
-            "twitter": [
-                'userid', 'user_display_name', 'user_screen_name','user_reported_location',
-                'user_profile_description','user_profile_url', 'follower_count', 'following_count',
-                'account_creation_date', 'account_language'
-            ],
-            "eppm": [
-                'itm_portfolio_guid', 'itm_portfolio_text', 'itm_bucket_guid','itm_bucket_text', 'itm_bucket_id',
-                'lpr_key', 'lpr_text', 'itm_initiative_guid', 'itm_initiative_text', 'itm_initiative_id',
-                'itm_guid', 'itm_text', 'itm_id', 'itm_project_guid', 'itm_external_id', 'itm_project_text',
-                'itm_internal_order', 'bic_pporatag', 'cat_name', 'itm_zpr_prg_id', 'itm_delivery_name_long',
-                'bucket_status', 'bucket_status_text', 'bucket_cp_start_date', 'bucket_cp_end_date',
-                'bucket_fp_start_date', 'bucket_fp_end_date', 'itm_bucket_category', 'bucket_category_text',
-                'pporadm', 'pporadm_txt', 'pporacdat', 'pporaddat', 'pporapc', 'pporapc_txt', 'pporapls',
-                'pporapls_txt', 'pporah', 'pporah_txt', 'pporaprc', 'pporaprc_txt', 'pporaprsc', 'pporaprsc_txt',
-                'pporarlq', 'pporasb', 'pporasb_txt', 'pporassr', 'pporassr_txt', 'pporardu', 'pporardu_txt',
-                'cc_age_in_years', 'initiative_category', 'initiative_category_text', 'initiative_status',
-                'initiative_status_text', 'initiative_start_date', 'initiative_end_date', 'itm_status',
-                'itm_status_text', 'itm_type', 'itm_type_text', 'item_start_date', 'item_end_date', 'itm_p1',
-                'itm_p1_text', 'itm_p2', 'itm_p2_text', 'itm_p3', 'itm_p3_text', 'itm_p4', 'itm_p4_text',
-                'itm_project_resp', 'itm_project_resp_name', 'itm_project_sys_status', 'itm_project_sys_status_text'
-            ]
-        }
+
 
         #self.create_index()
+
+    def get_maps(self):
+        """
+        Called by the init function to load the models stored to the file system into
+        the application for matching against incoming models needed for ETL graph
+        translation
+        :return:
+        """
+        with open(self.mapspath, 'r') as f:
+            self.maps = json.load(f)
+
+    def save_model_to_map(self, model):
+        """
+        Expects a model which will reference a file already in the system
+        :return:
+        """
+        if model["Name"] in self.maps.keys():
+            return
+
+        self.maps[model["Name"]] = {
+            "Entities": model["Entities"],
+            "Relations": model["Relations"],
+            "headers": model["headers"]
+        }
+        with open(self.mapspath, 'w') as f:
+            json.dump(self.maps, f)
+
+    def file_to_frame(self, filename):
+        if filename[-4:] == "xlsx":
+            return {"data": pd.read_excel(os.path.join(self.datapath, filename))}
+        elif filename[-3:] == "csv":
+            return {"data": pd.read_csv(os.path.join(self.datapath, filename))}
+        else:
+            return {
+                "data": None,
+                "headers": None,
+                "ftype": "Unknown",
+                "message": "Rejected %s." % (filename)
+            }
 
     def file_to_graph(self, filename):
         """
@@ -91,33 +110,30 @@ class ODB:
 
         If the file is recognized based on keys and the matched model extraction is successfully completed, it will
         return data as a graph. If not the data is returned as a sample of the file to provide content for configuration.
-
-        TODO need a way to save known headers to permanent storage.
         :param filename:
         :return:
         """
-        if filename[-4:] == "xlsx":
-            file = pd.read_excel(os.path.join(self.datapath, filename))
-        elif filename[-3:] == "csv":
-            file = pd.read_csv(os.path.join(self.datapath, filename))
+        file = self.file_to_frame(filename)
+        if str(type(file["data"])) != "<class 'pandas.core.frame.DataFrame'>":
+            return file
         else:
-            return {
-                "data": None,
-                "headers": None,
-                "ftype": "Unknown",
-                "message": "Rejected %s." % (filename)
-            }
+            file = file["data"]
         check = self.file_type_check(file.keys())
         check["size"] = str(os.stat(os.path.join(self.datapath, filename)).st_size) + " bytes"
         check["source"] = filename
         if check["score"] > .9999:
+            data = self.graph_etl_model({
+                "Name": check["name"],
+                "Entities": self.maps[check["name"]]["Entities"],
+                "Relations": self.maps[check["name"]]["Relations"],
+            }, file)
             if check["name"] == 'eppm':
                 data = self.graph_eppm(file)
-                return {
-                    "data": data,
-                    "ftype": check,
-                    "message": "Uploaded file with file type model %s." % (check["name"])
-                }
+            return {
+                "data": data,
+                "ftype": check,
+                "message": "Uploaded file with file type model %s." % (check["name"])
+            }
         elif check["score"] > 0:
             # Can check if the file run against the model works but do so with a try to return the result
             try:
@@ -129,7 +145,6 @@ class ODB:
                     "message": message
                 }
             except Exception as e:
-                data = file.sample(n=10).fillna(value="null").to_dict()
                 message = "Attempted with %s file type model but file is missing %s" % (
                     check["name"], str(e)
                 )
@@ -160,44 +175,77 @@ class ODB:
                 Color: {Id: key, label: Animal_color}
             Relations:
                 HasColor: {from: Animal, to: Color}
-        Function
-            # Go through each row in the data
-            for row in data:
-                # Based on the entities in the model, get IDs that can be used to create relationships
-                rowConfig = { }
-                for e in Entities:
-                    # If the unique combination doesn't exist in index, create the entity
-                    if makeKey(e, row) not in index)
-                        # Create the entity using the dictionary representation and the row of data much like the makeKey
-                        entityGUID = createEntity(**e, )
-                    # Else use the ID that matched from the key
-                        entityGUID = index[makeKey(...)]
 
-                    # Save the entity to a dictionary with the ID as value
-                    rowConfig[e] = entityGUID
-                for r in Relations:
-                    # Use the entity names that are saved into the relation to and from to assign the row config entity key
-                    create_relation( from: rowConfig[r[from]], to: rowConfig[r[to]], description: r }
-
-            makeKey(entity, row)
-                # Check the entity attributes to create a string
-                keystring = ""
-                for a in entity.keys() as keys:
-                    if(key !== key)
-                        keyString+=a, data[a]
-                return hash(keyString)
+        Includes a function for etl processing of node
+        Includes checking if the model is saved for file_type_check and then calling that model
+        TODO, change EPPM extraction to model based that is called from the server at initiation
 
         :param model:
         :param data:
         :return:
         """
-        for row in data:
-            rowConfig = {}
+        self.save_model_to_map(model)
+        node_index = []
+        graph = {"nodes": [], "lines": []}
+        # Ensure the data received is changed into a DataFrame if it is not already
+        if str(type(data)) != "<class 'pandas.core.frame.DataFrame'>":
+            file = self.file_to_frame(data)
+            if str(type(file["data"])) != "<class 'pandas.core.frame.DataFrame'>":
+                return file
+            else:
+                data = file["data"]
 
+        def get_key(**kwargs):
+            """
+            Handles node creation based on the local node_index and the local create_node function.
+            The node expects an icon and class_name (EntityType)
+            expects an Icon with a key but if there is none it will create it
+            :param kwargs:
+            :return:
+            """
+            if "key" in kwargs.keys():
+                if kwargs["key"] in node_index:
+                    return kwargs["key"]
+                else:
+                    node_index.append(kwargs['key'])
+                    graph["nodes"].append(self.create_node(**kwargs)["data"])
+                    return kwargs["key"]
+            else:
+                h_key = hash(**kwargs)
+                if h_key in node_index:
+                    return h_key
+                else:
+                    node_index.append(h_key)
+                    kwargs["key"] = h_key
+                    graph["nodes"].append(self.create_node(**kwargs)["data"])
+                    return h_key
 
+        for index, row in data.iterrows():
+            if index != 0:
+                # Based on the entities in the model, get IDs that can be used to create relationships
+                rowConfig = {}
+                for entity in model["Entities"]:
+                    # The extracted entity is based on the model and mapped row value to entity attributes
+                    extractedEntity = {"class_name": entity}
+                    for att in model["Entities"][entity]:
+                        if model["Entities"][entity][att] in row.keys():
+                            extractedEntity[att] = row[model["Entities"][entity][att]]
+                        else:
+                            extractedEntity[att] = model["Entities"][entity][att]
+                    # Check if this Entity has already been extracted and get the key.
+                    # The function also adds the entity to the graph which will be exported
+                    exEntityKey = get_key(**extractedEntity)
+                    # Add the entity key to its spot within the mapping configuration so the lines can be built
+                    rowConfig[entity] = exEntityKey
+                # Use the entity names that are saved into the relation to and from to assign the row config entity key
+                for line in model["Relations"]:
+                    graph["lines"].append({
+                        "to": rowConfig[model["Relations"][line]["to"]],
+                        "from": rowConfig[model["Relations"][line]["from"]],
+                        "description": line,
+                    })
 
-        return
-
+        return graph
 
     def graph_eppm(self, data):
         print( '[%s_graph_eppm] Starting' % (get_datetime()))
@@ -425,11 +473,13 @@ class ODB:
         """
         key_list = [x.lower().replace(' ', '') for x in key_list.to_list()]
         score = {}
-        for ftype in self.keyLists:
+        for ftype in self.maps:
             score[ftype] = 0
             for k in key_list:
-                if k in self.keyLists[ftype]:
+                if k in self.maps[ftype]["headers"]:
                     score[ftype]+=1
+        for ftype in score:
+            score[ftype] = len(key_list) / len(self.maps[ftype]["headers"])
         ftype = max(score.items(), key=operator.itemgetter(1))[0]
         if score[ftype] == 0:
             check = {
@@ -440,7 +490,7 @@ class ODB:
         else:
             check = {
                 "name": ftype,
-                "score": len(key_list) / len(self.keyLists[ftype])
+                "score": score[ftype]
             }
         return check
 
@@ -509,7 +559,9 @@ class ODB:
                 for a in kwargs['attributes']:
                     kwargs[a['label']] = a['value']
                 kwargs.pop('attributes')
-        if 'class_name' in kwargs.keys():
+        if 'class_name' in kwargs.keys() or 'EntityType' in kwargs.keys():
+            if 'EntityType' in kwargs.keys():
+                kwargs["class_name"] = kwargs["EntityType"]
             if "key" in kwargs.keys():
                 labels = "(key"
                 values = "("
