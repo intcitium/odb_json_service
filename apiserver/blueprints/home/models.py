@@ -126,8 +126,8 @@ class ODB:
             click.echo(self.maps[check["name"]])
             data = self.graph_etl_model({
                 "Name": check["name"],
-                "Entities": self.maps[check["name"]]["Entities"],
-                "Relations": self.maps[check["name"]]["Relations"],
+                "Entities": self.maps[check["name"]]["model"]["Entities"],
+                "Relations": self.maps[check["name"]]["model"]["Relations"],
             }, file)
             if check["name"] == 'eppm':
                 data = self.graph_eppm(file)
@@ -481,7 +481,8 @@ class ODB:
                 if k in self.maps[ftype]["headers"]:
                     score[ftype]+=1
         for ftype in score:
-            score[ftype] = len(key_list) / len(self.maps[ftype]["headers"])
+            if score[ftype] > 0:
+                score[ftype] = len(key_list) / len(self.maps[ftype]["headers"])
         ftype = max(score.items(), key=operator.itemgetter(1))[0]
         if score[ftype] == 0:
             check = {
