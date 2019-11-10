@@ -1,7 +1,8 @@
 import time, string, random, socket, pyorient
-import click, smtplib, ssl, json
+import click, smtplib, ssl, json, os
 from datetime import datetime
 from dateutil.parser import parse
+from werkzeug.utils import secure_filename
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from apiserver.config import HOST_IP, SECRET_KEY, MAIL_PASSWORD,\
@@ -321,4 +322,52 @@ def format_graph(g):
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def check_for_file(request, server):
+    """
+    Full check of a file and all the situations that can arise
+    Returns no data if the file is no accepted otherwise saves the file and returns the secure name
+    :param request:
+    :return:
+    """
+
+    if "file" not in request.files:
+        keys = ""
+        for k in request.files.keys():
+            keys+=k + ","
+
+        if "file" not in request.files:
+            keys = ""
+            for k in request.files.keys():
+                keys += k + ","
+
+        return {
+            "status": 200,
+            "message": "No file parts found. Ensure 'file' is within the keys of the payload sent. Found: %s" % keys,
+            "data": None
+        }
+
+    else:
+        file = request.files['file']
+        if file.filename == '':
+            return {
+                "status": 200,
+                "message": "No filename found for the selection.",
+                "data": None
+            }
+        else:
+            if file and allowed_file(file.filename):
+                filename = secure_filename(file.filename)
+                file.save(os.path.join(server.datapath, filename))
+                return {
+                    "status": 200,
+                    "data": filename,
+                }
+            else:
+                return {
+                    "status": 200,
+                    "message": "File extension on %s not allowed" % file.filename,
+                    "data": None,
+                }
 
