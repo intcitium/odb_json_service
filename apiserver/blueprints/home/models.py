@@ -122,7 +122,8 @@ class ODB:
         check["size"] = str(os.stat(os.path.join(self.datapath, filename)).st_size) + " bytes"
         check["source"] = filename
         if check["score"] > .9999:
-            click.echo(check, self.maps, self.maps[check["name"]])
+            click.echo(check["name"])
+            click.echo(self.maps[check["name"]])
             data = self.graph_etl_model({
                 "Name": check["name"],
                 "Entities": self.maps[check["name"]]["Entities"],
