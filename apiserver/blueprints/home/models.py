@@ -252,11 +252,14 @@ class ODB:
                     rowConfig[entity] = exEntityKey
                 # Use the entity names that are saved into the relation to and from to assign the row config entity key
                 for line in model["Relations"]:
-                    graph["lines"].append({
-                        "to": rowConfig[model["Relations"][line]["to"]],
+                    if({"to": rowConfig[model["Relations"][line]["to"]],
                         "from": rowConfig[model["Relations"][line]["from"]],
-                        "description": line,
-                    })
+                        "description": line }) not in graph["lines"]:
+                            graph["lines"].append({
+                                "to": rowConfig[model["Relations"][line]["to"]],
+                                "from": rowConfig[model["Relations"][line]["from"]],
+                                "description": line,
+                            })
 
         return graph
 
