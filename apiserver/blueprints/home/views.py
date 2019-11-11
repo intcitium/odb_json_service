@@ -54,7 +54,8 @@ def return_files_tut():
 
 @home.route('/graph_etl_model', methods=['POST'])
 def graph_etl_model():
-
+    #TODO Handle Data and not form....
+    r = get_request_payload(request)
     file = check_for_file(request, odbserver)
     if not file["data"]:
         if "file" in request.form.to_dict().keys():
