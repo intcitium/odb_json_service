@@ -89,17 +89,26 @@ class ODB:
             json.dump(self.maps, f)
 
     def file_to_frame(self, filename):
-        if filename[-4:] == "xlsx":
-            return {"data": pd.read_excel(os.path.join(self.datapath, filename))}
-        elif filename[-3:] == "csv":
-            return {"data": pd.read_csv(os.path.join(self.datapath, filename))}
-        else:
-            return {
-                "data": None,
-                "headers": None,
-                "ftype": "Unknown",
-                "message": "Rejected %s." % (filename)
-            }
+        try:
+            if filename[-4:] == "xlsx":
+                return {"data": pd.read_excel(os.path.join(self.datapath, filename))}
+            elif filename[-3:] == "csv":
+                return {"data": pd.read_csv(os.path.join(self.datapath, filename))}
+            else:
+                return {
+                    "data": None,
+                    "headers": None,
+                    "ftype": "Unknown",
+                    "message": "Rejected %s." % (filename)
+                }
+        except Exception as e:
+            if "No such file or directory" in str(e):
+                return {
+                    "data": None,
+                    "headers": None,
+                    "ftype": "Unknown",
+                    "message": "No file loaded to the directory with name %s. Try uploading again." % (filename)
+                }
 
     def file_to_graph(self, filename):
         """
@@ -213,7 +222,7 @@ class ODB:
                     graph["nodes"].append(self.create_node(**kwargs)["data"])
                     return kwargs["key"]
             else:
-                h_key = hash(**kwargs)
+                h_key = self.hash_node(kwargs)
                 if h_key in node_index:
                     return h_key
                 else:

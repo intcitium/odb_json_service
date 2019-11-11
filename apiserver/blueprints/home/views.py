@@ -62,6 +62,8 @@ def graph_etl_model():
             graph = odbserver.graph_etl_model(
                 json.loads(request.form.to_dict()['model']),
                 odbserver.file_to_frame(request.form.to_dict()["file"])["data"])
+        elif "file" in r.keys() and "model" in r.keys():
+            graph = odbserver.graph_etl_model(r["model"], r["file"])
         else:
             return jsonify(file)
     else:
