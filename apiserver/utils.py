@@ -228,7 +228,7 @@ def get_request_payload(request):
 
     if len(r.keys()) == 1:
         click.echo("Attempting misformed JSON\n%s" % str(r))
-        newR = str(r).replace('\'', "")
+        newR = str(r).replace('\'', "").replace("\\r", "").replace("\\t", "").replace("\\n", "").replace("\\", "")
         # Check begining of dictionary and ensure not {'{
         front = False
         chips = 0
@@ -256,6 +256,11 @@ def get_request_payload(request):
             if chips > 100:
                 return None
             newR = newR[:-1]
+            try:
+                r = json.loads(newR)
+                return r
+            except:
+                pass
             click.echo("%s... chipping off end" % newR[-3:-1])
         r = newR
         # Automated Cleaning with rules implemented in debugging
