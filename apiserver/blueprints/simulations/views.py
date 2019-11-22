@@ -55,6 +55,21 @@ def run():
             "data": run['data']
         })
 
+@simulations.route('/simulations/rung_et', methods=['GET'])
+def run_get():
+
+    if 'Rounds' in request.form.to_dict().keys():
+        run = simserver.run_simulation(request.form.to_dict()['Rounds'])
+    else:
+        run = simserver.run_simulation(10)
+
+    run['data']['graph'] = simserver.quality_check(run['data']['graph'])
+    return jsonify({
+        "status": 200,
+        "message": run['message'],
+        "data": run['data']
+    })
+
 
 @simulations.route('/simulations/get_risks', methods=['GET'])
 def get_risks():
