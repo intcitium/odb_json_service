@@ -125,6 +125,7 @@ OSINTModel = {
                 "Members": "string"
             },
             "AttackPattern": {
+                "class": "V",
                 "created_by_ref": "string",
                 "description": "string",
                 "external_references": "string",
@@ -137,6 +138,7 @@ OSINTModel = {
                 "type": "string"
             },
             "Campaign": {
+                "class": "V",
                 "aliases": "string",
                 "created_by_ref": "string",
                 "description": "string",
@@ -152,6 +154,7 @@ OSINTModel = {
                 "type": "string"
             },
             "CourseOfAction": {
+                "class": "V",
                 "action": "string",
                 "created_by_ref": "string",
                 "description": "string",
@@ -164,6 +167,7 @@ OSINTModel = {
                 "type": "string"
             },
             "Identity": {
+                "class": "V",
                 "contact_information": "string",
                 "created_by_ref": "string",
                 "description": "string",
@@ -178,6 +182,7 @@ OSINTModel = {
                 "type": "string"
             },
             "Indicator": {
+                "class": "V",
                 "created_by_ref": "string",
                 "description": "string",
                 "key": "string",
@@ -193,6 +198,7 @@ OSINTModel = {
                 "valid_until": "datetime"
             },
             "IntrusionSet": {
+                "class": "V",
                 "aliases": "string",
                 "created_by_ref": "string",
                 "description": "string",
@@ -211,6 +217,7 @@ OSINTModel = {
                 "type": "string"
             },
             "Malware": {
+                "class": "V",
                 "created_by_ref": "string",
                 "description": "string",
                 "key": "string",
@@ -223,6 +230,7 @@ OSINTModel = {
                 "type": "string"
             },
             "ObservedData": {
+                "class": "V",
                 "created_by_ref": "string",
                 "first_observed": "datetime",
                 "key": "string",
@@ -236,6 +244,7 @@ OSINTModel = {
                 "type": "string"
             },
             "Report": {
+                "class": "V",
                 "created_by_ref": "string",
                 "description": "string",
                 "key": "string",
@@ -249,6 +258,7 @@ OSINTModel = {
                 "type": "string"
             },
             "Sighting": {
+                "class": "V",
                 "count": "string",
                 "created_by_ref": "string",
                 "first_seen": "datetime",
@@ -265,6 +275,7 @@ OSINTModel = {
                 "where_sighted_refs": "string"
             },
             "ThreatActor": {
+                "class": "V",
                 "aliases": "string",
                 "created_by_ref": "string",
                 "description": "string",
@@ -284,6 +295,7 @@ OSINTModel = {
                 "type": "string"
             },
             "Tool": {
+                "class": "V",
                 "created_by_ref": "string",
                 "description": "string",
                 "key": "string",
@@ -297,6 +309,7 @@ OSINTModel = {
                 "type": "string"
             },
             "Vulnerability": {
+                "class": "V",
                 "created_by_ref": "string",
                 "description": "string",
                 "key": "string",
