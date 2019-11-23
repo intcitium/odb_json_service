@@ -1,12 +1,14 @@
 from flask import jsonify, Blueprint, request
 from apiserver.blueprints.osint.models import OSINT
 from apiserver.utils import get_request_payload
+from flask_cors import CORS
 
 osint = Blueprint('osint', __name__)
 osintserver = OSINT()
 osintserver.open_db()
 osintserver.check_base_book()
 osintserver.fill_db()
+CORS(osint)
 
 
 @osint.route('/osint', methods=['GET'])
@@ -77,3 +79,67 @@ def save():
             "data": None
         })
 
+
+@osint.route('/osint/merge_nodes', methods=['POST'])
+def merge_nodes():
+    '''
+    Base route for merging nodes
+    :return:
+    '''
+    r = get_request_payload(request)
+    return jsonify({
+        "status": 200,
+        "message": "Nodes merged",
+        "data": osintserver.merge_osint(**r)
+    })
+
+@osint.route('/osint/get_suggestion_items', methods=['POST'])
+def get_suggestion_items():
+    '''
+    Base route for merging nodes
+    :return:
+    '''
+    r = get_request_payload(request)
+    return jsonify({
+        "status": 200,
+        "message": "Search conducted",
+        "data": osintserver.get_suggestion_items(**r)
+    })
+
+
+@osint.route('/osint/cve', methods=['GET'])
+def cve():
+    '''
+    Base route for merging nodes
+    :return:
+    '''
+    return jsonify({
+        "status": 200,
+        "message": "Database updated with latest CVE",
+        "data": osintserver.cve()
+    })
+
+
+@osint.route('/osint/poisonivy', methods=['GET'])
+def poisonivy():
+    '''
+    Base route for merging nodes
+    :return:
+    '''
+    return jsonify({
+        "status": 200,
+        "message": "Database updated with latest CVE",
+        "data": osintserver.poisonivy()
+    })
+
+@osint.route('/osint/get_latest_cti', methods=['GET'])
+def get_latest_cti():
+    '''
+    Base route for merging nodes
+    :return:
+    '''
+    return jsonify({
+        "status": 200,
+        "message": "Database updated with latest CVE",
+        "data": osintserver.get_latest_cti()
+    })

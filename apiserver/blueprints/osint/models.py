@@ -1,134 +1,27 @@
 import click, os
 import requests, json, random
 import pandas as pd
+import csv
+from apiserver.models import OSINTModel as Models
 from apiserver.utils import get_datetime, clean, change_if_date, TWITTER_AUTH
 from apiserver.blueprints.home.models import ODB
-from apiserver.blueprints.users.models import userDB
 from requests_oauthlib import OAuth1
 import urllib3
 urllib3.disable_warnings()
+
+"""
+TODO Create a combined GEO view from ACLED and UCDP that can animate organizations in time
+PoC of just any Location - Event based rel to create the view
+"""
 
 
 class OSINT(ODB):
 
     def __init__(self, db_name="OSINT"):
-        ODB.__init__(self, db_name)
+        ODB.__init__(self, db_name, models=Models)
         self.db_name = db_name
         self.basebook = None
-        self.models = {
-            "Person": {
-                "key": "integer",
-                "DateOfBirth": "datetime",
-                "PlaceOfBirth": "string",
-                "FirstName": "string",
-                "LastName": "string",
-                "MidName": "string",
-                "icon": "string",
-                "Gender": "string",
-                "class": "V"
-            },
-            "Object": {
-                "key": "integer",
-                "class": "V",
-                "Category": "string",
-                "Description": "string",
-                "Tags": "string",
-                "icon": "string",
-                "title": "string",
-            },
-            "Organization": {
-                "key": "integer",
-                "class": "V",
-                "Category": "string",
-                "Description": "string",
-                "Tags": "string",
-                "Members": "integer",
-                "Founded": "datetime",
-                "Name": "string",
-                "OtherNames": "string",
-                "UCDP_id": "string",
-                "ACLED_id": "string",
-                "Source": "string",
-                "icon": "string",
-                "title": "string",
-            },
-            "Profile": {
-                "key": "integer",
-                "class": "V",
-                "Category": "string",
-                "Description": "string",
-                "Tags": "string",
-                "Friends": "integer",
-                "Followers": "integer",
-                "Name": "string",
-                "OtherNames": "string",
-                "Posts": "integer",
-                "DateCreated": "datetime",
-                "url": "string",
-                "Source": "string",
-                "icon": "string",
-                "title": "string",
-            },
-            "Post": {
-                "key": "integer",
-                "class": "V",
-                "Category": "string",
-                "Description": "string",
-                "Tags": "string",
-                "DateCreated": "datetime",
-                "RePosts": "integer",
-                "Likes": "integer",
-                "Author": "string",
-                "url": "string",
-                "Source": "string",
-                "icon": "string",
-                "title": "string",
-            },
-            "Location": {
-                "key": "integer",
-                "class": "V",
-                "Category": "string",
-                "Description": "string",
-                "Tags": "string",
-                "Latitude": "float",
-                "Longitude": "float",
-                "city": "string",
-                "pop": "integer",
-                "country": "string",
-                "iso3": "string",
-                "province": "string",
-                "icon": "string",
-                "title": "string",
-            },
-            "Event": {
-                "key": "integer",
-                "class": "V",
-                "Category": "string",
-                "Description": "string",
-                "Tags": "string",
-                "StartDate": "datetime",
-                "EndDate": "datetime",
-                "icon": "string",
-                "title": "string",
-                "Sources": "string",
-                "Deaths": "string",
-                "Civilians": "string",
-                "Origin": "string",
-                "UCDP_id": "string",
-                "Source": "string"
-            },
-            "Case": {
-                "key": "string",
-                "class": "V",
-                "Name": "string",
-                "Owners": "string",
-                "Classification": "string",
-                "StartDate": "datetime",
-                "LastUpdate": "datetime",
-                "CreatedBy": "string",
-                "Members": "string"
-            }
-        }
+        self.models = Models
         # In memory DB used for creating simulation data in the format for network graph UX rendering
         self.DB = {'nodes': {},
                    'lines': [],
@@ -159,6 +52,64 @@ class OSINT(ODB):
         else:
             return "One-sided Conflict"
 
+    def create_indexes(self):
+        '''
+        Create the indexes for each of the out-of-the-box classes
+        '''
+        # Person
+        sql = '''
+        CREATE INDEX Person.search_fulltext ON Person(FirstName, LastName) FULLTEXT ENGINE LUCENE METADATA
+                  {
+                    "default": "org.apache.lucene.analysis.standard.StandardAnalyzer",
+                    "index": "org.apache.lucene.analysis.en.EnglishAnalyzer",
+                    "query": "org.apache.lucene.analysis.standard.StandardAnalyzer"
+                  }
+        '''
+        self.client.command(sql)
+        # Location
+        sql = '''
+        CREATE INDEX Location.search_fulltext ON Location(Description) FULLTEXT ENGINE LUCENE METADATA
+                  {
+                    "default": "org.apache.lucene.analysis.standard.StandardAnalyzer",
+                    "index": "org.apache.lucene.analysis.en.EnglishAnalyzer",
+                    "query": "org.apache.lucene.analysis.standard.StandardAnalyzer"
+                  }
+        '''
+        self.client.command(sql)
+        # Organization
+        sql = '''
+        CREATE INDEX Organization.search_fulltext ON Organization(Description) FULLTEXT ENGINE LUCENE METADATA
+                  {
+                    "default": "org.apache.lucene.analysis.standard.StandardAnalyzer",
+                    "index": "org.apache.lucene.analysis.en.EnglishAnalyzer",
+                    "query": "org.apache.lucene.analysis.standard.StandardAnalyzer"
+                  }
+        '''
+        self.client.command(sql)
+        # Event
+        sql = '''
+        CREATE INDEX Event.search_fulltext ON Event(Description, StartDate, EndDate) FULLTEXT ENGINE LUCENE METADATA
+                  {
+                    "default": "org.apache.lucene.analysis.standard.StandardAnalyzer",
+                    "index": "org.apache.lucene.analysis.en.EnglishAnalyzer",
+                    "query": "org.apache.lucene.analysis.standard.StandardAnalyzer",
+                    "analyzer": "org.apache.lucene.analysis.en.EnglishAnalyzer",
+                    "allowLeadingWildcard": true
+                  }
+        '''
+        self.client.command(sql)
+
+    def get_suggestion_items(self, **kwargs):
+        sql = '''
+        SELECT FROM Event WHERE [Description, StartDate, EndDate] LUCENE "%s" LIMIT 5
+        ''' % kwargs['searchterms']
+        print(sql)
+        r = self.client.command(sql)
+        for i in r:
+            print(i.oRecordData)
+
+        return
+    
     def check_base_book(self):
         """
         Check if the Organizations have been set by UCDP
@@ -359,7 +310,10 @@ class OSINT(ODB):
                     Civilians=row['deaths_civilians'],
                     Source="UCDP"
                 )
-                graph_build['nodes'].append(event_node['data'])
+                try:
+                    graph_build['nodes'].append(event_node['data'])
+                except Exception as e:
+                    print(str(e))
                 self.DB['ucdp_events'][row['id']] = event_node['data']
             # Wire up the Sources as reporting on the Event
             for k in source_keys:
@@ -611,6 +565,7 @@ class OSINT(ODB):
             {position: l.latitude, l.longitude, e.startDate
             tooltip:
             DependentData: time?  , v.type, v.category, e.type
+            {circle: position, tooltip, radius, color, colorborder, hotDeltaColor, click
         Enables user in a geo view to filter on type, category and time windows (if position[2] in between time range or
         other filter
 
@@ -658,7 +613,6 @@ class OSINT(ODB):
         Expects a request with graphCase containing the graph from the user's canvas and assumes that all nodes have an
         attribute "key". The creation of a node is only if the node is new and taken from a source that doesn't exist in
         POLE yet.
-        TODO: Ensure duplicate relations not made. Need enhancement to get relation name
         TODO: Implement classification and Owner/Reader relations
         1) Match all
         :param r:
@@ -874,3 +828,301 @@ class OSINT(ODB):
 
         else:
             return None
+
+    def merge_osint(self, **kwargs):
+        r = self.merge_nodes(node_A=kwargs['node_A'], node_B=kwargs['node_B'])
+        return r
+
+    def cve(self):
+        """
+        TODO Data quality. charmap breaks on for loop and miss half the rest of the data
+        Data is master data only. Is there transaction data that create links and dynamic stuff
+        :return:
+        """
+        path = os.path.join(self.datapath, "%s_cve.csv" % get_datetime()[:10])
+        url = "https://cve.mitre.org/data/downloads/allitems.csv"
+        data = self.get_url(url, path)
+        if data:
+            open(path, 'wb').write(data.content)
+
+        with open(path, 'rb') as data_csv:
+            data = csv.reader(data_csv)
+            print("%s_Cleaning raw data" % get_datetime())
+            df = {}
+            i = 0
+            try:
+                for row in data:
+                    if row[0] == 'Name':
+                        for k in row:
+                            df[k] = []
+                    if row[0][:4] == 'CVE-':
+                        for k, l in zip(df.keys(), row):
+                            df[k].append(l)
+                    i+=1
+            except Exception as e:
+                print(str(e))
+
+        return df
+
+    def poisonivy(self):
+        source = "%s_poisonivy.json" % get_datetime()[:10]
+        path = os.path.join(self.datapath, source)
+        url = 'https://oasis-open.github.io/cti-documentation/examples/example_json/poisonivy.json'
+        data = self.get_url(url, path)
+        rels = []
+        if data:
+            data = json.loads(data.content)
+            with open(path, 'w') as fp:
+                json.dump(data, fp)
+        else:
+            with open(path) as fp:
+                data = json.load(fp)
+        ctr = 0
+        tm = 1
+        for i in data['objects']:
+            ctr+=1
+            if ctr == 100:
+                ctr = 0
+                print("%s %d, %d" % (get_datetime(), tm, tm*ctr))
+                tm+=1
+            if i['type'] == 'attack-pattern':
+                attributes = self.get_attributes(i, source)
+                self.create_CTI_node(
+                    class_name="AttackPattern",
+                    key=i['id'],
+                    title=i['name'],
+                    CTI=True,
+                    attributes = attributes
+                )
+            elif i['type'] == 'campaign':
+                attributes = self.get_attributes(i, source)
+                self.create_CTI_node(
+                    class_name="Campaign",
+                    key=i['id'],
+                    title=i['name'],
+                    CTI=True,
+                    attributes = attributes
+                )
+            elif i['type'] == 'course-of-action':
+                attributes = self.get_attributes(i, source)
+                self.create_CTI_node(
+                    class_name="CourseOfAction",
+                    key=i['id'],
+                    title=i['name'],
+                    CTI=True,
+                    attributes=attributes
+                )
+            elif i['type'] == 'identity':
+                attributes = self.get_attributes(i, source)
+                self.create_CTI_node(
+                    class_name="Identity",
+                    key=i['id'],
+                    title=i['name'],
+                    CTI=True,
+                    attributes=attributes
+                )
+            elif i['type'] == 'indicator':
+                attributes = self.get_attributes(i, source)
+                self.create_CTI_node(
+                    class_name="Indicator",
+                    key=i['id'],
+                    title=i['name'],
+                    CTI=True,
+                    attributes=attributes
+                )
+            elif i['type'] == 'intrusion-set':
+                attributes = self.get_attributes(i, source)
+                self.create_CTI_node(
+                    class_name="IntrusionSet",
+                    key=i['id'],
+                    title=i['name'],
+                    CTI=True,
+                    attributes=attributes
+                )
+            elif i['type'] == 'malware':
+                attributes = self.get_attributes(i, source)
+                self.create_CTI_node(
+                    class_name="Malware",
+                    key=i['id'],
+                    title=i['name'],
+                    CTI=True,
+                    attributes=attributes
+                )
+            elif i['type'] == 'observed-data':
+                attributes = self.get_attributes(i, source)
+                self.create_CTI_node(
+                    class_name="ObservedData",
+                    key=i['id'],
+                    title="Observed data",
+                    CTI=True,
+                    attributes=attributes
+                )
+            elif i['type'] == 'report':
+                attributes = self.get_attributes(i, source)
+                self.create_CTI_node(
+                    class_name="ObservedData",
+                    key=i['id'],
+                    title=i['name'],
+                    CTI=True,
+                    attributes=attributes
+                )
+            elif i['type'] == 'threat-actor':
+                attributes = self.get_attributes(i, source)
+                self.create_CTI_node(
+                    class_name="ThreatActor",
+                    key=i['id'],
+                    title=i['name'],
+                    CTI=True,
+                    attributes=attributes
+                )
+            elif i['type'] == 'tool':
+                attributes = self.get_attributes(i, source)
+                self.create_CTI_node(
+                    class_name="Tool",
+                    key=i['id'],
+                    title=i['name'],
+                    CTI=True,
+                    attributes=attributes
+                )
+            elif i['type'] == 'vulnerability':
+                attributes = self.get_attributes(i, source)
+                self.create_CTI_node(
+                    class_name="Vulnerability",
+                    key=i['id'],
+                    title=i['name'],
+                    CTI=True,
+                    attributes=attributes
+                )
+            elif i['type'] == 'relationship':
+                rels.append(i)
+
+
+            print("%s_Cleaning raw data %s" % (get_datetime(), i))
+
+        for r in rels:
+            sql = '''
+            create edge %s from 
+            (select from V where key = '%s') to 
+            (select from V where key = '%s')
+            ''' % (r['relationship_type'], r['source_ref'], r['target_ref'])
+            self.client.command(sql)
+
+    def get_url(self, url, path):
+        if not os.path.exists(path):
+            print("%s_Fetching latest %s" % (get_datetime(), url))
+            data = requests.get(url)
+            return data
+        else:
+            print("%s_Latest data exists. No need to download" % get_datetime())
+        return
+
+    def get_attributes(self, record, source):
+        attributes = [{"label": "source", "value": source}]
+        for k in record.keys():
+            if k not in ['id']:
+                if type(record[k]) == list:
+                    if type(record[k][0]) == dict:
+                        val = ""
+                        for a in record[k][0].keys():
+                            val = val + "%s - %s " % (a, record[k][0][a])
+
+                    else:
+                        val = ','.join(map(str, record[k]))
+                else:
+                    try:
+                        new_val = change_if_date(record[k])
+                        if new_val:
+                            val = new_val
+                        else:
+                            val = record[k]
+                    except Exception as e:
+                        print(str(e))
+                if not new_val:
+                    try:
+                        val = val.replace("'", "")
+                    except:
+                        pass
+                attributes.append({"label": k, "value": val})
+
+        return attributes
+
+    def create_CTI_node(self, **kwargs):
+
+        attributes = kwargs['attributes']
+        if attributes:
+            att_sql = ""
+            for a in attributes:
+                try:
+                    att_sql = att_sql + ", %s = '%s'" % (a['label'], a['value'])
+                except Exception as e:
+                    print(str(e))
+
+            sql = ('''
+            create vertex %s set key = '%s', title = '%s' %s
+            ''' % (kwargs['class_name'], kwargs['key'], kwargs['title'], att_sql))
+        else:
+            sql = ('''
+            create vertex %s set key = '%s', title = '%s'
+            ''' % (kwargs['class_name'], kwargs['key'], kwargs['title']))
+        try:
+            self.client.command(sql)
+        except Exception as e:
+            if str(e) == "":
+                return
+            elif str(type(e)) == "<class 'pyorient.exceptions.PyOrientORecordDuplicatedException'>":
+                return
+            else:
+                return
+
+    def get_latest_cti(self):
+        sql = '''
+        MATCH
+        {class:AttackPattern, as:a}.outE(){as:a2t}.inV()
+        {class:V, as:t}
+        RETURN a.key, a.title, a.type, a.created, a.modified, t.key, t.title, a2t.@class, a.@class, t.@class
+        '''
+        graph = {
+            "nodes": [],
+            "links": [],
+            "index": []
+        }
+        r = self.client.command(sql)
+        for i in r:
+            o = i.oRecordData
+            if o["a_key"] not in graph["index"]:
+                graph["nodes"].append(self.create_d3_node(
+                    id=o["a_key"],
+                    n_type=o["a_@class"],
+                    title=o["a_title"],
+                    created=o["a_created"],
+                    modified=o["a_modified"]
+                ))
+                graph["index"].append(o["a_key"])
+            if o["t_key"] not in graph["index"]:
+                graph["nodes"].append(self.create_d3_node(
+                    id=o["t_key"],
+                    n_type=o["t_@class"],
+                    title=o["t_title"]
+                ))
+                graph["index"].append(o["t_key"])
+            rel = {"source": o["a_key"], "target": o["t_key"], "label": o["a2t_@class"]}
+            if(rel not in graph["links"]):
+                graph['links'].append(rel)
+        return graph
+
+    def create_d3_node(self, **kwargs):
+        node = {
+            "id": None,
+            "data": [],
+            "n_type": None
+        }
+        if "id" in kwargs.keys():
+            node["id"] = kwargs["id"]
+        if "n_type" in kwargs.keys():
+            node["n_type"] = kwargs["n_type"]
+        for k in kwargs.keys():
+            if k not in ["id", "n_type"]:
+                node["data"].append({"label": k, "value": kwargs[k]})
+                node[k] = kwargs[k]
+
+        return node
