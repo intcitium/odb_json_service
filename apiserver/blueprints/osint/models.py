@@ -56,6 +56,7 @@ class OSINT(ODB):
         '''
         Create the indexes for each of the out-of-the-box classes
         '''
+        click.echo('[%s_OSINTserver_create_indexes] Creating indexes' % (get_datetime()))
         # Person
         sql = '''
         CREATE INDEX Person.search_fulltext ON Person(FirstName, LastName) FULLTEXT ENGINE LUCENE METADATA
@@ -98,6 +99,22 @@ class OSINT(ODB):
                   }
         '''
         self.client.command(sql)
+        # CVE Classes
+        for cve in ["AttackPattern", "Campaign", "CourseOfAction", "Identity",
+                    "Indicator", "IntrusionSet", "Malware", "ObservedData",
+                    "Report", "Sighting", "ThreatActor", "Tool", "Vulnerability"]:
+            sql = '''
+            CREATE INDEX %s.search_fulltext ON Event(description) FULLTEXT ENGINE LUCENE METADATA
+                      {
+                        "default": "org.apache.lucene.analysis.standard.StandardAnalyzer",
+                        "index": "org.apache.lucene.analysis.en.EnglishAnalyzer",
+                        "query": "org.apache.lucene.analysis.standard.StandardAnalyzer",
+                        "analyzer": "org.apache.lucene.analysis.en.EnglishAnalyzer",
+                        "allowLeadingWildcard": true
+                      }
+            ''' % cve
+            self.client.command(sql)
+        click.echo('[%s_OSINTserver_create_indexes] Indexes complete' % (get_datetime()))
 
     def get_suggestion_items(self, **kwargs):
         sql = '''
