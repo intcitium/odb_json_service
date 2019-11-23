@@ -227,6 +227,10 @@ def get_request_payload(request):
                 click.echo("Second error %s" % str(e))
 
     if len(r.keys()) == 1:
+        for i in r.keys():
+            k = i
+        if k == "searchterms":
+            return r
         click.echo("Attempting misformed JSON\n%s" % str(r))
         newR = str(r).replace('\'', "").replace("\\r", "").replace("\\t", "").replace("\\n", "").replace("\\", "")
         # Check begining of dictionary and ensure not {'{
