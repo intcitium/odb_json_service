@@ -843,7 +843,7 @@ class ODB:
             click.echo('[%s_create_db_%s] ERROR: %s' % (self.db_name, get_datetime(), str(e)))
             created = False
         if self.db_name == "OSINT":
-            self.create_indexs()
+            self.create_indexes()
 
         return created
 
