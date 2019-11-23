@@ -3,7 +3,9 @@ import json
 import random
 import click
 import pandas as pd
+import numpy as np
 import os
+import decimal
 import time
 import operator
 import hashlib
@@ -280,6 +282,10 @@ class ODB:
 
             "index": []
         }
+
+        def get_latlon():
+            return np.random.normal(0, 45)
+
         def get_status(status):
 
             if status in ["Active", "2", "10", "Created", "Approved", "Completed"]:
@@ -302,15 +308,18 @@ class ODB:
             return n_dict['key']
 
         for index, row in data.iterrows():
-            i = 100
+            i = 120
             portfolio = check_node({
-                "key": str(row['ITM_PORTFOLIO_GUID']),
+                "key": str(row['ITM_PORTFOLIO_TEXT']),
                 "title": str(row['ITM_PORTFOLIO_TEXT']),
                 "group": "portfolio",
                 "icon": "sap-icon://tree",
                 "status": "CustomPortfolio",
                 "attributes": [
                     {"label": "EntityType", "value": "Portfolio"},
+                    {"label": "ExternalID", "value": str(row['ITM_PORTFOLIO_TEXT'])},
+                    {"label": "Latitude", "value": get_latlon()},
+                    {"label": "Longitude", "value": get_latlon()},
                 ]
             })
             portfolio_element = check_node({
@@ -321,6 +330,7 @@ class ODB:
                 "icon": "sap-icon://manager-insight",
                 "attributes": [
                     {"label": "EntityType", "value": "Portfolio Element"},
+                    {"label": "ExternalID", "value": str(row['ITM_BUCKET_GUID'])},
                     {"label": "StartDate", "value": str(row['BUCKET_CP_START_DATE'])},
                     {"label": "EndDate", "value": str(row['BUCKET_CP_END_DATE'])},
                     {"label": "StartDate FP", "value": str(row['BUCKET_FP_START_DATE'])},
@@ -330,6 +340,8 @@ class ODB:
                     {"label": "ID", "value": str(row['ITM_BUCKET_ID'])},
                     {"label": "Status code", "value": str(row['BUCKET_STATUS'])},
                     {"label": "BucketID", "value": str(row['ITM_BUCKET_ID'])},
+                    {"label": "Latitude", "value": get_latlon()},
+                    {"label": "Longitude", "value": get_latlon()},
                 ]
             })
             logical_product = check_node({
@@ -340,12 +352,15 @@ class ODB:
                 "icon": "sap-icon://product",
                 "attributes": [
                     {"label": "EntityType", "value": "Logical Product"},
+                    {"label": "ExternalID", "value": str(row['LPR_KEY'])},
                     {"label": "Environment", "value": str(row['PPORADM'])},
                     {"label": "Environment text", "value": str(row['PPORADM_TXT'])},
                     {"label": "startDate", "value": str(row['PPORACDAT'])},
                     {"label": "Product", "value": str(row['PPORAPC_TXT'])},
                     {"label": "startDate", "value": str(row['PPORACDAT'])},
                     {"label": "Product", "value": str(row['PPORAPC_TXT'])},
+                    {"label": "Latitude", "value": get_latlon()},
+                    {"label": "Longitude", "value": get_latlon()},
                 ]
             })
             initiative = check_node({
@@ -357,6 +372,7 @@ class ODB:
                 "attributes": [
                     {"label": "EntityType", "value": "Initiative"},
                     {"label": "GUID", "value": str(row['ITM_INITIATIVE_GUID'])},
+                    {"label": "ExternalID", "value": str(row['ITM_INITIATIVE_GUID'])},
                     {"label": "ID", "value": str(row['ITM_INITIATIVE_ID'])},
                     {"label": "Category text", "value": str(row['INITIATIVE_CATEGORY_TEXT'])},
                     {"label": "Status", "value": str(row['INITIATIVE_STATUS_TEXT'])},
@@ -364,6 +380,8 @@ class ODB:
                     {"label": "endDate", "value": str(row['INITIATIVE_END_DATE'])},
                     {"label": "Category", "value": str(row['INITIATIVE_CATEGORY'])},
                     {"label": "Status code", "value": str(row['INITIATIVE_STATUS'])},
+                    {"label": "Latitude", "value": get_latlon()},
+                    {"label": "Longitude", "value": get_latlon()},
                 ]
             })
             # Should ITM_P# be their own entities?
@@ -376,6 +394,7 @@ class ODB:
                 "attributes": [
                     {"label": "EntityType", "value": "Item"},
                     {"label": "GUID", "value": str(row['ITM_GUID'])},
+                    {"label": "ExternalID", "value": str(row['ITM_GUID'])},
                     {"label": "ID", "value": str(row['ITM_ID'])},
                     {"label": "Type code", "value": str(row['ITM_TYPE'])},
                     {"label": "Type", "value": str(row['ITM_TYPE_TEXT'])},
@@ -390,21 +409,25 @@ class ODB:
                     {"label": "P4 code", "value": str(row['ITM_P4'])},
                     {"label": "P4", "value": str(row['ITM_P4_TEXT'])},
                     {"label": "Status code", "value": str(row['ITM_STATUS'])},
+                    {"label": "Latitude", "value": get_latlon()},
+                    {"label": "Longitude", "value": get_latlon()},
                 ]
             })
             cproject = check_node({
-                "key": str(row['ITM_PROJECT_GUID']),
+                "key": str(row['ITM_EXTERNAL_ID']),
                 "group": "EPPMProjects",
                 "status": get_status(str(row['ITM_PROJECT_SYS_STATUS_TEXT'])),
                 "title": str(row['ITM_PROJECT_TEXT']),
                 "icon": "sap-icon://capital-projects",
                 "attributes": [
                     {"label": "EntityType", "value": "Project"},
-                    {"label": "GUID", "value": str(row['ITM_PROJECT_GUID'])},
                     {"label": "ID", "value": str(row['ITM_EXTERNAL_ID'])},
+                    {"label": "ExternalID", "value": str(row['ITM_EXTERNAL_ID'])},
                     {"label": "Responsible", "value": str(row['ITM_PROJECT_RESP'])},
                     {"label": "Name", "value": str(row['ITM_PROJECT_RESP_NAME'])},
-                    {"label": "Status", "value": str(row['ITM_PROJECT_SYS_STATUS_TEXT'])}
+                    {"label": "Status", "value": str(row['ITM_PROJECT_SYS_STATUS_TEXT'])},
+                    {"label": "Latitude", "value": get_latlon()},
+                    {"label": "Longitude", "value": get_latlon()},
                 ]
             })
             internal_order = check_node({
@@ -415,6 +438,8 @@ class ODB:
                 "icon": "sap-icon://customer-order-entry",
                 "attributes": [
                     {"label": "EntityType", "value": "Internal Order"},
+                    {"label": "Latitude", "value": get_latlon()},
+                    {"label": "Longitude", "value": get_latlon()},
                 ]
             })
             program = check_node({
@@ -425,6 +450,8 @@ class ODB:
                 "icon": "sap-icon://program-triangles-2",
                 "attributes": [
                     {"label": "EntityType", "value": "Program"},
+                    {"label": "Latitude", "value": get_latlon()},
+                    {"label": "Longitude", "value": get_latlon()},
                 ]
             })
             classification = check_node({
@@ -435,6 +462,8 @@ class ODB:
                 "icon": "sap-icon://blank-tag",
                 "attributes": [
                     {"label": "EntityType", "value": "Classification"},
+                    {"label": "Latitude", "value": get_latlon()},
+                    {"label": "Longitude", "value": get_latlon()},
                 ]
             })
             delivery = check_node({
@@ -445,6 +474,8 @@ class ODB:
                 "icon": "sap-icon://supplier",
                 "attributes": [
                     {"label": "EntityType", "value": "Delivery"},
+                    {"label": "Latitude", "value": get_latlon()},
+                    {"label": "Longitude", "value": get_latlon()},
                 ]
             })
             # Break out person responsible
@@ -811,6 +842,8 @@ class ODB:
         except Exception as e:
             click.echo('[%s_create_db_%s] ERROR: %s' % (self.db_name, get_datetime(), str(e)))
             created = False
+        if self.db_name == "OSINT":
+            self.create_indexs()
 
         return created
 
@@ -1327,4 +1360,38 @@ class ODB:
         except:
             print(node)
 
+
+    def create_indexes(self):
+        '''
+        Create the indexes for each of the out-of-the-box classes
+        '''
+        click.echo('[%s_OSINTserver_create_indexes] Creating indexes' % (get_datetime()))
+        # Event
+        sql = '''
+        CREATE INDEX Event.search_fulltext ON Event(Description, StartDate, EndDate) FULLTEXT ENGINE LUCENE METADATA
+                  {
+                    "default": "org.apache.lucene.analysis.standard.StandardAnalyzer",
+                    "index": "org.apache.lucene.analysis.en.EnglishAnalyzer",
+                    "query": "org.apache.lucene.analysis.standard.StandardAnalyzer",
+                    "analyzer": "org.apache.lucene.analysis.en.EnglishAnalyzer",
+                    "allowLeadingWildcard": true
+                  }
+        '''
+        self.client.command(sql)
+        # CVE Classes
+        for cve in ["AttackPattern", "Campaign", "CourseOfAction", "Identity",
+                    "Indicator", "IntrusionSet", "Malware", "ObservedData",
+                    "Report", "Sighting", "ThreatActor", "Tool", "Vulnerability"]:
+            sql = '''
+            CREATE INDEX %s.search_fulltext ON Event(description) FULLTEXT ENGINE LUCENE METADATA
+                      {
+                        "default": "org.apache.lucene.analysis.standard.StandardAnalyzer",
+                        "index": "org.apache.lucene.analysis.en.EnglishAnalyzer",
+                        "query": "org.apache.lucene.analysis.standard.StandardAnalyzer",
+                        "analyzer": "org.apache.lucene.analysis.en.EnglishAnalyzer",
+                        "allowLeadingWildcard": true
+                      }
+            ''' % cve
+            self.client.command(sql)
+        click.echo('[%s_OSINTserver_create_indexes] Indexes complete' % (get_datetime()))
 
