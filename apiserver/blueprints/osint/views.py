@@ -8,6 +8,13 @@ osintserver = OSINT()
 osintserver.open_db()
 osintserver.check_base_book()
 osintserver.fill_db()
+try:
+    osintserver.create_indexes()
+except Exception as e:
+    if "attackpattern.search_fulltext already exists" in str(e):
+        pass
+    else:
+        print(str(e))
 CORS(osint)
 
 
@@ -141,5 +148,5 @@ def get_latest_cti():
     return jsonify({
         "status": 200,
         "message": "Database updated with latest CVE",
-        "data": osintserver.get_latest_cti()
+        "data": osintserver.run_otx()
     })

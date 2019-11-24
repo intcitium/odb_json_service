@@ -1,7 +1,8 @@
 import click, os
 import requests, json, random
 import pandas as pd
-import csv
+import codecs
+from OTXv2 import OTXv2
 from apiserver.models import OSINTModel as Models
 from apiserver.utils import get_datetime, clean, change_if_date, TWITTER_AUTH
 from apiserver.blueprints.home.models import ODB
@@ -32,7 +33,7 @@ class OSINT(ODB):
                    'ucdp_sources': {},
                    'ucdp_events': {}
                    }
-        click.echo('[%s_SimServer_init] Complete' % (get_datetime()))
+        click.echo('[%s_OSINT_init] Complete' % (get_datetime()))
         self.ACLED_Base_URL = "https://api.acleddata.com/acled/read?terms=accept"
         self.UCDP_Page_Size = 50
         self.UCDP_Base_URL = "https://ucdpapi.pcr.uu.se/api/gedevents/19.1?pagesize=%s" % self.UCDP_Page_Size
@@ -41,6 +42,9 @@ class OSINT(ODB):
         self.TWITTER_AUTH = TWITTER_AUTH
         self.base_twitter_url = "https://api.twitter.com/1.1/"
         self.default_number_of_tweets = 200
+        self.cve = ["AttackPattern", "Campaign", "CourseOfAction", "Identity",
+                    "Indicator", "IntrusionSet", "Malware", "ObservedData",
+                    "Report", "Sighting", "ThreatActor", "Tool", "Vulnerability"]
 
     @staticmethod
     def ucdp_conflict_type(row):
@@ -52,16 +56,111 @@ class OSINT(ODB):
         else:
             return "One-sided Conflict"
 
-    def get_suggestion_items(self, **kwargs):
-        sql = '''
-        SELECT FROM Event WHERE [Description, StartDate, EndDate] LUCENE "%s" LIMIT 5
-        ''' % kwargs['searchterms']
-        print(sql)
-        r = self.client.command(sql)
-        for i in r:
-            print(i.oRecordData)
+    def run_otx(self):
 
-        return
+        click.echo('[%s_OSINT_otx_init] Starting OTX feed download' % (get_datetime()))
+        otx = OTXv2("4b11dfc51d0cd00e8cf01b268c3dbfde15090be65f6a2b58a5f102a600cfb8ee")
+        events = otx.getall()
+        click.echo('[%s_OSINT_otx_init] OTX feed download complete with %d events' % (get_datetime(), len(events)))
+        graph = {"nodes": [], "edges": [], "index": []}
+        j = 0
+        r = 1
+        for e in events:
+            if "indicators" in e.keys() and "author_name" in e.keys():
+                auth_node = {
+                    "id": e["author_name"],
+                    "tags": e["tags"],
+                    "description": e["description"]
+                }
+                if auth_node["id"] not in graph["index"]:
+                    graph["index"].append(e["author_name"])
+                    graph["nodes"].append({"title": e["author_name"]})
+                for i in e["indicators"]:
+                    otx_node = {
+                        "id": "otx_%s" % i["id"],
+                        "description": i["description"],
+                        "created": i["created"],
+                        "expiration": i["expiration"],
+                        "category": i["type"],
+                        "ip_address": i["indicator"]
+                    }
+                    if otx_node["id"] not in graph["index"]:
+                        graph["nodes"].append(otx_node)
+                        graph["index"].append(otx_node["id"])
+                        graph["edges"].append({"to": otx_node["id"], "from": auth_node["id"]})
+
+            j+=1
+            if i == 100:
+                click.echo('[%s_OSINT_otx_init] Completed %d items' % (get_datetime(), 100*r))
+                r+=1
+                i=0
+
+        return graph
+
+    def create_CTI_node(self, **kwargs):
+
+        attributes = kwargs['attributes']
+        if attributes:
+            att_sql = ""
+            for a in attributes:
+                try:
+                    att_sql = att_sql + ", %s = '%s'" % (a['label'], a['value'])
+                except Exception as e:
+                    print(str(e))
+
+            sql = ('''
+            create vertex %s set key = '%s', title = '%s' %s
+            ''' % (kwargs['class_name'], kwargs['key'], kwargs['title'], att_sql))
+        else:
+            sql = ('''
+            create vertex %s set key = '%s', title = '%s'
+            ''' % (kwargs['class_name'], kwargs['key'], kwargs['title']))
+        try:
+            self.client.command(sql)
+        except Exception as e:
+            if str(e) == "":
+                return
+            elif str(type(e)) == "<class 'pyorient.exceptions.PyOrientORecordDuplicatedException'>":
+                return
+            else:
+                return
+
+    def get_suggestion_items(self, **kwargs):
+        """
+        Using the LUCENE text indexing of the different classes available,
+        return a small sample of matching items that can be chosen from a search list.
+        :param kwargs:
+        :return:
+        """
+        # Build the SQL that will be sent to the server
+        sql = '''
+        SELECT EXPAND( $cve )
+        LET 
+        '''
+        union = "$cve = UNIONALL("
+        i = 0
+        for c in self.cve:
+            sql = sql + '''
+            $%s = (SELECT FROM %s WHERE [description] LUCENE "%s*" LIMIT 5),\n
+            ''' % (c[0:3].lower(), c, kwargs['searchterms'])
+            union = union + "$%s" % c[0:3].lower()
+            if i != len(self.cve)-1:
+                union = union + ", "
+            else:
+                union = union + ")"
+            i+=1
+
+        sql = sql + union
+        r = self.client.command(sql)
+        suggestionItems = []
+        for i in r:
+            suggestionItems.append({
+                "NODE_KEY": i.oRecordData["key"],
+                "NODE_TYPE": i.oRecordData["type"],
+                "NODE_NAME": i.oRecordData["title"]
+            })
+
+        return suggestionItems
     
     def check_base_book(self):
         """
@@ -798,23 +897,24 @@ class OSINT(ODB):
         if data:
             open(path, 'wb').write(data.content)
 
-        with open(path, 'rb') as data_csv:
-            data = csv.reader(data_csv)
-            print("%s_Cleaning raw data" % get_datetime())
+        with codecs.open(path, encoding="utf8", errors='ignore') as data_csv:
+            click.echo('[%s_OSINT_cve] Cleaning raw data' % (get_datetime()))
             df = {}
             i = 0
-            try:
-                for row in data:
-                    if row[0] == 'Name':
-                        for k in row:
-                            df[k] = []
-                    if row[0][:4] == 'CVE-':
-                        for k, l in zip(df.keys(), row):
+            for row in data_csv:
+                # Change the string into a list
+                r = row.split(",")
+                # Check if this is the headers row. Sometimes has double quotes
+                if r[0] == 'Name' or r[0] == '"Name"':
+                    for k in r:
+                        df[k.replace('"', "")] = []
+                # Only check the first column if the entry is longer than 3
+                if len(r[0]) > 3:
+                    if r[0][:4] == 'CVE-':
+                        for k, l in zip(df.keys(), r):
                             df[k].append(l)
-                    i+=1
-            except Exception as e:
-                print(str(e))
-
+                i+=1
+        click.echo('[%s_OSINT_cve] Complete with raw data cleaning' % (get_datetime()))
         return df
 
     def poisonivy(self):
@@ -998,34 +1098,6 @@ class OSINT(ODB):
                 attributes.append({"label": k, "value": val})
 
         return attributes
-
-    def create_CTI_node(self, **kwargs):
-
-        attributes = kwargs['attributes']
-        if attributes:
-            att_sql = ""
-            for a in attributes:
-                try:
-                    att_sql = att_sql + ", %s = '%s'" % (a['label'], a['value'])
-                except Exception as e:
-                    print(str(e))
-
-            sql = ('''
-            create vertex %s set key = '%s', title = '%s' %s
-            ''' % (kwargs['class_name'], kwargs['key'], kwargs['title'], att_sql))
-        else:
-            sql = ('''
-            create vertex %s set key = '%s', title = '%s'
-            ''' % (kwargs['class_name'], kwargs['key'], kwargs['title']))
-        try:
-            self.client.command(sql)
-        except Exception as e:
-            if str(e) == "":
-                return
-            elif str(type(e)) == "<class 'pyorient.exceptions.PyOrientORecordDuplicatedException'>":
-                return
-            else:
-                return
 
     def get_latest_cti(self):
         sql = '''
