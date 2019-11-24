@@ -232,6 +232,7 @@ OSINTModel = {
             "ObservedData": {
                 "class": "V",
                 "created_by_ref": "string",
+                "description": "string",
                 "first_observed": "datetime",
                 "key": "string",
                 "labels": "string",
@@ -261,6 +262,7 @@ OSINTModel = {
                 "class": "V",
                 "count": "string",
                 "created_by_ref": "string",
+                "description": "string",
                 "first_seen": "datetime",
                 "key": "string",
                 "labels": "string",
