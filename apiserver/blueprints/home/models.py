@@ -1366,24 +1366,12 @@ class ODB:
         Create the indexes for each of the out-of-the-box classes
         '''
         click.echo('[%s_OSINTserver_create_indexes] Creating indexes' % (get_datetime()))
-        # Event
-        sql = '''
-        CREATE INDEX Event.search_fulltext ON Event(Description, StartDate, EndDate) FULLTEXT ENGINE LUCENE METADATA
-                  {
-                    "default": "org.apache.lucene.analysis.standard.StandardAnalyzer",
-                    "index": "org.apache.lucene.analysis.en.EnglishAnalyzer",
-                    "query": "org.apache.lucene.analysis.standard.StandardAnalyzer",
-                    "analyzer": "org.apache.lucene.analysis.en.EnglishAnalyzer",
-                    "allowLeadingWildcard": true
-                  }
-        '''
-        self.client.command(sql)
         # CVE Classes
         for cve in ["AttackPattern", "Campaign", "CourseOfAction", "Identity",
                     "Indicator", "IntrusionSet", "Malware", "ObservedData",
                     "Report", "Sighting", "ThreatActor", "Tool", "Vulnerability"]:
             sql = '''
-            CREATE INDEX %s.search_fulltext ON Event(description) FULLTEXT ENGINE LUCENE METADATA
+            CREATE INDEX %s.search_fulltext ON %s(description) FULLTEXT ENGINE LUCENE METADATA
                       {
                         "default": "org.apache.lucene.analysis.standard.StandardAnalyzer",
                         "index": "org.apache.lucene.analysis.en.EnglishAnalyzer",
@@ -1391,7 +1379,7 @@ class ODB:
                         "analyzer": "org.apache.lucene.analysis.en.EnglishAnalyzer",
                         "allowLeadingWildcard": true
                       }
-            ''' % cve
+            ''' % (cve, cve)
             self.client.command(sql)
         click.echo('[%s_OSINTserver_create_indexes] Indexes complete' % (get_datetime()))
 

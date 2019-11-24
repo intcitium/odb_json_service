@@ -54,7 +54,12 @@ def return_files_tut():
 
 @home.route('/graph_etl_model', methods=['POST'])
 def graph_etl_model():
-    #TODO Handle Data and not form....
+    """
+    If only a file is received and a mapping is not required the request is focused on the file
+    If there is only a filename, the service expects that filename to be in the directory and that a model
+    will be used on that file for changing into a graph
+    :return:
+    """
     r = get_request_payload(request)
     file = check_for_file(request, odbserver)
     if not file["data"]:
