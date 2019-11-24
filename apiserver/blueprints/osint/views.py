@@ -100,7 +100,7 @@ def merge_nodes():
         "data": osintserver.merge_osint(**r)
     })
 
-@osint.route('/osint/get_suggestion_items', methods=['GET'])
+@osint.route('/osint/get_suggestion_items', methods=['POST'])
 def get_suggestion_items():
     '''
     Base route for merging nodes
