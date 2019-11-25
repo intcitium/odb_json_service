@@ -179,7 +179,7 @@ class OSINT(ODB):
         o2n.@class as EDGE_NAME, o2n.out.key as EDGE_SOURCE , o2n.in.key as EDGE_TARGET,
         n.key as NODE_KEY, n.title as NODE_NAME, n.@class as NODE_TYPE, n.description as NODE_ATTR_ID
         ''' % (kwargs["node_key"])
-        # Start a response object with data array and node_keys including the queried so it is not included 
+        # Start a response object with data array and node_keys including the queried so it is not included
         response = {"data": [], "node_keys": [kwargs["node_key"]]}
         for r in self.client.command(sql):
             r = r.oRecordData
@@ -199,42 +199,46 @@ class OSINT(ODB):
         :return:
         """
         click.echo('[%s_OSINTserver_check_base_book] Checking base OSINT settings' % (get_datetime()))
-        r = self.client.command('select * from Organization where UCDP_id != "" limit 50')
-        if len(r) == 0:
-            if not self.basebook:
-                click.echo('[%s_OSINTserver_check_base_book] Initializing basebook UCDP codes' % (get_datetime()))
-                self.basebook = pd.ExcelFile(os.path.join(self.datapath, 'Base_Book.xlsx'))
-                UCDP = self.basebook.parse('UCDP')
-                a = c = 0
-                for index, row in UCDP.iterrows():
-                    if row['table'] == 'actor':
-                        self.create_node(
-                            title="Organization %s" % row['name'],
-                            class_name="Organization",
-                            UCDP_id=row['new_id'],
-                            UCDP_old=row['old_id'],
-                            Name=row['name'],
-                            Source="UCDP",
-                            Category="Political",
-                            icon=self.ICON_ORGANIZATION
-                        )
-                        a+=1
-                    else:
-                        conflict_type = self.ucdp_conflict_type(row)
-                        self.create_node(
-                            title="%s %s" % (conflict_type, row['name']),
-                            class_name="Object",
-                            Category="Conflict",
-                            UCDP_id=row['new_id'],
-                            UCDP_old=row['old_id'],
-                            Name=row['name'],
-                            Source="UCDP",
-                            icon=self.ICON_CONFLICT
-                        )
-                        c+=1
+        try:
+            r = self.client.command('select * from Organization where UCDP_id != "" limit 50')
+            if len(r) == 0:
+                if not self.basebook:
+                    click.echo('[%s_OSINTserver_check_base_book] Initializing basebook UCDP codes' % (get_datetime()))
+                    self.basebook = pd.ExcelFile(os.path.join(self.datapath, 'Base_Book.xlsx'))
+                    UCDP = self.basebook.parse('UCDP')
+                    a = c = 0
+                    for index, row in UCDP.iterrows():
+                        if row['table'] == 'actor':
+                            self.create_node(
+                                title="Organization %s" % row['name'],
+                                class_name="Organization",
+                                UCDP_id=row['new_id'],
+                                UCDP_old=row['old_id'],
+                                Name=row['name'],
+                                Source="UCDP",
+                                Category="Political",
+                                icon=self.ICON_ORGANIZATION
+                            )
+                            a+=1
+                        else:
+                            conflict_type = self.ucdp_conflict_type(row)
+                            self.create_node(
+                                title="%s %s" % (conflict_type, row['name']),
+                                class_name="Object",
+                                Category="Conflict",
+                                UCDP_id=row['new_id'],
+                                UCDP_old=row['old_id'],
+                                Name=row['name'],
+                                Source="UCDP",
+                                icon=self.ICON_CONFLICT
+                            )
+                            c+=1
 
-                click.echo('[%s_OSINTserver_check_base_book] Complete with UCDP setup including %s actors and %s conflicts'
-                           % (get_datetime(), a, c))
+                    click.echo('[%s_OSINTserver_check_base_book] Complete with UCDP setup including %s actors and %s conflicts'
+                               % (get_datetime(), a, c))
+        except Exception as e:
+            click.echo('[%s_OSINTserver_check_base_book] Encountered non-critical error\n%s'
+                       % (get_datetime(), str(e)))
 
     def fill_db(self):
 
