@@ -134,17 +134,17 @@ class OSINT(ODB):
         """
         # Build the SQL that will be sent to the server
         sql = '''
-        SELECT EXPAND( $cve )
+        SELECT EXPAND( $models )
         LET 
         '''
-        union = "$cve = UNIONALL("
+        union = "$models = UNIONALL("
         i = 0
-        for c in self.cve:
+        for m in self.models.keys():
             sql = sql + '''
-            $%s = (SELECT FROM %s WHERE [description] LUCENE "%s*" LIMIT 5),\n
-            ''' % (c[0:3].lower(), c, kwargs['searchterms'])
-            union = union + "$%s" % c[0:3].lower()
-            if i != len(self.cve)-1:
+            $%s = (SELECT key, title, @class FROM %s WHERE [description] LUCENE "%s*" LIMIT 5),\n
+            ''' % (m[0:3].lower(), m, kwargs['searchterms'])
+            union = union + "$%s" % m[0:3].lower()
+            if i != len(self.models.keys())-1:
                 union = union + ", "
             else:
                 union = union + ")"
@@ -156,7 +156,7 @@ class OSINT(ODB):
         for i in r:
             suggestionItems.append({
                 "NODE_KEY": i.oRecordData["key"],
-                "NODE_TYPE": i.oRecordData["type"],
+                "NODE_TYPE": i.oRecordData["class"],
                 "NODE_NAME": i.oRecordData["title"]
             })
 
