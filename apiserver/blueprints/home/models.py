@@ -837,13 +837,12 @@ class ODB:
 
         try:
             self.client.batch(sql)
-            click.echo('[%s_create_db_%s] Completed process' % (self.db_name, get_datetime()))
+            click.echo('[%s_create_db_%s] Completed process' % (get_datetime(), self.db_name))
+            self.create_text_indexes()
             created = True
         except Exception as e:
             click.echo('[%s_create_db_%s] ERROR: %s' % (self.db_name, get_datetime(), str(e)))
             created = False
-        if self.db_name == "OSINT":
-            self.create_indexes()
 
         return created
 
@@ -1360,26 +1359,24 @@ class ODB:
         except:
             print(node)
 
-
-    def create_indexes(self):
+    def create_text_indexes(self):
         '''
-        Create the indexes for each of the out-of-the-box classes
+        Create text indexes on the model entities with description attributes
         '''
-        click.echo('[%s_OSINTserver_create_indexes] Creating indexes' % (get_datetime()))
-        # CVE Classes
-        for cve in ["AttackPattern", "Campaign", "CourseOfAction", "Identity",
-                    "Indicator", "IntrusionSet", "Malware", "ObservedData",
-                    "Report", "Sighting", "ThreatActor", "Tool", "Vulnerability"]:
-            sql = '''
-            CREATE INDEX %s.search_fulltext ON %s(description) FULLTEXT ENGINE LUCENE METADATA
-                      {
-                        "default": "org.apache.lucene.analysis.standard.StandardAnalyzer",
-                        "index": "org.apache.lucene.analysis.en.EnglishAnalyzer",
-                        "query": "org.apache.lucene.analysis.standard.StandardAnalyzer",
-                        "analyzer": "org.apache.lucene.analysis.en.EnglishAnalyzer",
-                        "allowLeadingWildcard": true
-                      }
-            ''' % (cve, cve)
-            self.client.command(sql)
+        click.echo('[%s_OSINTserver_create_text_indexes] Creating indexes' % (get_datetime()))
+        for m in self.models:
+            for k in self.models[m].keys():
+                if str(k) == "description":
+                    sql = '''
+                    CREATE INDEX %s.search_fulltext ON %s(description) FULLTEXT ENGINE LUCENE METADATA
+                              {
+                                "default": "org.apache.lucene.analysis.standard.StandardAnalyzer",
+                                "index": "org.apache.lucene.analysis.en.EnglishAnalyzer",
+                                "query": "org.apache.lucene.analysis.standard.StandardAnalyzer",
+                                "analyzer": "org.apache.lucene.analysis.en.EnglishAnalyzer",
+                                "allowLeadingWildcard": true
+                              }
+                    ''' % (m, m)
+                    self.client.command(sql)
         click.echo('[%s_OSINTserver_create_indexes] Indexes complete' % (get_datetime()))
 
