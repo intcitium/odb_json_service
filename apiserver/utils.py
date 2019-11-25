@@ -1,7 +1,7 @@
 import time, string, random, socket, pyorient
 import click, smtplib, ssl, json, os
 from datetime import datetime
-from dateutil.parser import parse
+from dateutil.parser import parse, parser
 from werkzeug.utils import secure_filename
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -156,6 +156,8 @@ def change_if_date(date_string, fuzzy=False):
                     return dt
                 except:
                     pass
+            lastAttempt = datetime.strftime(parse(date_string, fuzzy=fuzzy), "%Y-%m-%d %H:%M:%S")
+            return lastAttempt
         except Exception as e:
             click.echo('%s %s' % (get_datetime(), str(e)))
         return False
@@ -229,7 +231,8 @@ def get_request_payload(request):
     if len(r.keys()) == 1:
         for i in r.keys():
             k = i
-        if k == "searchterms":
+            click.echo("Received %s as key" % str(k))
+        if k == "searchterms" or k == "node_key":
             return r
         click.echo("Attempting misformed JSON\n%s" % str(r))
         newR = str(r).replace('\'', "").replace("\\r", "").replace("\\t", "").replace("\\n", "").replace("\\", "")
