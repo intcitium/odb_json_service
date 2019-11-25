@@ -232,7 +232,7 @@ def get_request_payload(request):
         for i in r.keys():
             k = i
             click.echo("Received %s as key" % str(k))
-        if k == "searchterms" or k == "node_key":
+        if k == "searchterms" or k == "nodekey":
             return r
         click.echo("Attempting misformed JSON\n%s" % str(r))
         newR = str(r).replace('\'', "").replace("\\r", "").replace("\\t", "").replace("\\n", "").replace("\\", "")
