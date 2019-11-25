@@ -8,13 +8,6 @@ osintserver = OSINT()
 osintserver.open_db()
 osintserver.check_base_book()
 osintserver.fill_db()
-try:
-    osintserver.create_indexes()
-except Exception as e:
-    if "attackpattern.search_fulltext already exists" in str(e):
-        pass
-    else:
-        print(str(e))
 CORS(osint)
 
 
@@ -100,6 +93,7 @@ def merge_nodes():
         "data": osintserver.merge_osint(**r)
     })
 
+
 @osint.route('/osint/get_suggestion_items', methods=['POST'])
 def get_suggestion_items():
     '''
@@ -111,6 +105,21 @@ def get_suggestion_items():
         "status": 200,
         "message": "Search conducted",
         "data": osintserver.get_suggestion_items(**r)
+    })
+
+
+@osint.route('/osint/get_neighbors', methods=['POST'])
+def get_neighbors():
+    '''
+    Base route for merging nodes
+    :return:
+    '''
+    r = get_request_payload(request)
+    r = osintserver.get_neighbors(**r)
+    return jsonify({
+        "status": 200,
+        "message": r["message"],
+        "data": r["data"]
     })
 
 

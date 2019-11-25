@@ -162,6 +162,37 @@ class OSINT(ODB):
 
         return suggestionItems
     
+    def get_neighbors(self, **kwargs):
+        """
+        Get the neighbors of a selected Node and return a flat file only of the new neighbors
+        and their relationships with cardinality
+        NODE_KEY, NODE_TYPE, NODE_NAME, NODE_ATTR_ID, EDGE_SOURCE, EDGE_TARGET, EDGE_NAME
+        :param kwargs:
+        :return:
+        """
+        sql = '''
+        MATCH
+        {class:V, where: (key = '%s')}
+        .bothE(){as:o2n}
+        .bothV(){class:V, as:n}
+        RETURN 
+        o2n.@class as EDGE_NAME, o2n.out.key as EDGE_SOURCE , o2n.in.key as EDGE_TARGET,
+        n.key as NODE_KEY, n.title as NODE_NAME, n.@class as NODE_TYPE, n.description as NODE_ATTR_ID
+        ''' % (kwargs["node_key"])
+        # Start a response object with data array and node_keys including the queried so it is not included 
+        response = {"data": [], "node_keys": [kwargs["node_key"]]}
+        for r in self.client.command(sql):
+            r = r.oRecordData
+            if r["EDGE_TARGET"] == kwargs["node_key"]:
+                r["EDGE_DIRECTION"] = "IN"
+            else:
+                r["EDGE_DIRECTION"] = "OUT"
+            if r["NODE_KEY"] not in response["node_keys"]:
+                response["data"].append(r)
+                response["node_keys"].append(r["NODE_KEY"])
+        response["message"] = "Get neighbors for %s resulted in %d nodes" % (kwargs["node_key"], len(response["data"]))
+        return response
+
     def check_base_book(self):
         """
         Check if the Organizations have been set by UCDP
@@ -1093,6 +1124,9 @@ class OSINT(ODB):
                 if not new_val:
                     try:
                         val = val.replace("'", "")
+                        date_val = change_if_date(val)
+                        if date_val:
+                            val = date_val
                     except:
                         pass
                 attributes.append({"label": k, "value": val})
