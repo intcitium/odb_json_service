@@ -176,7 +176,7 @@ class OSINT(ODB):
         .bothE(){as:o2n}
         .bothV(){class:V, as:n}
         RETURN 
-        o2n.@class as EDGE_NAME, o2n.out.key as EDGE_SOURCE , o2n.in.key as EDGE_TARGET,
+        o2n.@class as EDGE_TYPE, o2n.out.key as EDGE_SOURCE , o2n.in.key as EDGE_TARGET,
         n.key as NODE_KEY, n.title as NODE_NAME, n.@class as NODE_TYPE, n.description as NODE_ATTR_ID
         ''' % (kwargs["nodekey"])
         # Start a response object with data array and node_keys including the queried so it is not included
