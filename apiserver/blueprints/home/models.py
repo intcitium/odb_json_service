@@ -566,14 +566,14 @@ class ODB:
                     node["attributes"].append({"label": "EntityType", "value": "Product"})
 
                 if int(row["Level"]) != 1 and row["Parent "] in r["index"] :
-                    r = self.make_line(r_to={"key": row["Parent "]}, r_from=node, r_type="P%s->C%s" % (
+                    r = self.make_line(r_to={"key": row["Parent "]}, r_from=node, r_type="P_level%s_to_C_level_%s" % (
                         int(row["Level"]-1), int(row["Level"])), r=r)
 
             except Exception as e:
                 print(str(e))
 
         return {"graph": {"nodes": r["nodes"], "lines": r["lines"], "groups": r["groups"]},
-                "message": "Loaded %s nodes and %s lines" % (len(r["nodes"]), len(r["lines"]))}
+                "message": "Loaded %d nodes and %d lines" % (len(r["nodes"]), len(r["lines"]))}
 
     def hash_node(self, node):
 

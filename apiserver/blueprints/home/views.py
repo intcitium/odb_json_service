@@ -95,3 +95,11 @@ def file_to_graph():
             "data": graph,
             "filename": file["data"]
         })
+
+@home.route('/refresh_hier', methods=['GET'])
+def refresh_hier():
+    graph = odbserver.file_to_graph("eppm_hier.xlsx")
+    return jsonify({
+        "status": 200,
+        "data": graph
+    })
