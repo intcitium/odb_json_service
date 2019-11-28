@@ -167,6 +167,9 @@ class ODB:
                     "ftype": check,
                     "message": message
             }
+        elif check["score"] == 0:
+            data = self.graph_hier(file)
+            return data
         else:
             return {
                 "data": file.sample(n=10).fillna(value="null").to_dict(),
@@ -265,230 +268,227 @@ class ODB:
 
         return graph
 
+    def get_latlon(self):
+        return np.random.normal(0, 45)
+
+    def get_status(self, status):
+
+        if status in ["Active", "2", "10", "Created", "Approved", "Completed"]:
+            return "Success"
+        if status in ["Inactive", "Deletion Request", "Ready for Decision", "Canceled"]:
+            return "Error"
+        if status in ["To be Archived", "Closed", "Flagged for Archiving", "Released"]:
+            return "Warning"
+
+    def make_line(self, **kwargs):
+        if ({"to": kwargs['r_to']["key"], "from": kwargs['r_from']["key"],
+             "description": kwargs['r_type']}) not in kwargs["r"]['lines']:
+            kwargs["r"]['lines'].append({"to": kwargs['r_to']["key"], "from": kwargs['r_from']["key"], "description": kwargs['r_type']})
+
+        return kwargs["r"]
+
+    def check_node(self, n_dict, r):
+        newKey = self.hash_node(n_dict)
+        if newKey not in r['index']:
+            r['index'].append(n_dict['key'])
+            r['nodes'].append(n_dict)
+
+        return n_dict, r
+
+
     def graph_eppm(self, data):
         print( '[%s_graph_eppm] Starting' % (get_datetime()))
         r = {
             "nodes": [],
             "lines": [],
             "groups": [
-                {"key": "EPPMProjects", "title": "EPPM Projects"},
-                {"key": "items", "title": "Items"},
-                {"key": "elements", "title": "Portfolio Elements"},
-                {"key": "InternalOrders", "title": "Internal Orders"},
-                {"key": "Programs", "title": "Programs"},
-                {"key": "portfolio", "title": "Portfolio"},
-                {"key": "Products", "title": "Products"}
+                {"key": "Portfolio", "title": "Portfolio"},
+                {"key": "CRPS", "title": "Cross Product Services"},
+                {"key": "HIER", "title": "Hierarchy"},
+                {"key": "CRDS", "title": "Cross Category"},
+                {"key": "RSCH", "title": "Research"},
+                {"key": "LOGP", "title": "Products"},
+                {"key": "Initiative", "title": "Initiative"},
+                {"key": "Item", "title": "ITem"},
+                {"key": "Classification", "title": "Classification"},
+                {"key": "Project", "title": "Project"},
+                {"key": "Delivery", "title": "Delivery"}
             ],
 
             "index": []
         }
 
-        def get_latlon():
-            return np.random.normal(0, 45)
-
-        def get_status(status):
-
-            if status in ["Active", "2", "10", "Created", "Approved", "Completed"]:
-                return "Success"
-            if status in ["Inactive", "Deletion Request", "Ready for Decision", "Canceled"]:
-                return "Error"
-            if status in ["To be Archived", "Closed", "Flagged for Archiving", "Released"]:
-                return "Warning"
-
-        def make_line(**kwargs):
-            if({"to": kwargs['r_to'], "from": kwargs['r_from'], "description": kwargs['r_type']}) not in r['lines']:
-                r['lines'].append({"to": kwargs['r_to'], "from": kwargs['r_from'], "description": kwargs['r_type']})
-
-        def check_node(n_dict):
-            newKey = self.hash_node(n_dict)
-            if newKey not in r['index']:
-                r['index'].append(n_dict['key'])
-                r['nodes'].append(n_dict)
-
-            return n_dict['key']
-
         for index, row in data.iterrows():
             i = 120
-            portfolio = check_node({
-                "key": str(row['ITM_PORTFOLIO_TEXT']),
+            portfolio, r = self.check_node({
+                "key": str(row['ITM_PORTFOLIO_TEXT'].replace(" ", "")),
                 "title": str(row['ITM_PORTFOLIO_TEXT']),
-                "group": "portfolio",
+                "group": "Portfolio",
                 "icon": "sap-icon://tree",
                 "status": "CustomPortfolio",
                 "attributes": [
                     {"label": "EntityType", "value": "Portfolio"},
                     {"label": "ExternalID", "value": str(row['ITM_PORTFOLIO_TEXT'])},
-                    {"label": "Latitude", "value": get_latlon()},
-                    {"label": "Longitude", "value": get_latlon()},
+                    {"label": "Latitude", "value": self.get_latlon()},
+                    {"label": "Longitude", "value": self.get_latlon()},
                 ]
-            })
-            portfolio_element = check_node({
-                "key": str(row['ITM_BUCKET_GUID']),
-                "group": "elements",
-                "status": get_status(str(row['BUCKET_STATUS_TEXT'])),
-                "title": str(row['ITM_BUCKET_TEXT']),
-                "icon": "sap-icon://manager-insight",
-                "attributes": [
-                    {"label": "EntityType", "value": "Portfolio Element"},
-                    {"label": "ExternalID", "value": str(row['ITM_BUCKET_GUID'])},
-                    {"label": "StartDate", "value": str(row['BUCKET_CP_START_DATE'])},
-                    {"label": "EndDate", "value": str(row['BUCKET_CP_END_DATE'])},
-                    {"label": "StartDate FP", "value": str(row['BUCKET_FP_START_DATE'])},
-                    {"label": "EndDate FP", "value": str(row['BUCKET_FP_END_DATE'])},
-                    {"label": "Category_id", "value": str(row['ITM_BUCKET_CATEGORY'])},
-                    {"label": "Category", "value": str(row['BUCKET_CATEGORY_TEXT'])},
-                    {"label": "ID", "value": str(row['ITM_BUCKET_ID'])},
-                    {"label": "Status code", "value": str(row['BUCKET_STATUS'])},
-                    {"label": "BucketID", "value": str(row['ITM_BUCKET_ID'])},
-                    {"label": "Latitude", "value": get_latlon()},
-                    {"label": "Longitude", "value": get_latlon()},
-                ]
-            })
-            logical_product = check_node({
-                "key": str(row['LPR_KEY']),
-                "group": "Products",
-                "status": "CustomLogicalProduct",
-                "title": str(row['LPR_TEXT']),
-                "icon": "sap-icon://product",
-                "attributes": [
-                    {"label": "EntityType", "value": "Logical Product"},
-                    {"label": "ExternalID", "value": str(row['LPR_KEY'])},
-                    {"label": "Environment", "value": str(row['PPORADM'])},
-                    {"label": "Environment text", "value": str(row['PPORADM_TXT'])},
-                    {"label": "startDate", "value": str(row['PPORACDAT'])},
-                    {"label": "Product", "value": str(row['PPORAPC_TXT'])},
-                    {"label": "startDate", "value": str(row['PPORACDAT'])},
-                    {"label": "Product", "value": str(row['PPORAPC_TXT'])},
-                    {"label": "Latitude", "value": get_latlon()},
-                    {"label": "Longitude", "value": get_latlon()},
-                ]
-            })
-            initiative = check_node({
+            }, r)
+            bucketType = str(row['ITM_BUCKET_CATEGORY'].lower().replace(" ", ""))
+            if bucketType == "logp":
+                icon = "sap-icon://product"
+            elif bucketType == "crds":
+                icon = "sap-icon://it-system"
+            elif bucketType == "crps":
+                icon = "sap-icon://supplier"
+            elif bucketType == "hier":
+                icon = "sap-icon://expand"
+            elif bucketType == "rsch":
+                icon = "sap-icon://manager-insight"
+            else:
+                icon = "sap-icon://puzzle"
+            portfolio_element, r = self.check_node({
+                    "key": str(row['ITM_BUCKET_GUID']),
+                    "group": str(row['ITM_BUCKET_CATEGORY']),
+                    "status": self.get_status(str(row['BUCKET_STATUS_TEXT'])),
+                    "title": str(row['ITM_BUCKET_TEXT']),
+                    "icon": icon,
+                    "attributes": [
+                        {"label": "EntityType", "value": "Bucket"},
+                        {"label": "ExternalID", "value": str(row['ITM_BUCKET_GUID'])},
+                        {"label": "StartDate FP", "value": str(row['BUCKET_FP_START_DATE'])},
+                        {"label": "EndDate FP", "value": str(row['BUCKET_FP_END_DATE'])},
+                        {"label": "Category", "value": str(row['BUCKET_CATEGORY_TEXT'])},
+                        {"label": "ID", "value": str(row['ITM_BUCKET_ID'])},
+                        {"label": "Status code", "value": str(row['BUCKET_STATUS'])},
+                        {"label": "BucketID", "value": str(row['ITM_BUCKET_ID'])},
+                        {"label": "Latitude", "value": self.get_latlon()},
+                        {"label": "Longitude", "value": self.get_latlon()},
+                    ]
+                }, r)
+            initiative, r = self.check_node({
                 "key": str(row['ITM_INITIATIVE_GUID']),
-                "group": "Initiatives",
-                "status": get_status(str(row['INITIATIVE_STATUS_TEXT'])),
+                "group": "Initiative",
+                "status": self.get_status(str(row['INITIATIVE_STATUS_TEXT'])),
                 "title": str(row['ITM_INITIATIVE_TEXT']),
-                "icon": "sap-icon://begin",
+                "icon": "sap-icon://legend",
                 "attributes": [
                     {"label": "EntityType", "value": "Initiative"},
                     {"label": "GUID", "value": str(row['ITM_INITIATIVE_GUID'])},
                     {"label": "ExternalID", "value": str(row['ITM_INITIATIVE_GUID'])},
                     {"label": "ID", "value": str(row['ITM_INITIATIVE_ID'])},
-                    {"label": "Category text", "value": str(row['INITIATIVE_CATEGORY_TEXT'])},
+                    {"label": "Category", "value": str(row['INITIATIVE_CATEGORY_TEXT'])},
                     {"label": "Status", "value": str(row['INITIATIVE_STATUS_TEXT'])},
-                    {"label": "startDate", "value": str(row['INITIATIVE_START_DATE'])},
-                    {"label": "endDate", "value": str(row['INITIATIVE_END_DATE'])},
-                    {"label": "Category", "value": str(row['INITIATIVE_CATEGORY'])},
-                    {"label": "Status code", "value": str(row['INITIATIVE_STATUS'])},
-                    {"label": "Latitude", "value": get_latlon()},
-                    {"label": "Longitude", "value": get_latlon()},
+                    {"label": "StartDate", "value": str(row['INITIATIVE_START_DATE'])},
+                    {"label": "EndDate", "value": str(row['INITIATIVE_END_DATE'])},
+                    {"label": "Latitude", "value": self.get_latlon()},
+                    {"label": "Longitude", "value": self.get_latlon()},
                 ]
-            })
+            }, r)
             # Should ITM_P# be their own entities?
-            item = check_node({
+            item, r = self.check_node({
                 "key": str(row['ITM_GUID']),
-                "group": "items",
-                "status": get_status(str(row['ITM_STATUS_TEXT'])),
+                "group": "Item",
+                "status": self.get_status(str(row['ITM_STATUS_TEXT'])),
                 "title": str(row['ITM_TEXT']),
                 "icon": "sap-icon://checklist-item",
                 "attributes": [
                     {"label": "EntityType", "value": "Item"},
                     {"label": "GUID", "value": str(row['ITM_GUID'])},
-                    {"label": "ExternalID", "value": str(row['ITM_GUID'])},
-                    {"label": "ID", "value": str(row['ITM_ID'])},
+                    {"label": "ExternalID", "value": str(row['ITM_ID'])},
                     {"label": "Type code", "value": str(row['ITM_TYPE'])},
-                    {"label": "Type", "value": str(row['ITM_TYPE_TEXT'])},
                     {"label": "StartDate", "value": str(row['ITEM_START_DATE'])},
                     {"label": "EndDate", "value": str(row['ITEM_END_DATE'])},
-                    {"label": "P1 code", "value": str(row['ITM_P1'])},
-                    {"label": "P1", "value": str(row['ITM_P1_TEXT'])},
-                    {"label": "P2 code", "value": str(row['ITM_P2'])},
-                    {"label": "P2", "value": str(row['ITM_P2_TEXT'])},
-                    {"label": "P3 code", "value": str(row['ITM_P3'])},
-                    {"label": "P3", "value": str(row['ITM_P3_TEXT'])},
-                    {"label": "P4 code", "value": str(row['ITM_P4'])},
-                    {"label": "P4", "value": str(row['ITM_P4_TEXT'])},
-                    {"label": "Status code", "value": str(row['ITM_STATUS'])},
-                    {"label": "Latitude", "value": get_latlon()},
-                    {"label": "Longitude", "value": get_latlon()},
+                    {"label": "Latitude", "value": self.get_latlon()},
+                    {"label": "Longitude", "value": self.get_latlon()},
                 ]
-            })
-            cproject = check_node({
-                "key": str(row['ITM_EXTERNAL_ID']),
-                "group": "EPPMProjects",
-                "status": get_status(str(row['ITM_PROJECT_SYS_STATUS_TEXT'])),
+            }, r)
+            project, r = self.check_node({
+                "key": str(row['ITM_GUID']) + str(row['ITM_PROJECT_TEXT']),
+                "group": "Project",
+                "status": self.get_status(str(row['ITM_PROJECT_SYS_STATUS_TEXT'])),
                 "title": str(row['ITM_PROJECT_TEXT']),
                 "icon": "sap-icon://capital-projects",
                 "attributes": [
                     {"label": "EntityType", "value": "Project"},
-                    {"label": "ID", "value": str(row['ITM_EXTERNAL_ID'])},
                     {"label": "ExternalID", "value": str(row['ITM_EXTERNAL_ID'])},
                     {"label": "Responsible", "value": str(row['ITM_PROJECT_RESP'])},
                     {"label": "Name", "value": str(row['ITM_PROJECT_RESP_NAME'])},
                     {"label": "Status", "value": str(row['ITM_PROJECT_SYS_STATUS_TEXT'])},
-                    {"label": "Latitude", "value": get_latlon()},
-                    {"label": "Longitude", "value": get_latlon()},
+                    {"label": "Latitude", "value": self.get_latlon()},
+                    {"label": "Longitude", "value": self.get_latlon()},
                 ]
-            })
-            internal_order = check_node({
+            }, r)
+            internal_order, r = self.check_node({
                 "key": str(row['ITM_INTERNAL_ORDER']),
-                "group": "InternalOrders",
+                "group": "Project",
                 "status": "CustomInternalOrders",
                 "title": "IO %s" % str(row['ITM_INTERNAL_ORDER']),
                 "icon": "sap-icon://customer-order-entry",
                 "attributes": [
                     {"label": "EntityType", "value": "Internal Order"},
-                    {"label": "Latitude", "value": get_latlon()},
-                    {"label": "Longitude", "value": get_latlon()},
+                    {"label": "Latitude", "value": self.get_latlon()},
+                    {"label": "Longitude", "value": self.get_latlon()},
                 ]
-            })
-            program = check_node({
-                "key": str(row['ITM_ZPR_PRG_ID']),
-                "group": "Programs",
+            }, r)
+            project_responsible, r = self.check_node({
+                "key": str(row['ITM_PROJECT_RESP']),
+                "group": "Project",
                 "status": "CustomProgram",
-                "title": "Program %s" % str(row['ITM_ZPR_PRG_ID']),
-                "icon": "sap-icon://program-triangles-2",
+                "title": "Project Responsible",
+                "icon": "sap-icon://employee",
                 "attributes": [
-                    {"label": "EntityType", "value": "Program"},
-                    {"label": "Latitude", "value": get_latlon()},
-                    {"label": "Longitude", "value": get_latlon()},
+                    {"label": "EntityType", "value": "Person"},
+                    {"label": "Name", "value": str(row['ITM_PROJECT_RESP_NAME'])},
+                    {"label": "ID", "value": str(row['ITM_PROJECT_RESP'])},
+                    {"label": "Latitude", "value": self.get_latlon()},
+                    {"label": "Longitude", "value": self.get_latlon()},
                 ]
-            })
-            classification = check_node({
-                "key": str(row['BIC_PPORATAG']),
+            }, r)
+            classification, r = self.check_node({
+                "key": (str(row['ITM_P1']) + str(row['ITM_P1']) + str(row['ITM_P2'])
+                        + str(row['ITM_P3']) + str(row['ITM_P4'])).replace(" ", "").lower(),
                 "group": "Classifications",
                 "status": "CustomClassification",
-                "title": "Classification %s" % str(row['CAT_NAME']),
+                "title": "Classification %s" % str(row['ITM_P4_TEXT']),
                 "icon": "sap-icon://blank-tag",
                 "attributes": [
                     {"label": "EntityType", "value": "Classification"},
-                    {"label": "Latitude", "value": get_latlon()},
-                    {"label": "Longitude", "value": get_latlon()},
+                    {"label": "P1", "value": str(row['ITM_P1_TEXT'])},
+                    {"label": "P2", "value": str(row['ITM_P2_TEXT'])},
+                    {"label": "P3", "value": str(row['ITM_P3_TEXT'])},
+                    {"label": "P4", "value": str(row['ITM_P4_TEXT'])},
+                    {"label": "Latitude", "value": self.get_latlon()},
+                    {"label": "Longitude", "value": self.get_latlon()},
                 ]
-            })
-            delivery = check_node({
-                "key": str(row['ITM_DELIVERY_NAME_LONG']),
-                "group": "Delivery",
+            }, r)
+            delivery, r = self.check_node({
+                "key": str(row['ITM_ZPR_PRG_ID']),
+                "group": "Project",
                 "status": "CustomDelivery",
                 "title": str(row['ITM_DELIVERY_NAME_LONG']),
                 "icon": "sap-icon://supplier",
                 "attributes": [
                     {"label": "EntityType", "value": "Delivery"},
-                    {"label": "Latitude", "value": get_latlon()},
-                    {"label": "Longitude", "value": get_latlon()},
+                    {"label": "Name", "value": str(row['PPORADM_TXT'])},
+                    {"label": "Date", "value": str(row['PPORACDAT'])},
+                    {"label": "Category", "value": str(row['PPORAPC_TXT'])},
+                    {"label": "Status", "value": str(row['PPORAPLS_TXT'])},
+                    {"label": "Scope", "value": str(row['PPORAPRC_TXT'])},
+                    {"label": "Latitude", "value": self.get_latlon()},
+                    {"label": "Longitude", "value": self.get_latlon()},
                 ]
-            })
+            }, r)
             # Break out person responsible
-
-            make_line(r_to=portfolio, r_from=portfolio_element, r_type="PartOf")
-            make_line(r_to=portfolio_element, r_from=logical_product, r_type="PartOf")
-            make_line(r_to=logical_product, r_from=initiative, r_type="PartOf")
-            make_line(r_to=initiative, r_from=item, r_type="PartOf")
-            make_line(r_to=item, r_from=cproject, r_type="PartOf")
-            make_line(r_to=internal_order, r_from=cproject, r_type="CollectsWith")
-            make_line(r_to=cproject, r_from=program, r_type="PartOf")
-            make_line(r_to=classification, r_from=portfolio_element, r_type="ClassifiedAs")
-            make_line(r_to=cproject, r_from=delivery, r_type="DeliveredBy")
+            if bucketType != "logp":
+                r = self.make_line(r_to=portfolio_element, r_from=portfolio, r_type="PartOf", r=r)
+            r = self.make_line(r_to=initiative, r_from=portfolio_element, r_type="PartOf", r=r)
+            r = self.make_line(r_to=item, r_from=initiative, r_type="PartOf", r=r)
+            r = self.make_line(r_to=initiative, r_from=item, r_type="PartOf", r=r)
+            r = self.make_line(r_to=item, r_from=project, r_type="PartOf", r=r)
+            r = self.make_line(r_to=item, r_from=classification, r_type="ClassifiedAs", r=r)
+            r = self.make_line(r_to=project, r_from=project_responsible, r_type="Owns", r=r)
+            r = self.make_line(r_to=project, r_from=delivery, r_type="DeliveredBy", r=r)
+            r = self. make_line(r_to=project, r_from=internal_order, r_type="Supports", r=r)
             if index > i:
                 print('[%s_graph_eppm] Ending' % (get_datetime()))
                 return({"graphs": [
@@ -501,6 +501,79 @@ class ODB:
 
         print('[%s_graph_eppm] Ending' % (get_datetime()))
         return r
+
+    def graph_hier(self, data):
+        """
+        Recreate the getNeighbors result format all relationships given the eppm_hier.xls
+        Lookups of Child GUIDs from the eppm_hier into the Masterdata EPPM_MD.xls result in the entity types based on
+        column headers of those GUIDs. For example Children in Levels 3, 8, and 9 are all part of an Initiative Column
+        :param data:
+        :return:
+        """
+        r = {
+            "nodes": [],
+            "lines": [],
+            "groups": [
+                {"key": "Portfolio", "title": "Portfolio"},
+                {"key": "CRPS", "title": "Cross Product Services"},
+                {"key": "HIER", "title": "Hierarchy"},
+                {"key": "CRDS", "title": "Cross Category"},
+                {"key": "RSCH", "title": "Research"},
+                {"key": "LOGP", "title": "Products"},
+                {"key": "Initiative", "title": "Initiative"},
+                {"key": "Item", "title": "Item"},
+                {"key": "Classification", "title": "Classification"},
+                {"key": "Project", "title": "Project"},
+                {"key": "Delivery", "title": "Delivery"}
+            ],
+
+            "index": []
+        }
+
+        data.fillna("")
+        for index, row in data.iterrows():
+            # TODO get the entity details and fill in the node
+            try:
+                node, r = self.check_node({
+                    "key": str(row["Child "]),
+                    "title": row["Text"],
+                    "attributes": []
+                }, r)
+                if int(row["Level"]) == 1:
+                    node["group"] = "Portfolio"
+                    node["status"] = "CustomPortfolio"
+                    node["icon"] = "sap-icon://tree"
+                    node["attributes"].append({"label": "EntityType", "value": "Portfolio"})
+                elif int(row["Level"]) == 2:
+                    node["group"] = "Bucket"
+                    node["status"] = "CustomClassification"
+                    node["icon"] = "sap-icon://it-system"
+                    node["attributes"].append({"label": "EntityType", "value": "Bucket"})
+                elif int(row["Level"]) in [3, 8, 9]:
+                    node["group"] = "Initiative"
+                    node["status"] = "CustomPortfolio"
+                    node["icon"] = "sap-icon://legend"
+                    node["attributes"].append({"label": "EntityType", "value": "Initiative"})
+                elif int(row["Level"]) == 5:
+                    node["group"] = "Item"
+                    node["status"] = "CustomItem"
+                    node["icon"] = "sap-icon://checklist-item"
+                    node["attributes"].append({"label": "EntityType", "value": "Item"})
+                else:
+                    node["group"] = "Product"
+                    node["status"] = "CustomProduct"
+                    node["icon"] = "sap-icon://product"
+                    node["attributes"].append({"label": "EntityType", "value": "Product"})
+
+                if int(row["Level"]) != 1 and row["Parent "] in r["index"] :
+                    r = self.make_line(r_to={"key": row["Parent "]}, r_from=node, r_type="P%s->C%s" % (
+                        int(row["Level"]-1), int(row["Level"])), r=r)
+
+            except Exception as e:
+                print(str(e))
+
+
+        return {"graph" : {"nodes": r["nodes"], "lines": r["lines"], "groups": r["groups"]}}
 
     def hash_node(self, node):
 
