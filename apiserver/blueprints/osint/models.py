@@ -141,7 +141,7 @@ class OSINT(ODB):
         i = 0
         for m in self.models.keys():
             sql = sql + '''
-            $%s = (SELECT key, title, @class FROM %s WHERE [description] LUCENE "%s*" LIMIT 5),\n
+            $%s = (SELECT key, title, @class, description FROM %s WHERE [description] LUCENE "%s*" LIMIT 5),\n
             ''' % (m[0:3].lower(), m, kwargs['searchterms'])
             union = union + "$%s" % m[0:3].lower()
             if i != len(self.models.keys())-1:
@@ -154,11 +154,25 @@ class OSINT(ODB):
         r = self.client.command(sql)
         suggestionItems = []
         for i in r:
-            suggestionItems.append({
-                "NODE_KEY": i.oRecordData["key"],
-                "NODE_TYPE": i.oRecordData["class"],
-                "NODE_NAME": i.oRecordData["title"]
-            })
+            try:
+                suggestionItems.append({
+                    "NODE_KEY": i.oRecordData["key"],
+                    "NODE_TYPE": i.oRecordData["class"],
+                    "NODE_NAME": i.oRecordData["title"]
+                })
+            except Exception as e:
+                if e.args[0] == "title":
+                    suggestionItems.append({
+                        "NODE_KEY": i.oRecordData["key"],
+                        "NODE_TYPE": i.oRecordData["class"],
+                        "NODE_NAME": i.oRecordData["description"]
+                    })
+                else:
+                    suggestionItems.append({
+                        "NODE_KEY": i.oRecordData["key"],
+                        "NODE_TYPE": i.oRecordData["class"],
+                        "NODE_NAME": "Unknown title for " + i.oRecordData["class"]
+                    })
 
         return suggestionItems
     
