@@ -35,7 +35,7 @@ class OSINT(ODB):
                    }
         click.echo('[%s_OSINT_init] Complete' % (get_datetime()))
         self.ACLED_Base_URL = "https://api.acleddata.com/acled/read?terms=accept"
-        self.UCDP_Page_Size = 50
+        self.UCDP_Page_Size = 200
         self.UCDP_Base_URL = "https://ucdpapi.pcr.uu.se/api/gedevents/19.1?pagesize=%s" % self.UCDP_Page_Size
         self.UCDP_Country_URL = "%s&Country=" % self.UCDP_Base_URL
         self.UCDP_Time_URL = "%s&StartDate=" % self.UCDP_Base_URL
@@ -294,7 +294,7 @@ class OSINT(ODB):
                 "icon": i.oRecordData['icon'],
                 "attributes": [
                     {"label": "Category", "value": i.oRecordData['Category']},
-                    {"label": "Description", "value": i.oRecordData['Description']},
+                    {"label": "Description", "value": i.oRecordData['description']},
                     {"label": "Sources", "value": i.oRecordData['Sources']},
                     {"label": "StartDate", "value": i.oRecordData['StartDate']},
                     {"label": "EndDate", "value": i.oRecordData['EndDate']},
@@ -367,6 +367,7 @@ class OSINT(ODB):
                             Name=s,
                             title="%s information source" % s,
                             icon=self.ICON_INFO_SOURCE,
+                            description="Organization from UCDP. %s" % s,
                             Source="UCDP"
                         )
                         graph_build['nodes'].append(source_node['data'])
@@ -386,7 +387,7 @@ class OSINT(ODB):
                     Category=Category,
                     UCDP_id=row['id'],
                     title="%s %s, %s" % (Category, row['country'], row['source_original']),
-                    Description=("Headline: %s Article: %s" % (
+                    description=("Headline: %s Article: %s" % (
                         row['source_headline'],
                         row['source_article'])).replace("'", ""),
                     Sources=len(sources),
@@ -422,6 +423,7 @@ class OSINT(ODB):
                 side_a_node = self.create_node(
                     class_name="Organization",
                     Category="Political",
+                    description="Political %s" % row['side_a'],
                     title="Organization %s" % row['side_a'],
                     UCDP_id=row['side_a_new_id'],
                     UCDP_old=row['side_a_dset_id'],
@@ -442,6 +444,7 @@ class OSINT(ODB):
                     class_name="Organization",
                     title="Organization %s" % row['side_b'],
                     Category="Political",
+                    description="Political %s" % row['side_b'],
                     UCDP_id=row['side_b_new_id'],
                     UCDP_old=row['side_b_dset_id'],
                     Name=row['side_b'],
@@ -480,7 +483,7 @@ class OSINT(ODB):
             location_node = self.create_node(
                 class_name="Location",
                 Category="Conflict site",
-                Description="%s %s %s %s" % (row['adm_1'], row['adm_2'], row['country'], row['region']),
+                description="%s %s %s %s" % (row['adm_1'], row['adm_2'], row['country'], row['region']),
                 Latitude=row['latitude'],
                 Longitude=row['longitude'],
                 city=city,
