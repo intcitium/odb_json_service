@@ -572,8 +572,8 @@ class ODB:
             except Exception as e:
                 print(str(e))
 
-
-        return {"graph" : {"nodes": r["nodes"], "lines": r["lines"], "groups": r["groups"]}}
+        return {"graph": {"nodes": r["nodes"], "lines": r["lines"], "groups": r["groups"]},
+                "message": "Loaded %s nodes and %s lines" % (len(r["nodes"]), len(r["lines"]))}
 
     def hash_node(self, node):
 
