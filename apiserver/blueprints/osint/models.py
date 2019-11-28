@@ -282,7 +282,7 @@ class OSINT(ODB):
                    % (get_datetime(), len(self.DB['ucdp_org'])))
         # Fill UCDP Events
         r = self.client.command(
-            ''' select key, UCDP_id, Category, icon, title, Description, Sources, StartDate, EndDate, Deaths, Origin,
+            ''' select key, UCDP_id, Category, icon, title, description, Sources, StartDate, EndDate, Deaths, Origin,
              Civilians, Source from Event where UCDP_id != ""
              ''')
         for i in r:
@@ -486,6 +486,7 @@ class OSINT(ODB):
                 description="%s %s %s %s" % (row['adm_1'], row['adm_2'], row['country'], row['region']),
                 Latitude=row['latitude'],
                 Longitude=row['longitude'],
+                title="%s %s" % (city, row['country']),
                 city=city,
                 country=row['country'],
                 icon=self.ICON_LOCATION
