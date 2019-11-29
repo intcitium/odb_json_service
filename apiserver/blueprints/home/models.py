@@ -41,8 +41,8 @@ class ODB:
         self.index = {"nodes": {}, "edges": []}
         # Keeping the nodeKeys in this order assures that matches will be checked in the same consistent string
         self.nodeKeys = ['class_name', 'title', 'FirstName', 'LastName', 'Gender', 'DateOfBirth', 'PlaceOfBirth',
-                    'Name', 'Owner', 'Classification', 'Category', 'Latitude', 'Longitude', 'Description',
-                    'EndDate', 'StartDate', 'DateCreated']
+                    'Name', 'Owner', 'Classification', 'Category', 'Latitude', 'Longitude', 'description',
+                    'EndDate', 'StartDate', 'DateCreated', 'Ext_key']
         if not models:
             self.models = {
                 "Vertex": {
@@ -560,7 +560,7 @@ class ODB:
                     node["icon"] = "sap-icon://checklist-item"
                     node["attributes"].append({"label": "EntityType", "value": "Item"})
                 else:
-                    node["group"] = "Product"
+                    node["group"] = "LogicalProduct"
                     node["status"] = "CustomProduct"
                     node["icon"] = "sap-icon://product"
                     node["attributes"].append({"label": "EntityType", "value": "Product"})
@@ -673,139 +673,135 @@ class ODB:
         :return:
         """
         attributes = []
-        # In the case attributes as an array is received instead of directly in kwargs, fix and then pop attributes out
+        '''
+        In the case attributes as an array is received instead of directly in kwargs, flatten the attributes and then 
+        pop attributes out
+        '''
         if 'attributes' in kwargs.keys():
             if type(kwargs['attributes']) == list:
                 attributes = kwargs['attributes']
                 for a in kwargs['attributes']:
+                    # Ensure the labels received don't break the sql
+                    for i in ["'", '"', "\\", "/", ",", ".", "-", "?", "%", "&", " "]:
+                        a['label'] = a['label'].replace(i, "_")
                     kwargs[a['label']] = a['value']
                 kwargs.pop('attributes')
+
+        # Check the Vertex Class
         if 'class_name' in kwargs.keys() or 'EntityType' in kwargs.keys():
             if 'EntityType' in kwargs.keys():
                 kwargs["class_name"] = kwargs["EntityType"]
-            if "key" in kwargs.keys():
-                labels = "(key"
-                values = "("
-                hadKey = True
-                thisKey = kwargs['key']
-            else:
-                labels = "(key"
-                values = "(sequence('idseq').next()"
-                hadKey = False
-                thisKey = None
-            icon = title = status = None
-            # Check the index
-            hash_key, check = self.check_index_nodes(**kwargs)
-            if check:
-                formatted_node = self.format_node(
-                    key=hash_key,
-                    class_name=kwargs['class_name'],
-                    title=title,
-                    status=status,
-                    icon=icon,
-                    attributes=attributes
-                )
-                message = '[%s_%s_create_node] Node %s exists' % (get_datetime(), self.db_name, thisKey)
-                return {"message": message, "data": formatted_node}
-            labels = labels + ", hashkey"
-            values = values + ", '%s'" % hash_key
-            for k in kwargs.keys():
-                if list(kwargs.keys())[-1] == k:
-                    # Close the labels and values with a ')'
-                    if hadKey:
-                        if change_if_number(kwargs[k]):
-                            values = values + "{value})".format(value=kwargs['key'])
-                        else:
-                            values = values + "'{value}')".format(value=clean(kwargs['key']))
-                        hadKey = False
-                    else:
-                        labels = labels + ", {label})".format(label=k)
-                        if change_if_number(kwargs[k]):
-                            values = values + ", {value})".format(value=kwargs[k])
-                        else:
-                            values = values + ", '{value}')".format(value=clean(kwargs[k]))
-                else:
-                    if hadKey:
-                        if change_if_number(kwargs[k]):
-                            values = values + "{value}".format(value=kwargs['key'])
-                        else:
-                            values = values + "'{value}'".format(value=clean(kwargs['key']))
-                        # Change key since after first pass, the sql statement is the same in either case
-                        hadKey = False
-                    else:
-                        labels = labels + ", {label}".format(label=k)
-                        if change_if_number(kwargs[k]):
-                            values = values + ", {value}".format(value=kwargs[k])
-                        else:
-                            values = values + ", '{value}'".format(value=clean(kwargs[k]))
-
-                if k == 'icon':
-                    icon = kwargs[k]
-                if k == 'title':
-                    title = kwargs[k]
-                if k == 'status':
-                    status = kwargs[k]
-                if k != 'passWord':
-                    attributes.append({"label": k, "value": kwargs[k]})
-            # If there is a key, a new record is not created but rather the formatted version.
-            # However, a Case is assigned a key and therefore should not be applied here.
-            # For cases within cases, fix below where Duplicate record will be triggered for case with same name
-            if thisKey:
-                formatted_node = self.format_node(
-                    key=thisKey,
-                    class_name=kwargs['class_name'],
-                    title=title,
-                    status=status,
-                    icon=icon,
-                    attributes=attributes
-                )
-                message = '[%s_%s_create_node] Node %s exists' % (get_datetime(), self.db_name, thisKey)
-                return {"message": message, "data": formatted_node}
-            else:
-                sql = '''
-                insert into {class_name} {labels} values {values} return @this.key
-                '''.format(class_name=kwargs['class_name'], labels=labels, values=values)
-                try:
-                    key = self.client.command(sql)[0].oRecordData['result']
-                    # Update the index with the hash_key identified before and the key created by the DB
-                    self.index['nodes'][hash_key] = key
-                    formatted_node = self.format_node(
-                        key=key,
-                        class_name=kwargs['class_name'],
-                        title=title,
-                        status=status,
-                        icon=icon,
-                        attributes=attributes
-                    )
-                    message = '[%s_%s_create_node] Create node %s' % (get_datetime(), self.db_name, key)
-                    return {"message": message, "data": formatted_node}
-
-                except Exception as e:
-                    if str(type(e)) == str(type(e)) == "<class 'pyorient.exceptions.PyOrientORecordDuplicatedException'>":
-                        if kwargs['title'] == "Case":
-                            node = self.get_node(val=kwargs['Name'], var="Name", class_name="Case")
-                            return {"data" : self.format_node(
-                                key=node['key'],
-                                icon=node['icon'],
-                                status=node['status'],
-                                title=node['title'],
-                                class_name=node['class_name'],
-                                attributes=attributes
-                            )}
-                    message = '[%s_%s_create_node] ERROR %s\n%s' % (get_datetime(), self.db_name, str(e), sql)
-                    click.echo(message)
-                    return message
-
         else:
-            return None
+            kwargs["class_name"] = "V"
+        '''
+        Check if there already an associated key type attribute and make it the external key. If more than one, add it 
+        as a new key iterating with the more_than_one_key mtoka token. There must be only a single "key" attribute to
+        identify the Node. Therefore, this process ensures the key is iterated according to the DB identification. But
+        the hashing process and external keys allow means for searching on the node. While checking the flattened
+        attributes, check if there are other node formatting attributes that can be normalized. 
+        '''
+        icon = title = status = None
+        mtoka = 0
+        for key_attribute in kwargs.keys():
+            if key_attribute in ["key", "GUID", "guid", "uid", "Key"]:
+                if mtoka == 0:
+                    kwargs["Ext_key"] = kwargs[key_attribute]
+                else:
+                    kwargs["Ext_key_%d" % mtoka] = kwargs[key_attribute]
+                mtoka+=1
+                kwargs.pop(key_attribute)
+            elif key_attribute in ["icon", "title", "status"]:
+                if key_attribute == "icon":
+                    icon = kwargs[key_attribute]
+                if key_attribute == "title":
+                    title = kwargs[key_attribute]
+                if key_attribute == "status":
+                    status = kwargs[key_attribute]
+
+        # start the SQL insert statement with the key based on whether or not it was there before
+        labels = "(key"
+        values = "(sequence('idseq').next()"
+        # Check the index
+        hash_key, check = self.check_index_nodes(**kwargs)
+        if check:
+            formatted_node = self.format_node(
+                key=hash_key,
+                class_name=kwargs['class_name'],
+                title=title,
+                status=status,
+                icon=icon,
+                attributes=attributes
+            )
+            message = '[%s_%s_create_node] Node exists' % (get_datetime(), self.db_name)
+            return {"message": message, "data": formatted_node}
+        labels = labels + ", hashkey"
+        values = values + ", '%s'" % hash_key
+        for k in kwargs.keys():
+            if list(kwargs.keys())[-1] == k:
+                # Close the labels and values with a ')'
+                labels = labels + ", {label})".format(label=k)
+                if change_if_number(kwargs[k]):
+                    values = values + ", {value})".format(value=kwargs[k])
+                else:
+                    values = values + ", '{value}')".format(value=clean(kwargs[k]))
+            else:
+                labels = labels + ", {label}".format(label=k)
+                if change_if_number(kwargs[k]):
+                    values = values + ", {value}".format(value=kwargs[k])
+                else:
+                    values = values + ", '{value}'".format(value=clean(kwargs[k]))
+
+            if k == 'icon':
+                icon = kwargs[k]
+            if k == 'title':
+                title = kwargs[k]
+            if k == 'status':
+                status = kwargs[k]
+            if k != 'passWord':
+                attributes.append({"label": k, "value": kwargs[k]})
+        sql = '''
+        insert into {class_name} {labels} values {values} return @this.key
+        '''.format(class_name=kwargs['class_name'], labels=labels, values=values)
+        try:
+            key = self.client.command(sql)[0].oRecordData['result']
+            # Update the index with the hash_key identified before and the key created by the DB
+            self.index['nodes'][hash_key] = key
+            formatted_node = self.format_node(
+                key=key,
+                class_name=kwargs['class_name'],
+                title=title,
+                status=status,
+                icon=icon,
+                attributes=attributes
+            )
+            message = '[%s_%s_create_node] Create node %s' % (get_datetime(), self.db_name, key)
+            return {"message": message, "data": formatted_node}
+
+        except Exception as e:
+            if str(type(e)) == str(type(e)) == "<class 'pyorient.exceptions.PyOrientORecordDuplicatedException'>":
+                if kwargs['title'] == "Case":
+                    node = self.get_node(val=kwargs['Name'], var="Name", class_name="Case")
+                    return {"data" : self.format_node(
+                        key=node['key'],
+                        icon=node['icon'],
+                        status=node['status'],
+                        title=node['title'],
+                        class_name=node['class_name'],
+                        attributes=attributes
+                    )}
+            message = '[%s_%s_create_node] ERROR %s\n%s' % (get_datetime(), self.db_name, str(e), sql)
+            click.echo(message)
+            return message
+
+
 
     def check_index_nodes(self, **kwargs):
         """
         Use the nodeKeys to cycle through in sequential order and match the input attributes to build a hash string in
         the same format of previous nodes. If the node exists, return the key. Otherwise return None.
         self.nodeKeys = ['class_name', 'title', 'FirstName', 'LastName', 'Gender', 'DateOfBirth', 'PlaceOfBirth',
-            'Name', 'Owner', 'Classification', 'Category', 'Latitude', 'Longitude', 'Description',
-            'EndDate', 'StartDate', 'DateCreated']
+            'Name', 'Owner', 'Classification', 'Category', 'Latitude', 'Longitude', 'description',
+            'EndDate', 'StartDate', 'DateCreated', 'Ext_key']
         :param kwargs:
         :return:
         """
