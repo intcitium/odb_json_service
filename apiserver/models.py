@@ -15,7 +15,8 @@ OSINTModel = {
                 "description": "string",
                 "icon": "string",
                 "Gender": "string",
-                "class": "V"
+                "class": "V",
+                "Ext_key": "string"
             },
             "Object": {
                 "key": "integer",
@@ -26,6 +27,7 @@ OSINTModel = {
                 "Tags": "string",
                 "icon": "string",
                 "title": "string",
+                "Ext_key": "string"
             },
             "Organization": {
                 "key": "integer",
@@ -43,6 +45,7 @@ OSINTModel = {
                 "Source": "string",
                 "icon": "string",
                 "title": "string",
+                "Ext_key": "string"
             },
             "Profile": {
                 "key": "integer",
@@ -61,6 +64,7 @@ OSINTModel = {
                 "Source": "string",
                 "icon": "string",
                 "title": "string",
+                "Ext_key": "string"
             },
             "Post": {
                 "key": "integer",
@@ -77,6 +81,7 @@ OSINTModel = {
                 "Source": "string",
                 "icon": "string",
                 "title": "string",
+                "Ext_key": "string"
             },
             "Location": {
                 "key": "integer",
@@ -94,6 +99,7 @@ OSINTModel = {
                 "province": "string",
                 "icon": "string",
                 "title": "string",
+                "Ext_key": "string"
             },
             "Event": {
                 "key": "integer",
@@ -111,7 +117,8 @@ OSINTModel = {
                 "Civilians": "string",
                 "Origin": "string",
                 "UCDP_id": "string",
-                "Source": "string"
+                "Source": "string",
+                "Ext_key": "string"
             },
             "Case": {
                 "key": "string",
@@ -124,7 +131,8 @@ OSINTModel = {
                 "StartDate": "datetime",
                 "LastUpdate": "datetime",
                 "CreatedBy": "string",
-                "Members": "string"
+                "Members": "string",
+                "Ext_key": "string"
             },
             "AttackPattern": {
                 "class": "V",
@@ -137,7 +145,8 @@ OSINTModel = {
                 "modified": "string",
                 "name": "string",
                 "source": "string",
-                "type": "string"
+                "type": "string",
+                "Ext_key": "string"
             },
             "Campaign": {
                 "class": "V",
@@ -153,7 +162,8 @@ OSINTModel = {
                 "objective": "string",
                 "revoked": "string",
                 "source": "string",
-                "type": "string"
+                "type": "string",
+                "Ext_key": "string"
             },
             "CourseOfAction": {
                 "class": "V",
@@ -166,7 +176,8 @@ OSINTModel = {
                 "name": "string",
                 "revoked": "string",
                 "source": "string",
-                "type": "string"
+                "type": "string",
+                "Ext_key": "string"
             },
             "Identity": {
                 "class": "V",
@@ -181,7 +192,8 @@ OSINTModel = {
                 "revoked": "string",
                 "sectors": "string",
                 "source": "string",
-                "type": "string"
+                "type": "string",
+                "Ext_key": "string"
             },
             "Indicator": {
                 "class": "V",
@@ -197,7 +209,8 @@ OSINTModel = {
                 "source": "string",
                 "type": "string",
                 "valid_from": "datetime",
-                "valid_until": "datetime"
+                "valid_until": "datetime",
+                "Ext_key": "string"
             },
             "IntrusionSet": {
                 "class": "V",
@@ -216,7 +229,8 @@ OSINTModel = {
                 "revoked": "string",
                 "secondary_motivations": "string",
                 "source": "string",
-                "type": "string"
+                "type": "string",
+                "Ext_key": "string"
             },
             "Malware": {
                 "class": "V",
@@ -229,7 +243,8 @@ OSINTModel = {
                 "name": "string",
                 "revoked": "string",
                 "source": "string",
-                "type": "string"
+                "type": "string",
+                "Ext_key": "string"
             },
             "ObservedData": {
                 "class": "V",
@@ -244,7 +259,8 @@ OSINTModel = {
                 "objects": "string",
                 "revoked": "string",
                 "source": "string",
-                "type": "string"
+                "type": "string",
+                "Ext_key": "string"
             },
             "Report": {
                 "class": "V",
@@ -258,7 +274,8 @@ OSINTModel = {
                 "published": "datetime",
                 "revoked": "string",
                 "source": "string",
-                "type": "string"
+                "type": "string",
+                "Ext_key": "string"
             },
             "Sighting": {
                 "class": "V",
@@ -276,7 +293,8 @@ OSINTModel = {
                 "source": "string",
                 "summary": "string",
                 "type": "string",
-                "where_sighted_refs": "string"
+                "where_sighted_refs": "string",
+                "Ext_key": "string"
             },
             "ThreatActor": {
                 "class": "V",
@@ -296,7 +314,8 @@ OSINTModel = {
                 "secondary_motivations": "string",
                 "sophistication": "string",
                 "source": "string",
-                "type": "string"
+                "type": "string",
+                "Ext_key": "string"
             },
             "Tool": {
                 "class": "V",
@@ -310,7 +329,8 @@ OSINTModel = {
                 "revoked": "string",
                 "source": "string",
                 "tool_version": "string",
-                "type": "string"
+                "type": "string",
+                "Ext_key": "string"
             },
             "Vulnerability": {
                 "class": "V",
@@ -322,7 +342,8 @@ OSINTModel = {
                 "name": "string",
                 "revoked": "string",
                 "source": "string",
-                "type": "string"
+                "type": "string",
+                "Ext_key": "string"
             }
         }
 
