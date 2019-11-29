@@ -1121,10 +1121,19 @@ class ODB:
                 from V where key in [%d, %d]''' % (kwargs['node_A'], kwargs['node_B']))
             try:
                 A = r[0].oRecordData
+                if A["key"] == kwargs['node_B']:
+                    B = A
             except:
                 return "No record for %d" % kwargs['node_A']
             try:
-                B = r[1].oRecordData
+                # Normal case
+                if len(r) > 1:
+                    B = r[1].oRecordData
+                # B was created in the first
+                elif A["key"] == kwargs['node_B']:
+                    A = {"key": kwargs['node_A'], "hashkey": "", "class": B["class"],
+                         'InKeys': [], 'n_in_class': [], 'OutKeys': [],
+                         'n_out_class': [], 'OutE': [], 'InE': []}
             except:
                 return "No record for %d" % kwargs['node_A']
 
@@ -1135,7 +1144,7 @@ class ODB:
                 if (len(n['OutKeys']) == len(n['OutE'])) and len(n['OutKeys']) > 0:
                     for k, l, c in zip(n['OutKeys'], n['OutE'], n['n_out_class']):
                         n['rels'].append({
-                            "to": k,
+                            "edgeNode": k,
                             "edgeType": l,
                             "dir": "out",
                             "class": c
@@ -1144,7 +1153,7 @@ class ODB:
                 if (len(n['InKeys']) == len(n['InE'])) and len(n['InKeys']) > 0:
                     for k, l, c in zip(n['InKeys'], n['InE'], n['n_in_class']):
                         n['rels'].append({
-                            "from": k,
+                            "edgeNode": k,
                             "edgeType": l,
                             "dir": "in",
                             "class": c
@@ -1157,9 +1166,9 @@ class ODB:
                     i+=1
                     if rel['dir'] == "out":
                         self.create_edge(fromClass=A['class'], fromNode=A['key'], toClass=rel['class'],
-                                         toNode=rel['to'], edgeType=rel['edgeType'])
+                                         toNode=rel['edgeNode'], edgeType=rel['edgeType'])
                     else:
-                        self.create_edge(fromClass=rel['class'], fromNode=rel['to'], toClass=A['class'],
+                        self.create_edge(fromClass=rel['class'], fromNode=rel['edgeNode'], toClass=A['class'],
                                          toNode=A['key'], edgeType=rel['edgeType'])
             results+= "%d new relations." % i
 
