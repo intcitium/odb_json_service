@@ -171,3 +171,15 @@ def start_twitter_monitor():
         "status": 200,
         "message": r["message"]
     })
+
+@osint.route('/osint/start_merge_monitor', methods=['GET'])
+def start_merge_monitor():
+    '''
+    Base route for merging nodes
+    :return:
+    '''
+    r = osintserver.start_merge_monitor()
+    return jsonify({
+        "status": 200,
+        "message": r["message"]
+    })

@@ -43,7 +43,7 @@ class OSINT(ODB):
         self.UCDP_Time_URL = "%s&StartDate=" % self.UCDP_Base_URL
         self.TWITTER_AUTH = TWITTER_AUTH
         self.base_twitter_url = "https://api.twitter.com/1.1/"
-        self.monitors = {"twitter": False}
+        self.monitors = {"twitter": False, "merger": False}
         self.default_number_of_tweets = 200
         self.cve = ["AttackPattern", "Campaign", "CourseOfAction", "Identity",
                     "Indicator", "IntrusionSet", "Malware", "ObservedData",
@@ -58,6 +58,51 @@ class OSINT(ODB):
             return "Non-state Conflict"
         else:
             return "One-sided Conflict"
+
+    def monitor_merges(self):
+        """
+        Crawler makes queries every hour to check the database for nodes with the same Ext_ID and then perform a merge
+        on the first one found with the links of the others. TODO, include more attributes to crawl for and return
+        likely nodes based on cases where similarity but not exact matches 
+        :return:
+        """
+        index = {}
+        r = self.client.command('''
+        select @class, key, Ext_key from V where Ext_key != ""
+        ''')
+        for i in r:
+            if i.oRecordData["Ext_key"] in index.keys():
+                index[i.oRecordData["Ext_key"]].append(i.oRecordData)
+            else:
+                index[i.oRecordData["Ext_key"]] = [i.oRecordData]
+        for i in index:
+            if len(index[i]) > 1:
+                click.echo('[%s_OSINT_monitor_merges] found %d candidates for merging' % (get_datetime(), len(index[i])))
+                # Check if each of them are in the same class by making buckets
+                class_buckets = {}
+                for o in index[i]:
+                    if o["class"] in class_buckets.keys():
+                        class_buckets[o["class"]].append(o["key"])
+                    else:
+                        class_buckets[o["class"]] = [o["key"]]
+                # Run through each bucket and if there is more than 1, then we still have entities needing merging
+                for bucket in class_buckets:
+                    if len(class_buckets[bucket]) > 1:
+                        # Run through the nodes in the bucket using an "ni" node iterator to determine if at first node
+                        ni = 0
+                        node_A = node_B = None
+                        for n in class_buckets[bucket]:
+                            if ni == 0:
+                                node_A = n
+                            # this is skipped the first round as the source node is set
+                            else:
+                                node_B = n
+                            # only after both nodes are set, at ni > 0, merge the nodes
+                            if ni > 0 and node_A and node_B:
+                                self.merge_nodes(node_A=node_A, node_B=node_B)
+                            ni+=1
+
+        return
 
     def run_otx(self):
 
@@ -576,6 +621,24 @@ class OSINT(ODB):
 
         return
 
+    def start_merge_monitor(self):
+        """
+        Start a thread to run the monitor
+        :return:
+        """
+        r = {}
+        if self.monitors["twitter"] == False:
+            t = threading.Thread(target=self.monitor_merges)
+            self.monitors["merger"] = True
+            t.start()
+            r["message"] = '[%s_OSINT_start_merge_monitor] Turned on' % (get_datetime())
+            click.echo(r["message"])
+        else:
+            r["message"] = '[%s_OSINT_start_merge_monitor] Turned off' % (get_datetime())
+            self.monitors["merger"] = False
+
+        return r
+
     def start_twitter_monitor(self):
         """
         Start a thread to run the monitor
@@ -589,7 +652,7 @@ class OSINT(ODB):
         locations_monitor = [{"lat": 48.83, "lon": 2.3}, {"lat": 40.254, "lon": -73.93}, {"lat": 51.441, "lon": -0.002}]
         hashtags_monitor = ["bbc", "vulnerability", "MITRE"]
         t = threading.Thread(
-            target=self.run_twitter_monitor,
+            target=self.monitor_twitter,
             kwargs={
                 "user_monitor": user_monitor,
                 "locations_monitor": locations_monitor,
@@ -605,10 +668,9 @@ class OSINT(ODB):
             r["message"] = "Twitter monitor stopped"
             self.monitors["twitter"] = False
 
-
         return r
 
-    def run_twitter_monitor(self, **kwargs):
+    def monitor_twitter(self, **kwargs):
         """
         The thread that runs until turned off. When started runs every 30 minutes.
         The thread is stored in the self.monitors{twitter: var}. The thread can be turned off
