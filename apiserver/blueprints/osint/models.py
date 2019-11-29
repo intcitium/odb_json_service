@@ -63,46 +63,49 @@ class OSINT(ODB):
         """
         Crawler makes queries every hour to check the database for nodes with the same Ext_ID and then perform a merge
         on the first one found with the links of the others. TODO, include more attributes to crawl for and return
-        likely nodes based on cases where similarity but not exact matches 
+        likely nodes based on cases where similarity but not exact matches
         :return:
         """
-        index = {}
-        r = self.client.command('''
-        select @class, key, Ext_key from V where Ext_key != ""
-        ''')
-        for i in r:
-            if i.oRecordData["Ext_key"] in index.keys():
-                index[i.oRecordData["Ext_key"]].append(i.oRecordData)
-            else:
-                index[i.oRecordData["Ext_key"]] = [i.oRecordData]
-        for i in index:
-            if len(index[i]) > 1:
-                click.echo('[%s_OSINT_monitor_merges] found %d candidates for merging' % (get_datetime(), len(index[i])))
-                # Check if each of them are in the same class by making buckets
-                class_buckets = {}
-                for o in index[i]:
-                    if o["class"] in class_buckets.keys():
-                        class_buckets[o["class"]].append(o["key"])
-                    else:
-                        class_buckets[o["class"]] = [o["key"]]
-                # Run through each bucket and if there is more than 1, then we still have entities needing merging
-                for bucket in class_buckets:
-                    if len(class_buckets[bucket]) > 1:
-                        # Run through the nodes in the bucket using an "ni" node iterator to determine if at first node
-                        ni = 0
-                        node_A = node_B = None
-                        for n in class_buckets[bucket]:
-                            if ni == 0:
-                                node_A = n
-                            # this is skipped the first round as the source node is set
-                            else:
-                                node_B = n
-                            # only after both nodes are set, at ni > 0, merge the nodes
-                            if ni > 0 and node_A and node_B:
-                                self.merge_nodes(node_A=node_A, node_B=node_B)
-                            ni+=1
-
-        return
+        while self.monitors["merger"] == True:
+            click.echo('[%s_OSINT_run_monitor_merges] Starting...' % (get_datetime()))
+            index = {}
+            r = self.client.command('''
+            select @class, key, Ext_key from V where Ext_key != ""
+            ''')
+            for i in r:
+                if i.oRecordData["Ext_key"] in index.keys():
+                    index[i.oRecordData["Ext_key"]].append(i.oRecordData)
+                else:
+                    index[i.oRecordData["Ext_key"]] = [i.oRecordData]
+            merges = 0
+            for i in index:
+                if len(index[i]) > 1:
+                    merges+=1
+                    # Check if each of them are in the same class by making buckets
+                    class_buckets = {}
+                    for o in index[i]:
+                        if o["class"] in class_buckets.keys():
+                            class_buckets[o["class"]].append(o["key"])
+                        else:
+                            class_buckets[o["class"]] = [o["key"]]
+                    # Run through each bucket and if there is more than 1, then we still have entities needing merging
+                    for bucket in class_buckets:
+                        if len(class_buckets[bucket]) > 1:
+                            # Run through the nodes in the bucket using an "ni" node iterator to determine if at first node
+                            ni = 0
+                            node_A = node_B = None
+                            for n in class_buckets[bucket]:
+                                if ni == 0:
+                                    node_A = n
+                                # this is skipped the first round as the source node is set
+                                else:
+                                    node_B = n
+                                # only after both nodes are set, at ni > 0, merge the nodes
+                                if ni > 0 and node_A and node_B:
+                                    self.merge_nodes(node_A=node_A, node_B=node_B)
+                                ni+=1
+            click.echo('[%s_OSINT_run_monitor_merges] Complete with %d merge operations ' % (get_datetime(), merges))
+            time.sleep(60*60*2)
 
     def run_otx(self):
 
@@ -627,7 +630,7 @@ class OSINT(ODB):
         :return:
         """
         r = {}
-        if self.monitors["twitter"] == False:
+        if self.monitors["merger"] == False:
             t = threading.Thread(target=self.monitor_merges)
             self.monitors["merger"] = True
             t.start()
