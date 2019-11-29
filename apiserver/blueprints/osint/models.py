@@ -2,6 +2,8 @@ import click, os
 import requests, json, random
 import pandas as pd
 import codecs
+import time
+import threading
 from OTXv2 import OTXv2
 from apiserver.models import OSINTModel as Models
 from apiserver.utils import get_datetime, clean, change_if_date, TWITTER_AUTH
@@ -41,6 +43,7 @@ class OSINT(ODB):
         self.UCDP_Time_URL = "%s&StartDate=" % self.UCDP_Base_URL
         self.TWITTER_AUTH = TWITTER_AUTH
         self.base_twitter_url = "https://api.twitter.com/1.1/"
+        self.monitors = {"twitter": False}
         self.default_number_of_tweets = 200
         self.cve = ["AttackPattern", "Campaign", "CourseOfAction", "Identity",
                     "Indicator", "IntrusionSet", "Malware", "ObservedData",
@@ -573,6 +576,66 @@ class OSINT(ODB):
 
         return
 
+    def start_twitter_monitor(self):
+        """
+        Start a thread to run the monitor
+        :return:
+        """
+        r = {}
+        user_monitor = [
+            "realDonaldTrump", "WhatsTrending", "BernieSanders", "PeteButtigieg", "benshapiro", "jeremycorbyn",
+            "CVEcommunity", "BBCWorld", "AJEnglish"
+        ]
+        locations_monitor = [{"lat": 48.83, "lon": 2.3}, {"lat": 40.254, "lon": -73.93}, {"lat": 51.441, "lon": -0.002}]
+        hashtags_monitor = ["bbc", "vulnerability", "MITRE"]
+        t = threading.Thread(
+            target=self.run_twitter_monitor,
+            kwargs={
+                "user_monitor": user_monitor,
+                "locations_monitor": locations_monitor,
+                "hashtags_monitor": hashtags_monitor
+            })
+        if self.monitors["twitter"] == False:
+            self.monitors["twitter"] = True
+            click.echo('[%s_OSINT_start_twitter_monitor] Turned on' % (get_datetime()))
+            t.start()
+            r["message"] = "Twitter monitor started"
+        else:
+            click.echo('[%s_OSINT_start_twitter_monitor] Turned off' % (get_datetime()))
+            r["message"] = "Twitter monitor stopped"
+            self.monitors["twitter"] = False
+
+
+        return r
+
+    def run_twitter_monitor(self, **kwargs):
+        """
+        The thread that runs until turned off. When started runs every 30 minutes.
+        The thread is stored in the self.monitors{twitter: var}. The thread can be turned off
+        by means of setting it to False.
+        :param kwargs:
+        :return:
+        """
+        minutes = 30
+        while self.monitors["twitter"]:
+            click.echo('[%s_OSINT_run_twitter_monitor] Getting users' % (get_datetime()))
+            for u in kwargs["user_monitor"]:
+                graphs, message = self.get_twitter(number_of_tweets=100, username=u)
+                for g in graphs:
+                    self.process_graph(g["graph"])
+            click.echo('[%s_OSINT_run_twitter_monitor] Getting locations' % (get_datetime()))
+            for l in kwargs["locations_monitor"]:
+                graphs, message = self.get_twitter(number_of_tweets=100, latitude=l["lat"], longitude=l["lon"])
+                for g in graphs:
+                    self.process_graph(g["graph"])
+            click.echo('[%s_OSINT_run_twitter_monitor] Getting hashtags' % (get_datetime()))
+            for l in kwargs["hashtags_monitor"]:
+                graphs, message = self.get_twitter(number_of_tweets=100, hashtag=l)
+                for g in graphs:
+                    self.process_graph(g["graph"])
+            click.echo('[%s_OSINT_run_twitter_monitor] Complete with requests. Sleeping for %d minutes' % (get_datetime(), minutes))
+            time.sleep(60 * minutes)
+
     def get_twitter(self, **kwargs):
         """
         Optional uses of the Twitter API as configured in the settings. Process the tweets into a graph and then a thread
@@ -659,6 +722,14 @@ class OSINT(ODB):
                 tweets = self.processTweets(tweets=tweets['statuses'])
                 graphs.append(tweets)
                 message += " %s resulted in %s, %d records" % (kwargs['latitude'], kwargs['latitude'], len(tweets['graph']['nodes']))
+
+        # TODO implement crawlers to get loads that don't break the API quota rules
+        if "popular" in kwargs.keys():
+            api_url = "https://api.twitter.com/1.1/trends/place.json?id=1&count=100"
+            response = requests.get(api_url, auth=oauth, verify=False)
+            tweets = self.responseHandler(response, "Popular, %s" % get_datetime())
+            tweets = self.processTweets(tweets=tweets)
+            graphs.append(tweets)
 
         return graphs, message
 
@@ -816,7 +887,8 @@ class OSINT(ODB):
                                 "icon": self.ICON_HASHTAG,
                                 "group": 4,
                                 "attributes": [
-                                    {"label": "Text", "value": ht['text']}
+                                    {"label": "Text", "value": ht['text']},
+                                    {"label": "description", "value": "Hashtag %s" % ht['text']}
                                 ]
                             })
                         graph['lines'].append(
@@ -837,11 +909,17 @@ class OSINT(ODB):
                                         "icon": self.ICON_LOCATION,
                                         "group": 3,
                                         "attributes": [
-                                            {"label": "Re-message", "value": t['place']['url']},
+                                            {"label": "Re_message", "value": t['place']['url']},
                                             {"label": "Country", "value": t['place']['country']},
                                             {"label": "Longitude", "value": t['place']['bounding_box']['coordinates'][0][0][0]},
                                             {"label": "Latitude", "value": t['place']['bounding_box']['coordinates'][0][0][1]},
                                             {"label": "Type", "value": t['place']['place_type']},
+                                            {"label": "description", "value": "%s %s %s,%s" % (
+                                                t['place']['country'],
+                                                t['place']['place_type'],
+                                                t['place']['bounding_box']['coordinates'][0][0][0],
+                                                t['place']['bounding_box']['coordinates'][0][0][1]
+                                            )}
                                         ]
                                     })
                                     geo.append({
@@ -852,7 +930,6 @@ class OSINT(ODB):
                                         "tooltip": t['place']['name']
                                     })
                                 graph['lines'].append({"from": twt_id, "to": loc_id, "description": "TweetedFrom"})
-
 
                     # Process the User by creating an entity. Then create a line from the User to the Tweet
                     user_id = "TWT_%s" % t['user']['id']
@@ -866,9 +943,9 @@ class OSINT(ODB):
                             "group": 1,
                             "icon": self.ICON_TWITTER_USER,
                             "attributes": [
-                                {"label": "Screen name", "value": t['user']['screen_name']},
+                                {"label": "Screen_name", "value": t['user']['screen_name']},
                                 {"label": "Created", "value": t['user']['created_at']},
-                                {"label": "Description", "value": t['user']['description']},
+                                {"label": "description", "value": t['user']['description']},
                                 {"label": "Favorite", "value": t['user']['favourites_count']},
                                 {"label": "Followers", "value": t['user']['followers_count']},
                                 {"label": "Friends", "value": t['user']['friends_count']},
@@ -895,8 +972,9 @@ class OSINT(ODB):
                         "attributes": [
                             {"label": "Created", "value": t['created_at']},
                             {"label": "Text", "value": t['text']},
+                            {"label": "description", "value": "%s tweeted %s" % (t['user']['name'], t['text'])},
                             {"label": "Language", "value": t['lang']},
-                            {"label": "Re-message", "value": t['retweet_count']},
+                            {"label": "Re_message", "value": t['retweet_count']},
                             {"label": "Favorite", "value": t['favorite_count']},
                             {"label": "URL", "value": t['source']},
                             {"label": "Geo", "value": t['coordinates']},
@@ -937,6 +1015,24 @@ class OSINT(ODB):
     def merge_osint(self, **kwargs):
         r = self.merge_nodes(node_A=kwargs['node_A'], node_B=kwargs['node_B'])
         return r
+
+    def process_graph(self, graph):
+        '''
+        :param graph: 
+        :return: 
+        '''
+        entityKeyMap = {}
+        odb_graph = {"nodes": [], "lines": []}
+        for n in graph["nodes"]:
+            new_node = self.create_node(**n)["data"]
+            entityKeyMap[n["key"]] = {"key": new_node["key"], "class": n["class_name"]}
+            odb_graph["nodes"].append(new_node)
+        for n in graph["lines"]:
+            fromClass = entityKeyMap[n["from"]]["class"]
+            toClass = entityKeyMap[n["to"]]["class"]
+            self.create_edge(edgeType=n["description"], fromNode=entityKeyMap[n["from"]]["key"],
+                             toNode=entityKeyMap[n["to"]]["key"], fromClass=fromClass, toClass=toClass)
+
 
     def cve(self):
         """

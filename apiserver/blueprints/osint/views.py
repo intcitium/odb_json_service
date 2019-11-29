@@ -159,3 +159,15 @@ def get_latest_cti():
         "message": "Database updated with latest CVE",
         "data": osintserver.run_otx()
     })
+
+@osint.route('/osint/start_twitter_monitor', methods=['GET'])
+def start_twitter_monitor():
+    '''
+    Base route for merging nodes
+    :return:
+    '''
+    r = osintserver.start_twitter_monitor()
+    return jsonify({
+        "status": 200,
+        "message": r["message"]
+    })
