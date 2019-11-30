@@ -42,7 +42,7 @@ class ODB:
         # Keeping the nodeKeys in this order assures that matches will be checked in the same consistent string
         self.nodeKeys = ['class_name', 'title', 'FirstName', 'LastName', 'Gender', 'DateOfBirth', 'PlaceOfBirth',
                     'Name', 'Owner', 'Classification', 'Category', 'Latitude', 'Longitude', 'description',
-                    'EndDate', 'StartDate', 'DateCreated', 'Ext_key']
+                    'EndDate', 'StartDate', 'DateCreated', 'Ext_key', 'category', 'pid', 'name', 'started']
         if not models:
             self.models = {
                 "Vertex": {
@@ -682,9 +682,13 @@ class ODB:
                 attributes = kwargs['attributes']
                 for a in kwargs['attributes']:
                     # Ensure the labels received don't break the sql
-                    for i in ["'", '"', "\\", "/", ",", ".", "-", "?", "%", "&", " "]:
+                    for i in ["'", '"', "\\", "/", ",", ".", "-", "?", "%", "&", " ", "\r", "\n", "\t"]:
                         a['label'] = a['label'].replace(i, "_")
-                    kwargs[a['label']] = a['value']
+                        newVal = change_if_number(a['value'])
+                        if newVal:
+                            kwargs[a['label']] = newVal
+                        else:
+                            kwargs[a['label']] = str(a['value']).replace("\r", "_")
                 kwargs.pop('attributes')
 
         # Check the Vertex Class
@@ -810,9 +814,10 @@ class ODB:
             if k in kwargs.keys():
                 if kwargs[k] != "":
                     # Remove commas since this will be a str treated as a list
-                    hash_str += clean_concat(str(kwargs[k]).replace(",", ""))
+                    hash_str = hash_str + k + str(kwargs[k])
+                    hash_str = clean_concat(hash_str).replace(",", "")
         # Change the str to a hash string value TODO: evaluate method for robustness in terms of unique values produced
-                hash_str = hashlib.md5(str(hash_str).encode()).hexdigest()
+        hash_str = hashlib.md5(str(hash_str).encode()).hexdigest()
         if hash_str in self.index['nodes'].keys():
             return self.index['nodes'][hash_str], True
         else:
