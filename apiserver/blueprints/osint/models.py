@@ -6,7 +6,7 @@ import time
 import threading
 from OTXv2 import OTXv2
 from apiserver.models import OSINTModel as Models
-from apiserver.utils import get_datetime, clean, change_if_date, TWITTER_AUTH
+from apiserver.utils import get_datetime, clean, change_if_date, TWITTER_AUTH, randomString
 from apiserver.blueprints.home.models import ODB
 from requests_oauthlib import OAuth1
 import urllib3
@@ -642,6 +642,62 @@ class OSINT(ODB):
 
         return r
 
+    def create_report(self, **kwargs):
+        """
+        Create a record of summary activity from an automated process such as a crawler
+        Store the record for later use including analysis of time stamps and production
+        :param kwargs:
+        :return:
+        """
+        pid = randomString(32)
+        self.create_node(
+            class_name="Process",
+            category="Report",
+            pid=pid,
+            name=kwargs["name"],
+            started=get_datetime(),
+            summary=kwargs["summary"]
+        )
+        return pid
+
+    def create_update(self, **kwargs):
+        """
+        Create a record that updates the report
+        :param kwargs:
+        :return:
+        """
+        update_key = self.create_node(
+            class_name="Process",
+            category="Update",
+            pid=kwargs['pid'],
+            name=kwargs["name"],
+            started=get_datetime(),
+            summary=kwargs["summary"]
+        )
+
+        self.client.command('''
+        create edge UpdateTo from 
+        (select from Process where key = %d) to 
+        (select from Process where pid = '%s' and category = "Report")
+        ''' % (update_key['data']['key'], kwargs['pid']))
+
+        return update_key
+
+    def update_report(self, **kwargs):
+        """
+        Using a new line for a summary report, update the report by its process pid
+
+        :param kwargs:
+        :return:
+        """
+        update_key = self.create_update(pid=kwargs['pid'], name=kwargs['name'], summary=kwargs['summary'])
+        if "ended" in kwargs.keys():
+            self.client.command('''
+            update Process set ended = '%s' where pid = '%s'
+            ''' % (get_datetime(), kwargs['pid']))
+
+        return update_key["data"]["key"]
+
     def start_twitter_monitor(self):
         """
         Start a thread to run the monitor
@@ -677,28 +733,32 @@ class OSINT(ODB):
         """
         The thread that runs until turned off. When started runs every 30 minutes.
         The thread is stored in the self.monitors{twitter: var}. The thread can be turned off
-        by means of setting it to False.
+        by means of setting it to False. TODO create a higher level process that is monitor and relate the others to it
         :param kwargs:
         :return:
         """
         minutes = 30
+        name = "Twitter"
         while self.monitors["twitter"]:
-            click.echo('[%s_OSINT_run_twitter_monitor] Getting users' % (get_datetime()))
+            pid = self.create_report(name=name, summary="Starting")
+            update_key = self.update_report(pid=pid, summary="Getting users", name=name)
             for u in kwargs["user_monitor"]:
                 graphs, message = self.get_twitter(number_of_tweets=100, username=u)
                 for g in graphs:
-                    self.process_graph(g["graph"])
-            click.echo('[%s_OSINT_run_twitter_monitor] Getting locations' % (get_datetime()))
+                    self.process_graph(graph=g["graph"], update_key=update_key)
+
+            update_key = self.update_report(pid=pid, summary="Getting locations", name=name)
             for l in kwargs["locations_monitor"]:
                 graphs, message = self.get_twitter(number_of_tweets=100, latitude=l["lat"], longitude=l["lon"])
                 for g in graphs:
-                    self.process_graph(g["graph"])
-            click.echo('[%s_OSINT_run_twitter_monitor] Getting hashtags' % (get_datetime()))
+                    self.process_graph(graph=g["graph"], update_key=update_key)
+            update_key = self.update_report(pid=pid, summary="Getting hashtags", name=name)
             for l in kwargs["hashtags_monitor"]:
                 graphs, message = self.get_twitter(number_of_tweets=100, hashtag=l)
                 for g in graphs:
-                    self.process_graph(g["graph"])
-            click.echo('[%s_OSINT_run_twitter_monitor] Complete with requests. Sleeping for %d minutes' % (get_datetime(), minutes))
+                    self.process_graph(graph=g["graph"], update_key=update_key)
+            self.update_report(ended=True, pid=pid,
+                               name=name, summary="Complete with requests. Sleeping for %d minutes" % minutes)
             time.sleep(60 * minutes)
 
     def get_twitter(self, **kwargs):
@@ -1081,18 +1141,22 @@ class OSINT(ODB):
         r = self.merge_nodes(node_A=kwargs['node_A'], node_B=kwargs['node_B'])
         return r
 
-    def process_graph(self, graph):
+    def process_graph(self, **kwargs):
         '''
         :param graph: 
         :return: 
         '''
         entityKeyMap = {}
         odb_graph = {"nodes": [], "lines": []}
-        for n in graph["nodes"]:
+        for n in kwargs["graph"]["nodes"]:
             new_node = self.create_node(**n)["data"]
+            # If the graph was created by an automated process, related the entities to the collection
+            if "update_key" in kwargs.keys():
+                self.create_edge(edgeType="CollectedFrom", fromNode=new_node["key"],
+                                 toNode=kwargs["update_key"], fromClass=n["class_name"], toClass="Process")
             entityKeyMap[n["key"]] = {"key": new_node["key"], "class": n["class_name"]}
             odb_graph["nodes"].append(new_node)
-        for n in graph["lines"]:
+        for n in kwargs["graph"]["lines"]:
             fromClass = entityKeyMap[n["from"]]["class"]
             toClass = entityKeyMap[n["to"]]["class"]
             self.create_edge(edgeType=n["description"], fromNode=entityKeyMap[n["from"]]["key"],
