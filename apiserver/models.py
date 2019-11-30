@@ -344,6 +344,15 @@ OSINTModel = {
                 "source": "string",
                 "type": "string",
                 "Ext_key": "string"
+            },
+            "Process": {
+                "class": "V",
+                "category": "string",
+                "name": "string",
+                "started": "datetime",
+                "pid": "string",
+                "ended": "datetime",
+                "summary": "string"
             }
         }
 

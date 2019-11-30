@@ -167,7 +167,7 @@ def change_if_date(date_string, fuzzy=False):
 
 def randomString(stringLength=15):
 
-    letters = string.ascii_lowercase + string.hexdigits + string.ascii_uppercase + '!@#$%^&*()_,.>,<'
+    letters = string.ascii_lowercase + string.hexdigits + string.ascii_uppercase
     return ''.join(random.choice(letters) for i in range(stringLength))
 
 
