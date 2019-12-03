@@ -205,10 +205,11 @@ def create_monitor():
 def get_user_monitor():
     r = get_request_payload(request)
     if r and 'userName' in r.keys():
-        message = osintserver.get_user_monitor(**r)
+        d = osintserver.get_user_monitor(**r)
         return jsonify({
             "status": 200,
-            "message": message
+            "message": d["message"],
+            "data": d["data"]
         })
     else:
         return jsonify({
