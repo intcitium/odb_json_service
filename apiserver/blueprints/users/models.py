@@ -1,61 +1,22 @@
 from apiserver.blueprints.home.models import ODB, get_datetime
+from apiserver.models import UserModel as Models
 from apiserver.utils import SECRET_KEY, SIGNATURE_EXPIRED, BLACK_LISTED, DB_ERROR, PROTECTED, change_if_date,\
     send_mail, HTTPS, randomString
 from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous import TimedJSONWebSignatureSerializer
 import click
 
+
 class userDB(ODB):
 
     def __init__(self, db_name="Users"):
-        ODB.__init__(self, db_name)
+        ODB.__init__(self, db_name, models=Models)
         self.db_name = db_name
         self.ICON_SESSION = "sap-icon://activities"
         self.ICON_POST = "sap-icon://post"
         self.ICON_USER = "sap-icon://customer"
         self.ICON_BLACKLIST = "sap-icon://cancel"
-        self.models = {
-            "User": {
-                "key": "integer",
-                "createDate": "datetime",
-                "userName": "string",
-                "passWord": "string",
-                "email": "string",
-                "icon": "string",
-                "confirmed": "boolean",
-                "class": "V"
-            },
-            "Message": {
-                "key": "integer",
-                "class": "V",
-                "text": "string",
-                "title": "string",
-                "tags": "string",
-                "sender": "string",
-                "receiver": "string",
-                "icon": "string",
-                "createDate": "datetime"
-            },
-            "Session": {
-                "key": "integer",
-                "user": "string",
-                "startDate": "datetime",
-                "endDate": "datetime",
-                "ipAddress": "string",
-                "token": "string",
-                "icon": "string",
-                "class": "V"
-            },
-            "Blacklist": {
-                "key": "integer",
-                "token": "string",
-                "user": "string",
-                "session": "string",
-                "createDate": "string",
-                "icon": "string",
-                "class": "V"
-            }
-        }
+        self.models = Models
 
     def check_standard_users(self):
         """
@@ -98,6 +59,23 @@ class userDB(ODB):
                 "confirmed": "true",
                 "icon": self.ICON_HUMINT
             })
+
+    def get_user_monitor(self, userName="SocAnalyst"):
+        """
+        Get the social media channels a user is current subscribed
+        :param userName:
+        :return:
+        """
+        sql = '''
+        match
+        {class:User, where: (userName = '%s')}.out("SubscribesTo")
+        {class:Monitor, as:s}.in("SearchesOn")
+        {class:Monitor, as:channel, where: (name = 'Twitter')}
+        return s.key, s.description, s.searchValue, s.type
+        ''' % userName
+
+
+        return
 
     def send_message(self, request):
         """

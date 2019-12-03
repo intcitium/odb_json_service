@@ -8,6 +8,7 @@ from OTXv2 import OTXv2
 from apiserver.models import OSINTModel as Models
 from apiserver.utils import get_datetime, clean, change_if_date, TWITTER_AUTH, randomString
 from apiserver.blueprints.home.models import ODB
+from apiserver.blueprints.users.models import ODB as uDB
 from requests_oauthlib import OAuth1
 import urllib3
 urllib3.disable_warnings()
@@ -624,6 +625,112 @@ class OSINT(ODB):
 
         return
 
+    def create_monitor(self, searchValue="vulnerability", userName="SocAnalyst", name="Twitter", type="Search", description="hashtag"):
+        '''
+
+        insert into Monitor (key, name, searchValue, type, user, description) values (sequence('idseq').next(), "Twitter", null, "Channel", "SocAnalyst", "Hashtags, User timelines, and location based search") return @this.key
+        insert into Monitor (key, name, searchValue, type, user, description) values (sequence('idseq').next(), "Twitter", "vulnerability", "Search", "SocAnalyst", "hashtag") return @this.key
+        insert into Monitor (key, name, searchValue, type, user, description) values (sequence('idseq').next(), "Twitter", "realDonaldTrump", "Search", "SocAnalyst", "user") return @this.key
+
+        :param kwargs:
+        :return:
+        '''
+        # Check if the user exists within OSINT
+        if len(self.client.command('''select key from User where userName = "%s"''' % userName)) == 0:
+            self.client.command('''
+            insert into User (key, userName) values (sequence('idseq').next(), "%s") return @this.key 
+            ''' % userName)
+
+        # Next check if the channel exists
+        message = "%s adding channel %s with search %s." % (userName, name, searchValue)
+        monitor_channel = self.client.command('''
+        select key from Monitor where type = 'Channel' and name = '%s'
+        ''' % (name))
+        if len(monitor_channel) > 0:
+            # Set the monitor channel key for relating to the searchTerm and user
+            monitor_channel = monitor_channel[0].oRecordData["key"]
+            # Check if the monitor is subscribed to be the user
+            sql = '''
+            match
+            {class:Monitor, as:m, where: (name = '%s' and type = 'Channel')}.in("SubscribesTo")
+            {class:User, as:u, where: (userName = '%s')}
+            return m
+            ''' % (name, userName)
+            if len(self.client.command(sql)) == 0:
+                message += "\n%s exists but user is now newly subscribed to it. " % name
+                self.client.command('''
+                create edge SubscribesTo from 
+                (select from User where userName = '%s') to 
+                (select from Monitor where key = %d )
+                ''' % (userName, monitor_channel))
+            else:
+                message += "\n%s exists and user already subscribed. " % name
+        else:
+            # The monitor channel needs to be created...
+            message += "\n%s doesn't exist so has been created with user subscribed. " % name
+            monitor_channel = self.create_node(
+                class_name="Monitor",
+                name=name,
+                searchValue=None,
+                type="Channel",
+                description=description
+            )["data"]["key"]
+            # ...and the user subscription to the monitor
+            self.client.command('''
+            create edge SubscribesTo from 
+            (select from User where userName = '%s') to 
+            (select from Monitor where key = %d )
+            ''' % (userName, monitor_channel))
+
+        # If the monitor is a search
+        if type == "Search":
+            # Check if it exists
+            monitor_search = self.client.command('''
+            select key from Monitor where name = "%s" and searchValue = "%s" and description = "%s"
+            ''' % (name, searchValue, description))
+            if len(monitor_search) == 0:
+                # If not create it and relate it to the channel
+                message += "\n%s doesn't exist so has been created with user subscribed. " % searchValue
+                monitor_search = self.create_node(
+                    class_name="Monitor",
+                    name=name,
+                    searchValue=searchValue,
+                    type="Search",
+                    description=description
+                )["data"]["key"]
+                # Relate to the channel
+                self.client.command('''
+                create edge SearchesOn from 
+                (select from Monitor where key = %d) to 
+                (select from Monitor where key = %d )
+                ''' % (monitor_channel, monitor_search))
+                # Make the user subscription relation
+                self.client.command('''
+                create edge SubscribesTo from 
+                (select from User where userName = '%s') to 
+                (select from Monitor where key = %d )
+                ''' % (userName, monitor_search))
+            else:
+                monitor_search = monitor_search[0].oRecordData["key"]
+                sql = '''
+                match
+                {class:Monitor, as:m, where: (key = %d and type = 'Search' and searchValue = '%s')}.in("SubscribesTo")
+                {class:User, as:u, where: (userName = '%s')}
+                return m
+                ''' % (monitor_search, searchValue, userName)
+                if len(self.client.command(sql)) == 0:
+                    message += "%s is now subscribed to %s. " % (userName, searchValue)
+                    # Make the user subscription relation
+                    self.client.command('''
+                    create edge SubscribesTo from 
+                    (select from User where userName = '%s') to 
+                    (select from Monitor where key = %d )
+                    ''' % (userName, monitor_search))
+                else:
+                    message += "%s is already subcribed to %s." % (userName, searchValue)
+
+        return message
+
     def start_merge_monitor(self):
         """
         Start a thread to run the monitor
@@ -698,18 +805,56 @@ class OSINT(ODB):
 
         return update_key["data"]["key"]
 
-    def start_twitter_monitor(self):
+    def get_user_monitor(self, userName="SocAnalyst"):
+        monitors = []
+        sql = '''
+        match
+        {class:User, where: (userName = '%s')}.out("SubscribesTo")
+        {class:Monitor, as:s}.in("SearchesOn")
+        return s.key as key, s.description as label, s.searchValue as value, s.name as source
+        ''' % (userName)
+        for i in self.client.command(sql):
+            monitors.append(i.oRecordData)
+        message = "Retrieved %s monitored terms for %s" % (len(monitors), userName)
+
+        return {"data": monitors, "message": message}
+
+    def start_twitter_monitor(self, user="SocAnalyst"):
         """
-        Start a thread to run the monitor
-        :return:
-        """
-        r = {}
+        Start a thread to run the monitor. Using the username, get all the channels they are subscribed to on Twitter
+        and start the monitor. SocAnalyst is standard user subscribed to all channels and can therefore be used for a
+        full monitor. For all others, the channels can be made customized and only the channels they search for are
+        returned.
+        Example monitors for twitter:
         user_monitor = [
             "realDonaldTrump", "WhatsTrending", "BernieSanders", "PeteButtigieg", "benshapiro", "jeremycorbyn",
             "CVEcommunity", "BBCWorld", "AJEnglish"
         ]
         locations_monitor = [{"lat": 48.83, "lon": 2.3}, {"lat": 40.254, "lon": -73.93}, {"lat": 51.441, "lon": -0.002}]
         hashtags_monitor = ["bbc", "vulnerability", "MITRE"]
+        :return:
+        """
+        # Get the user's monitors
+        sql = '''
+        match
+        {class:User, where: (userName = '%s')}.out("SubscribesTo")
+        {class:Monitor, as:s}.in("SearchesOn")
+        {class:Monitor, as:channel, where: (name = '%s')}
+        return s.key, s.description, s.searchValue, s.type
+        ''' % (user)
+        monitors = self.client.command(sql)
+        user_monitor = []
+        locations_monitor = []
+        hashtags_monitor = []
+        for m in monitors:
+            if m.oRecordData["s_description"] == "location":
+                locations_monitor.append(json.loads(m.oRecordData["s_searchValue"].replace("'", '"')))
+            elif m.oRecordData["s_description"] == "hashtag":
+                hashtags_monitor.append(m.oRecordData["s_searchValue"])
+            elif m.oRecordData["s_description"] == "user":
+                user_monitor.append(m.oRecordData["s_searchValue"])
+
+        r = {}
         t = threading.Thread(
             target=self.monitor_twitter,
             kwargs={

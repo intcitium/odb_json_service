@@ -183,3 +183,36 @@ def start_merge_monitor():
         "status": 200,
         "message": r["message"]
     })
+
+
+@osint.route('/osint/create_monitor', methods=['POST'])
+def create_monitor():
+    r = get_request_payload(request)
+    if r and 'userName' in r.keys():
+        message = osintserver.create_monitor(**r)
+        return jsonify({
+            "status": 200,
+            "message": message
+        })
+    else:
+        return jsonify({
+            "status": 200,
+            "message": "Failed to process request",
+            "data": None
+        })
+
+@osint.route('/osint/get_user_monitor', methods=['POST'])
+def get_user_monitor():
+    r = get_request_payload(request)
+    if r and 'userName' in r.keys():
+        message = osintserver.get_user_monitor(**r)
+        return jsonify({
+            "status": 200,
+            "message": message
+        })
+    else:
+        return jsonify({
+            "status": 200,
+            "message": "Failed to process request",
+            "data": None
+        })

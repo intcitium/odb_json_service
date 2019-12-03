@@ -5,7 +5,6 @@ import click
 import pandas as pd
 import numpy as np
 import os
-import decimal
 import time
 import operator
 import hashlib
@@ -42,7 +41,7 @@ class ODB:
         # Keeping the nodeKeys in this order assures that matches will be checked in the same consistent string
         self.nodeKeys = ['class_name', 'title', 'FirstName', 'LastName', 'Gender', 'DateOfBirth', 'PlaceOfBirth',
                     'Name', 'Owner', 'Classification', 'Category', 'Latitude', 'Longitude', 'description',
-                    'EndDate', 'StartDate', 'DateCreated', 'Ext_key', 'category', 'pid', 'name', 'started']
+                    'EndDate', 'StartDate', 'DateCreated', 'Ext_key', 'category', 'pid', 'name', 'started', 'searchValue']
         if not models:
             self.models = {
                 "Vertex": {
@@ -805,7 +804,7 @@ class ODB:
         the same format of previous nodes. If the node exists, return the key. Otherwise return None.
         self.nodeKeys = ['class_name', 'title', 'FirstName', 'LastName', 'Gender', 'DateOfBirth', 'PlaceOfBirth',
             'Name', 'Owner', 'Classification', 'Category', 'Latitude', 'Longitude', 'description',
-            'EndDate', 'StartDate', 'DateCreated', 'Ext_key']
+            'EndDate', 'StartDate', 'DateCreated', 'Ext_key', 'searchValue']
         :param kwargs:
         :return:
         """
