@@ -353,6 +353,20 @@ OSINTModel = {
                 "pid": "string",
                 "ended": "datetime",
                 "summary": "string"
+            },
+            "Monitor": {
+                "key": "integer",
+                "user": "string",
+                "name": "string",
+                "type": "string",
+                "searchValue": "string",
+                "description": "string",
+                "icon": "string",
+                "class": "V"
+            },
+            "User": {
+                "key": "integer",
+                "userName": "string"
             }
         }
 

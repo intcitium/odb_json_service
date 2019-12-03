@@ -229,6 +229,11 @@ def get_request_payload(request):
                 click.echo("Second error %s" % str(e))
 
     if len(r.keys()) == 1:
+        try:
+            json.dumps(r)
+            return r
+        except:
+            pass
         for i in r.keys():
             k = i
             click.echo("Received %s as key" % str(k))
