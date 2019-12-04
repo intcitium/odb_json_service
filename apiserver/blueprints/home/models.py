@@ -681,7 +681,7 @@ class ODB:
                 attributes = kwargs['attributes']
                 for a in kwargs['attributes']:
                     # Ensure the labels received don't break the sql
-                    for i in ["'", '"', "\\", "/", ",", ".", "-", "?", "%", "&", " ", "\r", "\n", "\t"]:
+                    for i in ["'", '"', "\\", "/", ",", ".", "-", "?", "%", "&", " ", "\r", "\n", "\t", " "]:
                         a['label'] = a['label'].replace(i, "_")
                         newVal = change_if_number(a['value'])
                         if newVal:
@@ -742,13 +742,13 @@ class ODB:
         for k in kwargs.keys():
             if list(kwargs.keys())[-1] == k:
                 # Close the labels and values with a ')'
-                labels = labels + ", {label})".format(label=k)
+                labels = labels + ", %s)" % k.replace(" ", "")
                 if change_if_number(kwargs[k]):
                     values = values + ", {value})".format(value=kwargs[k])
                 else:
                     values = values + ", '{value}')".format(value=clean(kwargs[k]))
             else:
-                labels = labels + ", {label}".format(label=k)
+                labels = labels + ", %s" % k.replace(" ", "")
                 if change_if_number(kwargs[k]):
                     values = values + ", {value}".format(value=kwargs[k])
                 else:
@@ -782,16 +782,9 @@ class ODB:
 
         except Exception as e:
             if str(type(e)) == str(type(e)) == "<class 'pyorient.exceptions.PyOrientORecordDuplicatedException'>":
-                if kwargs['title'] == "Case":
+                if kwargs['class_name'] == "Case":
                     node = self.get_node(val=kwargs['Name'], var="Name", class_name="Case")
-                    return {"data" : self.format_node(
-                        key=node['key'],
-                        icon=node['icon'],
-                        status=node['status'],
-                        title=node['title'],
-                        class_name=node['class_name'],
-                        attributes=attributes
-                    )}
+                    return {"data" :{"key": node['key']}}
             message = '[%s_%s_create_node] ERROR %s\n%s' % (get_datetime(), self.db_name, str(e), sql)
             click.echo(message)
             return message
@@ -1310,6 +1303,7 @@ class ODB:
                 current_nodes.append(k.oRecordData['e_key'])
         # SAVE CASE if it was not found
         else:
+            fGraph = json.loads(fGraph["graphCase"])
             message = "Saved %s" % kwargs['graphName']
             case = self.create_node(
                 class_name="Case",
