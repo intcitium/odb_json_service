@@ -1232,6 +1232,7 @@ class ODB:
         """
         # The graph being saved
         fGraph = kwargs['graphCase']
+        click.echo(fGraph)
         if "groups" in fGraph.keys():
             groups = fGraph['groups']
         else:
