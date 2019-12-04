@@ -266,7 +266,7 @@ class userDB(ODB):
                 role = "Owner"
             # If linked then add the case with the role
             if role:
-                cases['data'].append({
+                caseNode = ({
                     "key": c['key'],
                     "Name": c['Name'],
                     "CreatedBy": c['CreatedBy'],
@@ -281,6 +281,78 @@ class userDB(ODB):
                     cases['Unclassified']+=1
                 elif c['Classification'] == "Confidential":
                     cases['Confidential']+=1
+            # Get the graph associated with the case
+            else:
+                caseNode = None
+            case_graph = {
+                "case": caseNode,
+                "nodes": [],
+                "lines": [],
+                "groups": [],
+                "index": []
+            }
+            # First query gets relationships and the nodes on the end points of those rels ONLY
+            sql = '''
+            match 
+            {class: Case, as: c, where: (key = %s)}.out("Attached")
+            {class: V, as: o}.outE()
+            {class: E, as: o2n}.inV()
+            {class: V, as: n}
+            return o.key, o.class_name, o.title, o.icon,
+            o2n.@class, n.key, n.class_name, n.title, n.icon
+            ''' % c['key']
+            r = osintserver.client.command(sql)
+            # Fill the graph with the first batch of nodes and their edges
+            for i in r:
+                if i.oRecordData["o_key"] not in case_graph["index"]:
+                    case_graph["index"].append(i.oRecordData["o_key"])
+                    case_graph["nodes"].append({
+                        "key": i.oRecordData["o_key"],
+                        "icon": i.oRecordData["o_icon"],
+                        "title": i.oRecordData["o_title"],
+                        "group": i.oRecordData["o_class_name"]
+                    })
+                if i.oRecordData["n_key"] not in case_graph["index"]:
+                    case_graph["index"].append(i.oRecordData["n_key"])
+                    case_graph["nodes"].append({
+                        "key": i.oRecordData["n_key"],
+                        "icon": i.oRecordData["n_icon"],
+                        "title": i.oRecordData["n_title"],
+                        "group": i.oRecordData["n_class_name"]
+                    })
+                if i.oRecordData["n_class_name"] not in case_graph["index"]:
+                    case_graph["index"].append(i.oRecordData["n_class_name"])
+                    case_graph["groups"].append({
+                        "key": i.oRecordData["n_class_name"],
+                        "title": i.oRecordData["n_class_name"]
+                    })
+                line = "%s%s%s" % (i.oRecordData["n_key"], i.oRecordData["o_key"], i.oRecordData["o2n_@class"])
+                if line not in case_graph["index"]:
+                    case_graph["index"].append(line)
+                    case_graph["lines"].append({
+                        "to": i.oRecordData["n_key"],
+                        "from": i.oRecordData["o_key"],
+                        "description": i.oRecordData["o2n_@class"],
+                    })
+            # Get the rest of the nodes that are attached but don't have relations to others in the case
+            sql = '''
+            match 
+            {class: Case, as: c, where: (key = %s)}.out("Attached")
+            {class: V, as: o}
+            return o.key, o.class_name, o.title, o.icon
+            ''' % c['key']
+            r = osintserver.client.command(sql)
+            for i in r:
+                if i.oRecordData["o_key"] not in case_graph["index"]:
+                    case_graph["index"].append(i.oRecordData["o_key"])
+                    case_graph["nodes"].append({
+                        "key": i.oRecordData["o_key"],
+                        "icon": i.oRecordData["o_icon"],
+                        "title": i.oRecordData["o_title"],
+                        "group": i.oRecordData["o_class_name"]
+                    })
+            cases["data"].append(case_graph)
+
         if len(cases['data']) == 1:
             c_count = "case"
         else:
