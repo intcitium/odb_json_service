@@ -848,7 +848,11 @@ class OSINT(ODB):
         hashtags_monitor = []
         for m in monitors:
             if m.oRecordData["s_description"] == "location":
-                locations_monitor.append(json.loads(m.oRecordData["s_searchValue"].replace("'", '"')))
+                try:
+                    locations_monitor.append(json.loads(m.oRecordData["s_searchValue"].replace("'", '"')))
+                except:
+                    click.echo('[%s_OSINT_start_twitter_monitor] Error with location %s' % (
+                        get_datetime(), m.oRecordData["s_searchValue"]))
             elif m.oRecordData["s_description"] == "hashtag":
                 hashtags_monitor.append(m.oRecordData["s_searchValue"])
             elif m.oRecordData["s_description"] == "user":
