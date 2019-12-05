@@ -839,7 +839,7 @@ class OSINT(ODB):
         match
         {class:User, where: (userName = '%s')}.out("SubscribesTo")
         {class:Monitor, as:s}.in("SearchesOn")
-        {class:Monitor, as:channel, where: (name = '%s')}
+        {class:Monitor, as:channel, where: (name = 'Twitter')}
         return s.key, s.description, s.searchValue, s.type
         ''' % (user)
         monitors = self.client.command(sql)
