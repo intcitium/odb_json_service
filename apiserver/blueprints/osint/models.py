@@ -8,7 +8,7 @@ from OTXv2 import OTXv2
 from apiserver.models import OSINTModel as Models
 from apiserver.utils import get_datetime, clean, change_if_date, TWITTER_AUTH, randomString
 from apiserver.blueprints.home.models import ODB
-from apiserver.blueprints.users.models import ODB as uDB
+from apiserver.blueprints.osint.geo import get_location
 from requests_oauthlib import OAuth1
 import urllib3
 urllib3.disable_warnings()
@@ -49,6 +49,7 @@ class OSINT(ODB):
         self.cve = ["AttackPattern", "Campaign", "CourseOfAction", "Identity",
                     "Indicator", "IntrusionSet", "Malware", "ObservedData",
                     "Report", "Sighting", "ThreatActor", "Tool", "Vulnerability"]
+
 
     @staticmethod
     def ucdp_conflict_type(row):
@@ -958,10 +959,10 @@ class OSINT(ODB):
                         "nodes": [],
                         "lines": [],
                         "groups": [
-                            {"key": 1, "title": "Profiles"},
-                            {"key": 2, "title": "Posts"},
-                            {"key": 3, "title": "Locations"},
-                            {"key": 4, "title": "Hashtags"}
+                            {"key": "Profiles", "title": "Profiles"},
+                            {"key": "Posts", "title": "Posts"},
+                            {"key": "Locations", "title": "Locations"},
+                            {"key": "Hashtags", "title": "Hashtags"}
                     ]})
 
         if "hashtag" in kwargs.keys():
@@ -1270,12 +1271,28 @@ class OSINT(ODB):
                             ]
                         }
                         graph['nodes'].append(node)
+                        # Check if there is a location
+                        Location = None
+                        if t["user"]["location"] != "":
+                            Location = get_location(t["user"]["location"], self)
+                            if Location:
+                                graph['lines'].append(
+                                    {"from": user_id, "to": Location["key"], "description": "LocatedAt"}
+                                )
+                                if Location["key"] not in index:
+                                    index.append(Location["key"])
                         if "PROCESS" in kwargs.keys():
                             USR_NODE = self.create_node(**node)
                             self.create_edge(toClass="Event", fromClass=node["class_name"],
                                              edgeType="Tweeted",
                                              toNode=TWT_NODE["data"]["key"],
                                              fromNode=USR_NODE["data"]["key"])
+                            if Location:
+                                self.create_edge(
+                                    fromClass="Object", fromNode=USR_NODE["data"]["key"], edgeType="LocatedAt",
+                                    toClass="Location", toNode=Location["key"]
+                                )
+
                     graph['lines'].append(
                         {"from": user_id, "to": twt_id, "description": "Tweeted"}
                     )
