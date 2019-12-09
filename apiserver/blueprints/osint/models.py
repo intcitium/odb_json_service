@@ -1140,6 +1140,7 @@ class OSINT(ODB):
         if "tweets" in kwargs.keys():
             for t in kwargs['tweets']:
                 twt_id = "TWT_%s" % t['id']
+                hash_tags_str = ""
                 if twt_id not in index:
                     index.append(twt_id)
                     node = {
@@ -1165,7 +1166,7 @@ class OSINT(ODB):
                     graph['nodes'].append(node)
                     if "PROCESS" in kwargs.keys():
                         TWT_NODE = self.create_node(**node)
-                    hash_tags_str = ""
+
                     ht_count = 0
                     # Process Hashtags by creating a string and an entity. Then create a line to the HT from the Tweet
                     for ht in t['entities']['hashtags']:
