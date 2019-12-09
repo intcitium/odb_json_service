@@ -51,6 +51,16 @@ def twitter():
         "data": results
     })
 
+@osint.route('/osint/twitter/associates', methods=['GET'])
+def get_associates():
+
+    results = osintserver.get_associates(**(get_request_payload(request)))
+    return jsonify({
+        "status": 200,
+        "message": results["message"],
+        "data": results["data"]
+    })
+
 
 @osint.route('/osint/geo_spatial_view', methods=['GET'])
 def geo_spatial_view():

@@ -1129,15 +1129,15 @@ class OSINT(ODB):
             "nodes": [],
             "lines": [],
             "groups": [
-                {"key": 1, "title": "Profiles"},
-                {"key": 2, "title": "Posts"},
-                {"key": 3, "title": "Locations"},
-                {"key": 4, "title": "Hashtags"}
+                {"key": "Profiles", "title": "Profiles"},
+                {"key": "Posts", "title": "Posts"},
+                {"key": "Locations", "title": "Locations"},
+                {"key": "Hashtags", "title": "Hashtags"}
             ]
         }
         geo = []
         index = []
-        if kwargs['tweets']:
+        if "tweets" in kwargs.keys():
             for t in kwargs['tweets']:
                 twt_id = "TWT_%s" % t['id']
                 if twt_id not in index:
@@ -1177,11 +1177,11 @@ class OSINT(ODB):
                                     index.append(loc_id)
                                     graph['nodes'].append({
                                         "key": loc_id,
-                                        "class_name": "Location",
+                                        "class_name": "Locations",
                                         "title": t['place']['name'],
                                         "status": random.choice(self.ICON_STATUSES),
                                         "icon": self.ICON_LOCATION,
-                                        "group": 3,
+                                        "group": "Locations",
                                         "attributes": [
                                             {"label": "Re_message", "value": t['place']['url']},
                                             {"label": "Country", "value": t['place']['country']},
@@ -1214,7 +1214,7 @@ class OSINT(ODB):
                             "class_name": "Object",
                             "title": t['user']['name'],
                             "status": "Alert",
-                            "group": 1,
+                            "group": "Profiles",
                             "icon": self.ICON_TWITTER_USER,
                             "attributes": [
                                 {"label": "Screen_name", "value": t['user']['screen_name']},
@@ -1242,7 +1242,7 @@ class OSINT(ODB):
                         "title": "Tweet from " + t['user']['name'],
                         "status": random.choice(self.ICON_STATUSES),
                         "icon": self.ICON_TWEET,
-                        "group": 2,
+                        "group": "Posts",
                         "attributes": [
                             {"label": "Created", "value": t['created_at']},
                             {"label": "Text", "value": t['text']},
@@ -1257,6 +1257,35 @@ class OSINT(ODB):
                         ]
                     })
 
+        elif "user" in kwargs.keys():
+            user_id = kwargs['user']['id']
+            if user_id not in index:
+                index.append(user_id)
+                node = ({
+                    "key": user_id,
+                    "class_name": "Object",
+                    "title": kwargs['user']['name'],
+                    "status": "Alert",
+                    "group": "Profiles",
+                    "icon": self.ICON_TWITTER_USER,
+                    "attributes": [
+                        {"label": "Screen_name", "value": kwargs['user']['screen_name']},
+                        {"label": "Created", "value": kwargs['user']['created_at']},
+                        {"label": "description", "value": kwargs['user']['description']},
+                        {"label": "Favorite", "value": kwargs['user']['favourites_count']},
+                        {"label": "Followers", "value": kwargs['user']['followers_count']},
+                        {"label": "Friends", "value": kwargs['user']['friends_count']},
+                        {"label": "Following", "value": kwargs['user']['following']},
+                        {"label": "listed_count", "value": kwargs['user']['listed_count']},
+                        {"label": "statuses_count", "value": kwargs['user']['statuses_count']},
+                        {"label": "Geo", "value": kwargs['user']['geo_enabled']},
+                        {"label": "Location", "value": kwargs['user']['location']},
+                        {"label": "Image", "value": kwargs['user']['profile_image_url_https']},
+                        {"label": "Verified", "value": kwargs['user']['verified']},
+                        {"label": "Source", "value": "Twitter"}
+                    ]
+                })
+            return node
         data = {
             "graph": graph,
             "geo": {
@@ -1311,6 +1340,106 @@ class OSINT(ODB):
             self.create_edge(edgeType=n["description"], fromNode=entityKeyMap[n["from"]]["key"],
                              toNode=entityKeyMap[n["to"]]["key"], fromClass=fromClass, toClass=toClass)
 
+    def getEntityData(self, user_ids, sourceID, reltype, username, graph):
+        """
+        Call the
+        :param user_ids:
+        :param sourceID:
+        :param sourcename:
+        :param reltype:
+        :param username:
+        :return:
+        """
+        client_key = self.TWITTER_AUTH['client_key']
+        client_secret = self.TWITTER_AUTH['client_secret']
+        token = self.TWITTER_AUTH['token']
+        token_secret = self.TWITTER_AUTH['token_secret']
+        oauth = OAuth1(client_key, client_secret, token, token_secret)
+        i = 0
+        # Set the url and build it from the names until 100 as a fail safe
+        api_url = "https://api.twitter.com/1.1/users/lookup.json?user_id="
+        while i < len(user_ids) and i < 100:
+            api_url += ",%s" % user_ids[i]
+            i+=1
+        response = requests.get(api_url, auth=oauth, verify=False)
+        users = self.responseHandler(response, username)
+        if users == None:
+            print("[*] No users in list.")
+            return
+
+        for user in users:
+            graph["nodes"].append(self.processTweets(user=user))
+            # Create the node in the database
+            graph["lines"].append({
+                "to": graph["nodes"][len(graph["nodes"])-1]["key"],
+                "from": sourceID,
+                "description": reltype
+            })
+            #self.create_edge(fromClass="Object", toClass="Object", fromNode=sourceID, toNode=O_GUID, edgeType=reltype)
+
+        return graph
+
+    def sendRequest(self, username, reltype, next_cursor=None):
+
+        client_key = self.TWITTER_AUTH['client_key']
+        client_secret = self.TWITTER_AUTH['client_secret']
+        token = self.TWITTER_AUTH['token']
+        token_secret = self.TWITTER_AUTH['token_secret']
+        oauth = OAuth1(client_key, client_secret, token, token_secret)
+
+        url = "https://api.twitter.com/1.1/%s/ids.json?username,=%s&count=5000" % (reltype, username)
+        if next_cursor is not None:
+            url += "&cursor=%s" % next_cursor
+        response = requests.get(url, auth=oauth, verify=False)
+        return self.responseHandler(response, username)
+
+    def get_associates(self, username=None):
+        """
+        Get the friends and followers of a username
+        Store the two types of relationships as associates' IDS which can then be looked up in bulk of 100
+        User 2 internal functions to process the URL instead of 2 steps each time
+
+        :param username:
+        :return:
+        """
+        # Set up the API call
+        graph = {
+            "nodes": [],
+            "lines": []
+        }
+
+        associate_list = []
+        if username:
+            userKey = self.client.command('''select key from Object where Screen_name = '%s' '''
+                                          % username)[0].oRecordData["key"]
+
+            for r in ["friends", "following"]:
+                associates = self.sendRequest(username, r, None)
+                if associates is not None:
+                    associate_list.extend(associates["ids"])
+                    # while we have a cursor keep downloading friends/followers
+                    while associates["next_cursor"] != 0 and associates["next_cursor"] != -1:
+                        associates = self.sendRequest(username, r, associates["next_cursor"])
+                        if associates is not None:
+                            associate_list.extend(associates["ids"])
+                        else:
+                            break
+                # Break down the associate list into groups of 100 to submit to UserInfo
+                i = 0
+                user_ids = []
+                for user_id in associate_list:
+                    user_ids.append(user_id)
+                    if len(user_ids) == 100:
+                        print("[*] 100 %s limit for entity. Request to Twitter." % r)
+                        graph = self.getEntityData(user_ids, userKey, r, username, graph)
+                        i = 0
+                        del user_ids[:]
+                    if i == len(associate_list) - 1:
+                        print("[*] %d %s for entity info. Request to Twitter." % (len(user_ids), r))
+                        graph = self.getEntityData(user_ids, userKey, r, username, graph)
+                    i += 1
+
+        return {"data": graph, "message": "Retrieved %d associates" % len(graph["nodes"])}
 
     def cve(self):
         """
