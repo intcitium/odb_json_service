@@ -1142,6 +1142,29 @@ class OSINT(ODB):
                 twt_id = "TWT_%s" % t['id']
                 if twt_id not in index:
                     index.append(twt_id)
+                    node = {
+                        "key": twt_id,
+                        "class_name": "Event",
+                        "title": "Tweet from " + t['user']['name'],
+                        "status": random.choice(self.ICON_STATUSES),
+                        "icon": self.ICON_TWEET,
+                        "group": "Posts",
+                        "attributes": [
+                            {"label": "Created", "value": t['created_at']},
+                            {"label": "Text", "value": t['text']},
+                            {"label": "description", "value": "%s tweeted %s" % (t['user']['name'], t['text'])},
+                            {"label": "Language", "value": t['lang']},
+                            {"label": "Re_message", "value": t['retweet_count']},
+                            {"label": "Favorite", "value": t['favorite_count']},
+                            {"label": "URL", "value": t['source']},
+                            {"label": "Geo", "value": t['coordinates']},
+                            {"label": "Hashtags", "value": hash_tags_str},
+                            {"label": "User", "value": t['user']['screen_name']},
+                        ]
+                    }
+                    graph['nodes'].append(node)
+                    if "PROCESS" in kwargs.keys():
+                        TWT_NODE = self.create_node(**node)
                     hash_tags_str = ""
                     ht_count = 0
                     # Process Hashtags by creating a string and an entity. Then create a line to the HT from the Tweet
@@ -1154,7 +1177,7 @@ class OSINT(ODB):
                         ht_id = "%s_hashtag_id" % ht['text']
                         if ht_id not in index:
                             index.append(ht_id)
-                            graph['nodes'].append({
+                            node = {
                                 "key": ht_id,
                                 "class_name": "Object",
                                 "title": "#%s" % ht['text'],
@@ -1164,7 +1187,12 @@ class OSINT(ODB):
                                     {"label": "Text", "value": ht['text']},
                                     {"label": "description", "value": "Hashtag %s" % ht['text']}
                                 ]
-                            })
+                            }
+                            graph['nodes'].append(node)
+                            if "PROCESS" in kwargs.keys():
+                                HT_NODE = self.create_node(**node)
+                                self.create_edge(toClass=node["class_name"], fromClass="Event", edgeType="Included",
+                                                 toNode=HT_NODE["data"]["key"], fromNode=TWT_NODE["data"]["key"])
                         graph['lines'].append(
                             {"to": ht_id, "from": twt_id, "description": "Included"}
                         )
@@ -1175,7 +1203,7 @@ class OSINT(ODB):
                                 loc_id = "TWT_Place_%s" % t['place']['id']
                                 if loc_id not in index:
                                     index.append(loc_id)
-                                    graph['nodes'].append({
+                                    node = {
                                         "key": loc_id,
                                         "class_name": "Locations",
                                         "title": t['place']['name'],
@@ -1195,7 +1223,14 @@ class OSINT(ODB):
                                                 t['place']['bounding_box']['coordinates'][0][0][1]
                                             )}
                                         ]
-                                    })
+                                    }
+                                    graph['nodes'].append(node)
+                                    if "PROCESS" in kwargs.keys():
+                                        LOC_NODE = self.create_node(**node)
+                                        self.create_edge(toClass=node["class_name"], fromClass="Event",
+                                                         edgeType="TweetedFrom",
+                                                         toNode=LOC_NODE["data"]["key"],
+                                                         fromNode=TWT_NODE["data"]["key"])
                                     geo.append({
                                         "pos": "%f;%f:0" % (
                                             t['place']['bounding_box']['coordinates'][0][0][0],
@@ -1209,7 +1244,7 @@ class OSINT(ODB):
                     user_id = "TWT_%s" % t['user']['id']
                     if user_id not in index:
                         index.append(user_id)
-                        graph['nodes'].append({
+                        node = {
                             "key": user_id,
                             "class_name": "Object",
                             "title": t['user']['name'],
@@ -1232,30 +1267,18 @@ class OSINT(ODB):
                                 {"label": "Verified", "value": t['user']['verified']},
                                 {"label": "Source", "value": "Twitter"}
                             ]
-                        })
+                        }
+                        graph['nodes'].append(node)
+                        if "PROCESS" in kwargs.keys():
+                            USR_NODE = self.create_node(**node)
+                            self.create_edge(toClass="Event", fromClass=node["class_name"],
+                                             edgeType="Tweeted",
+                                             toNode=TWT_NODE["data"]["key"],
+                                             fromNode=USR_NODE["data"]["key"])
                     graph['lines'].append(
                         {"from": user_id, "to": twt_id, "description": "Tweeted"}
                     )
-                    graph['nodes'].append({
-                        "key": twt_id,
-                        "class_name": "Event",
-                        "title": "Tweet from " + t['user']['name'],
-                        "status": random.choice(self.ICON_STATUSES),
-                        "icon": self.ICON_TWEET,
-                        "group": "Posts",
-                        "attributes": [
-                            {"label": "Created", "value": t['created_at']},
-                            {"label": "Text", "value": t['text']},
-                            {"label": "description", "value": "%s tweeted %s" % (t['user']['name'], t['text'])},
-                            {"label": "Language", "value": t['lang']},
-                            {"label": "Re_message", "value": t['retweet_count']},
-                            {"label": "Favorite", "value": t['favorite_count']},
-                            {"label": "URL", "value": t['source']},
-                            {"label": "Geo", "value": t['coordinates']},
-                            {"label": "Hashtags", "value": hash_tags_str},
-                            {"label": "User", "value": t['user']['screen_name']},
-                        ]
-                    })
+
 
         elif "user" in kwargs.keys():
             user_id = kwargs['user']['id']
@@ -1285,6 +1308,8 @@ class OSINT(ODB):
                         {"label": "Source", "value": "Twitter"}
                     ]
                 })
+                if "PROCESS" in kwargs.keys():
+                    self.create_node(**node)
             return node
         data = {
             "graph": graph,
@@ -1307,7 +1332,9 @@ class OSINT(ODB):
             return tweets
 
         if response.status_code == 429:
-            return "[!] <429> Too many requests to Twitter. Sleep for 15 minutes started at: %s" % get_datetime()
+            click.echo("[!] <429> Too many requests to Twitter. Sleep for 15 minutes started at: %s" % get_datetime())
+            time.sleep(60*15)
+            return
 
         if response.status_code == 503:
             return "[!] <503> The Twitter servers are up, but overloaded with requests. Try again later: %s" % get_datetime()
@@ -1413,7 +1440,7 @@ class OSINT(ODB):
             userKey = self.client.command('''select key from Object where Screen_name = '%s' '''
                                           % username)[0].oRecordData["key"]
 
-            for r in ["friends", "followers"]:
+            for r in ["friends"]:
                 associates = self.sendRequest(username, r, None)
                 if associates is not None:
                     associate_list.extend(associates["ids"])
