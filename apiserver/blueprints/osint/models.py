@@ -1386,7 +1386,7 @@ class OSINT(ODB):
         token = self.TWITTER_AUTH['token']
         token_secret = self.TWITTER_AUTH['token_secret']
         oauth = OAuth1(client_key, client_secret, token, token_secret)
-        url = "https://api.twitter.com/1.1/%s/ids.json?username=%s&count=5000" % (reltype, username)
+        url = "https://api.twitter.com/1.1/%s/ids.json?screen_name=%s&count=5000" % (reltype, username)
         if next_cursor is not None:
             url += "&cursor=%s" % next_cursor
         click.echo('[%s_OSINT_sendRequest] %s' % (get_datetime(), url))
