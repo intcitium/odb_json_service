@@ -1386,12 +1386,10 @@ class OSINT(ODB):
         token = self.TWITTER_AUTH['token']
         token_secret = self.TWITTER_AUTH['token_secret']
         oauth = OAuth1(client_key, client_secret, token, token_secret)
-
         url = "https://api.twitter.com/1.1/%s/ids.json?username=%s&count=5000" % (reltype, username)
-        click.echo('[%s_OSINT_sendRequest] %s' % (get_datetime(), url))
-
         if next_cursor is not None:
             url += "&cursor=%s" % next_cursor
+        click.echo('[%s_OSINT_sendRequest] %s' % (get_datetime(), url))
         response = requests.get(url, auth=oauth, verify=False)
         return self.responseHandler(response, username)
 
@@ -1415,7 +1413,7 @@ class OSINT(ODB):
             userKey = self.client.command('''select key from Object where Screen_name = '%s' '''
                                           % username)[0].oRecordData["key"]
 
-            for r in ["friends", "following"]:
+            for r in ["friends", "followers"]:
                 associates = self.sendRequest(username, r, None)
                 if associates is not None:
                     associate_list.extend(associates["ids"])
