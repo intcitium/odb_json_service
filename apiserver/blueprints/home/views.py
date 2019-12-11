@@ -103,3 +103,11 @@ def refresh_hier():
         "status": 200,
         "data": graph
     })
+
+@home.route('/get_eppm', methods=['GET'])
+def get_eppm():
+    graph = odbserver.get_eppm()
+    return jsonify({
+        "status": 200,
+        "data": graph
+    })

@@ -8,7 +8,8 @@ import os
 import time
 import operator
 import hashlib
-from apiserver.utils import get_datetime, HOST_IP, change_if_number, clean, clean_concat
+from apiserver.utils import get_datetime, HOST_IP, change_if_number, clean,\
+    clean_concat, change_if_date, date_to_standard_string
 
 
 class ODB:
@@ -134,13 +135,15 @@ class ODB:
         if check["score"] > .9999:
             click.echo(check["name"])
             click.echo(self.maps[check["name"]])
+            '''
             data = self.graph_etl_model({
                 "Name": check["name"],
                 "Entities": self.maps[check["name"]]["model"]["Entities"],
                 "Relations": self.maps[check["name"]]["model"]["Relations"],
             }, file)
+            '''
             if check["name"] == 'eppm':
-                data = self.graph_eppm(file)
+                data = self.graph_eppm_nodes(file)
             return {
                 "data": data,
                 "ftype": check,
@@ -167,7 +170,8 @@ class ODB:
                     "message": message
             }
         elif check["score"] == 0:
-            data = self.graph_hier(file)
+            data = self.graph_eppm_lines(file)
+            #data = self.graph_hier(file)
             return data
         else:
             return {
@@ -256,14 +260,12 @@ class ODB:
                     rowConfig[entity] = exEntityKey
                 # Use the entity names that are saved into the relation to and from to assign the row config entity key
                 for line in model["Relations"]:
-                    if({"to": rowConfig[model["Relations"][line]["to"]],
-                        "from": rowConfig[model["Relations"][line]["from"]],
-                        "description": line }) not in graph["lines"]:
-                            graph["lines"].append({
-                                "to": rowConfig[model["Relations"][line]["to"]],
-                                "from": rowConfig[model["Relations"][line]["from"]],
-                                "description": line,
-                            })
+                    if({"to": rowConfig[model["Relations"][line]["to"]], "from": rowConfig[model["Relations"][line]["from"]], "description": line }) not in graph["lines"]:
+                        graph["lines"].append({
+                            "to": rowConfig[model["Relations"][line]["to"]],
+                            "from": rowConfig[model["Relations"][line]["from"]],
+                            "description": line,
+                        })
 
         return graph
 
@@ -294,6 +296,121 @@ class ODB:
 
         return n_dict, r
 
+    '''
+    EPPM Specific functions for Demo data. To be removed and put into a separate function file within the blueprints
+    '''
+
+    def graph_eppm_nodes(self, data):
+        print( '[%s_graph_eppm] Starting' % (get_datetime()))
+        r = {
+            "nodes": [],
+            "lines": [],
+            "groups": [
+                {"key": "Portfolio", "title": "Portfolio"},
+                {"key": "CRPS", "title": "Cross Product Services"},
+                {"key": "HIER", "title": "Hierarchy"},
+                {"key": "CRDS", "title": "Cross Category"},
+                {"key": "RSCH", "title": "Research"},
+                {"key": "LOGP", "title": "Products"},
+                {"key": "Initiative", "title": "Initiative"},
+            ],
+
+            "index": []
+        }
+        data = data.fillna("<Null>")
+        for index, row in data.iterrows():
+            node = {
+                "key": None,
+                "icon": None,
+                "group": None,
+                "title": None,
+                "status": None,
+                "attributes": []}
+            for k in row.keys():
+                if row[k] != "<Null>":
+                    if "datetime" in str(type(row[k])):
+                        rowk = date_to_standard_string(row[k])
+                    else:
+                        rowk = row[k]
+                    if k == "NODE_ATTR_GUID":
+                        node["key"] = rowk
+                        node["attributes"].append({
+                            "label": "EXT_KEY", "value": rowk
+                        })
+                    elif k == "NODE_NAME":
+                        node["title"] = rowk
+                    else:
+                        node["attributes"].append(
+                            {"label": k, "value": rowk}
+                        )
+                    if r == "PPORATYPE":
+                        node["group"] = rowk
+                        try:
+                            if rowk.replace(" ", "") == "CRDS":
+                                node["icon"] = "sap-icon://opportunity"
+                            elif rowk.replace(" ", "")  == "CrossCat.DEV&S":
+                                node["icon"] = "sap-icon://business-by-design"
+                            elif rowk.replace(" ", "") == "CRPS":
+                                node["icon"] = "sap-icon://manager-insight"
+                            elif rowk.replace(" ", "")  == "Development":
+                                node["icon"] = "sap-icon://source-code"
+                            elif rowk.replace(" ", "")  == "HIER":
+                                node["icon"] = "sap-icon://org-chart"
+                            elif rowk.replace(" ", "")  == "IPO":
+                                node["icon"] = "sap-icon://business-objects-experience"
+                            elif rowk.replace(" ", "")  == "LOB":
+                                node["icon"] = "sap-icon://building"
+                            elif rowk.replace(" ", "")  == "LOGP":
+                                node["icon"] = "sap-icon://product"
+                            elif rowk.replace(" ", "") == "PCAT":
+                                node["icon"] = "sap-icon://sap-box"
+                            elif rowk.replace(" ", "")  == "RIH":
+                                node["icon"] = "sap-icon://grid"
+                            elif rowk.replace(" ", "")  == "RSCH":
+                                node["icon"] = "sap-icon://lab"
+                            elif rowk.replace(" ", "")  == "SVPSIRIUS_618":
+                                node["icon"] = "sap-icon://task"
+                        except:
+                            pass
+            r["nodes"].append(node)
+        print('[%s_graph_eppm] Complete with graphing. Exporting file' % (get_datetime()))
+        label = ("graph_%s.json" % get_datetime()).replace(":", "").replace(" ", "").replace("-", "")
+        with open(os.path.join(self.datapath, label), 'w') as outfile:
+            json.dump(r, outfile)
+
+        print('[%s_graph_eppm] Complete with file export' % (get_datetime()))
+        return r
+
+    def graph_eppm_lines(self, data):
+        """
+        Independent extractor that uses the latest validated nodes file to fill lines. The nodes or master data
+        table from a separate file
+        :param data:
+        :return:
+        """
+        print('[%s_graph_eppm] Starting' % (get_datetime()))
+        with open(os.path.join(self.datapath, "graph.json")) as jsonfile:
+            graph = json.load(jsonfile)
+        for index, row in data.iterrows():
+            graph["lines"].append({
+                "to": row["EDGE_TARGET"],
+                "from": row["EDGE_SOURCE"],
+                "description": row["EDGE_NAME"]
+            })
+        print('[%s_graph_eppm] Complete with lines. Saving file...' % (get_datetime()))
+        with open(os.path.join(self.datapath, "nodes.json"), 'w') as outfile:
+            json.dump(graph, outfile)
+        print('[%s_graph_eppm] Complete with file.' % (get_datetime()))
+
+    def get_eppm(self):
+        """
+        Load the nodes file which holds the latest verified data and pass it through the REST API back to requestor
+        :return:
+        """
+        with open(os.path.join(self.datapath, "graph.json")) as jsonfile:
+            graph = json.load(jsonfile)
+
+        return graph
 
     def graph_eppm(self, data):
         print( '[%s_graph_eppm] Starting' % (get_datetime()))
