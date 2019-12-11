@@ -131,6 +131,12 @@ def change_if_number(number_string):
     except:
         return None
 
+def date_to_standard_string(date):
+    try:
+        return date.strftime("%Y-%m-%dT%H:%M:%S")
+    except:
+        return date
+
 
 def change_if_date(date_string, fuzzy=False):
     """
