@@ -391,12 +391,17 @@ class ODB:
         print('[%s_graph_eppm] Starting' % (get_datetime()))
         with open(os.path.join(self.datapath, "graph.json")) as jsonfile:
             graph = json.load(jsonfile)
+        data = data.fillna("<Null>")
         for index, row in data.iterrows():
-            graph["lines"].append({
-                "to": row["EDGE_TARGET"],
-                "from": row["EDGE_SOURCE"],
-                "description": row["EDGE_NAME"]
-            })
+            try:
+                if row["EDGE_TARGET"] != "<Null>" and row["EDGE_SOURCE"] != "<Null>":
+                    graph["lines"].append({
+                        "to": row["EDGE_TARGET"],
+                        "from": row["EDGE_SOURCE"],
+                        "description": row["EDGE_NAME"]
+                    })
+            except:
+                pass
         print('[%s_graph_eppm] Complete with lines. Saving file...' % (get_datetime()))
         with open(os.path.join(self.datapath, "graph.json"), 'w') as outfile:
             json.dump(graph, outfile)
