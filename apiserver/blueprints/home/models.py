@@ -398,7 +398,7 @@ class ODB:
                 "description": row["EDGE_NAME"]
             })
         print('[%s_graph_eppm] Complete with lines. Saving file...' % (get_datetime()))
-        with open(os.path.join(self.datapath, "nodes.json"), 'w') as outfile:
+        with open(os.path.join(self.datapath, "graph.json"), 'w') as outfile:
             json.dump(graph, outfile)
         print('[%s_graph_eppm] Complete with file.' % (get_datetime()))
 
