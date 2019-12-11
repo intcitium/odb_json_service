@@ -374,7 +374,7 @@ class ODB:
                             pass
             r["nodes"].append(node)
         print('[%s_graph_eppm] Complete with graphing. Exporting file' % (get_datetime()))
-        label = ("graph_%s.json" % get_datetime()).replace(":", "").replace(" ", "").replace("-", "")
+        label = "graph.json"
         with open(os.path.join(self.datapath, label), 'w') as outfile:
             json.dump(r, outfile)
 
