@@ -343,6 +343,20 @@ class ODB:
                         node["attributes"].append(
                             {"label": k, "value": rowk}
                         )
+                    # Handle the case with a person
+                    if k == "ITM_PROJECT_RESP_NAME" and row[k] != "<Null>":
+                        if row["ITM_PROJECT_RESP"] not in r["index"]:
+                            r["nodes"].append({
+                                "key": row["ITM_PROJECT_RESP"],
+                                "icon": self.ICON_PERSON,
+                                "title": row["ITM_PROJECT_RESP_NAME"],
+                            })
+                        r["lines"].append({
+                            "to": row["NODE_ATTR_GUID"],
+                            "from": row["ITM_PROJECT_RESP"],
+                            "description": "responsible for"
+                        })
+
                     if r == "PPORATYPE":
                         node["group"] = rowk
                         try:
