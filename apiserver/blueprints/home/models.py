@@ -357,7 +357,7 @@ class ODB:
                             "description": "responsible for"
                         })
 
-                    if r == "PPORATYPE":
+                    if k == "PPORATYPE":
                         node["group"] = rowk
                         try:
                             if rowk.replace(" ", "") == "CRDS":
