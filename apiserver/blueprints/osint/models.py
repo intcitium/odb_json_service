@@ -1611,7 +1611,7 @@ class OSINT(ODB):
                 click.echo(update)
                 self.client.command('''
                 update Process set summary = '%s' where pid = '%s'
-                ''' % (get_datetime(), pid))
+                ''' % (update, pid))
             i+=1
             if 'Comments\n' in row.keys():
                 comments = row['Comments\n']
