@@ -301,6 +301,18 @@ class ODB:
     '''
 
     def graph_eppm_nodes(self, data):
+        """
+
+        :param data:
+        :return:
+        """
+
+        no_take_attributes = ["NODE_KEY", "LEVEL", "ITM_ZPR_PRG_ID", "ITM_DELIVERY_NAME_LONG", "PPORADM", "PPORAPC",
+                              "PPORAPLS", "PPORAH", "PPORAPRC", "PPORAPRSC", "PPORARLQ", "PPORASB", "PPORASSR",
+                              "PPORARDU", "CC_AGE_IN_YEARS", "ITM_P1", "ITM_P1_TEXT", "ITM_P2", "ITM_P2_TEXT",
+                              "ITM_P3", "ITM_P3_TEXT", "ITM_P4", "ITM_P4_TEXT", "ITM_PROJECT_RESP",
+                              "ITM_PROJECT_RESP_NAME", "KEY_COUNTER", "ITM_PROJECT_SYS_STATUS"]
+
         print( '[%s_graph_eppm] Starting' % (get_datetime()))
         r = {
             "nodes": [],
@@ -339,7 +351,20 @@ class ODB:
                         })
                     elif k == "NODE_NAME":
                         node["title"] = rowk
-                    else:
+                    elif k == "NODE_ATTR_ID":
+                        node["attributes"].append({
+                            "label": "ID", "value": rowk
+                        })
+                    elif k == "NODE_TYPE":
+                        node["attributes"].append({
+                            "label": "Type", "value": rowk
+                        })
+                    elif k == "NODE_ATTR_DATA_SOURCE":
+                        node["attributes"].append({
+                            "label": "Data source", "value": rowk
+                        })
+
+                    elif k not in no_take_attributes:
                         node["attributes"].append(
                             {"label": k, "value": rowk}
                         )
@@ -351,10 +376,11 @@ class ODB:
                                 "icon": self.ICON_PERSON,
                                 "title": row["ITM_PROJECT_RESP_NAME"],
                             })
-                        r["lines"].append({
-                            "to": row["NODE_ATTR_GUID"],
-                            "from": row["ITM_PROJECT_RESP"],
-                            "description": "responsible for"
+                        if "%s%s%s" %(row["NODE_ATTR_GUID"], row["ITM_PROJECT_RESP"], "RESPFOR") not in r["index"]:
+                            r["lines"].append({
+                                "to": row["NODE_ATTR_GUID"],
+                                "from": row["ITM_PROJECT_RESP"],
+                                "description": "responsible for"
                         })
 
                     if k == "PPORATYPE":
@@ -925,8 +951,6 @@ class ODB:
             click.echo(message)
             return message
 
-
-
     def check_index_nodes(self, **kwargs):
         """
         Use the nodeKeys to cycle through in sequential order and match the input attributes to build a hash string in
@@ -1173,12 +1197,19 @@ class ODB:
         """
         if not kwargs['icon']:
             kwargs['icon'] = "sap-icon://add"
-        if not kwargs['class_name']:
+        if 'class_name' not in kwargs.keys():
             kwargs['class_name'] = 'No class name'
         if not kwargs['title']:
             kwargs['title'] = kwargs['class_name']
         if not kwargs['status']:
             kwargs['status'] = random.choice(['Information', 'Success', 'Error', 'Warning', 'None'])
+
+        if "attributes" not in kwargs.keys():
+            atts = []
+            for k in kwargs.keys():
+                if str(k).lower() not in ["hashkey", "key", "icon", "class_name", "title"] and "pyorient" not in str(type(kwargs[k])):
+                    atts.append({"label": k, "value": kwargs[k]})
+            kwargs["attributes"] = atts
 
         node_format = {
             "key": kwargs['key'],
