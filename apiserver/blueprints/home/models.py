@@ -308,9 +308,9 @@ class ODB:
         """
 
         no_take_attributes = ["NODE_KEY", "LEVEL", "ITM_ZPR_PRG_ID", "ITM_DELIVERY_NAME_LONG", "PPORADM", "PPORAPC",
-                              "PPORAPLS", "PPORAH", "PPORAPRC", "PPORAPRSC", "PPORARLQ", "PPORASB", "PPORASSR",
-                              "PPORARDU", "CC_AGE_IN_YEARS", "ITM_P1", "ITM_P1_TEXT", "ITM_P2", "ITM_P2_TEXT",
-                              "ITM_P3", "ITM_P3_TEXT", "ITM_P4", "ITM_P4_TEXT", "ITM_PROJECT_RESP",
+                              "PPORAPLS", "PPORAH", "PPORAPRC", "PPORAPRSC", "PPORARLQ", "PPORASB", "PPORASSR", "PPORATYPE",
+                              "PPORARDU", "CC_AGE_IN_YEARS", "ITM_P1", "ITM_P1_TEXT", "ITM_P2", "ITM_P2_TEXT", "PPORAPRTF",
+                              "ITM_P3", "ITM_P3_TEXT", "ITM_P4", "ITM_P4_TEXT", "ITM_PROJECT_RESP", "ITM_PROJECT_GUID",
                               "ITM_PROJECT_RESP_NAME", "KEY_COUNTER", "ITM_PROJECT_SYS_STATUS"]
 
         print( '[%s_graph_eppm] Starting' % (get_datetime()))
@@ -325,6 +325,7 @@ class ODB:
                 {"key": "RSCH", "title": "Research"},
                 {"key": "LOGP", "title": "Products"},
                 {"key": "Initiative", "title": "Initiative"},
+                {"key": "People", "title": "People"},
             ],
 
             "index": []
@@ -363,6 +364,11 @@ class ODB:
                         node["attributes"].append({
                             "label": "Data source", "value": rowk
                         })
+                    elif k == "ITM_PROJECT_SYS_STATUS_TEXT":
+                        node["attributes"].append({
+                            "label": "Status", "value": rowk
+                        })
+                        node["status"] = rowk
 
                     elif k not in no_take_attributes and rowk != 0 and rowk != "0":
                         node["attributes"].append(
@@ -375,6 +381,7 @@ class ODB:
                                 "key": row["ITM_PROJECT_RESP"],
                                 "icon": self.ICON_PERSON,
                                 "title": row["ITM_PROJECT_RESP_NAME"],
+                                "group": "People"
                             })
                         if "%s%s%s" %(row["NODE_ATTR_GUID"], row["ITM_PROJECT_RESP"], "RESPFOR") not in r["index"]:
                             r["index"].append("%s%s%s" % (row["NODE_ATTR_GUID"], row["ITM_PROJECT_RESP"], "RESPFOR"))
