@@ -1616,52 +1616,34 @@ class OSINT(ODB):
                 comments = ""
             try:
                 # Create the CVE node and then make relations to any entities if they don't exist
-
-                cve_index = row["Name"][:8]
-                if cve_index not in indexes.keys():
-                    indexes[row["Name"][:8]] = {}
-                vul_index = indexes[cve_index]
-                if row["Name"] in vul_index.keys():
-                    cve_node = {"key": vul_index[row["Name"]]}
-                else:
-                    cve_node = self.create_node(**{
-                        "class_name": class_name,
-                        "source": source,
-                        "Ext_key": row["Name"],
-                        "description": row["Description"] + " " + comments,
-                        "labels": row["References"], # Make relations to each as a reporter
-                        "votes": row["Votes"],
-                        "status": row["Status"],
-                        "phase": row["Phase"]
+                cve_node = self.create_node(**{
+                    "class_name": class_name,
+                    "source": source,
+                    "Ext_key": row["Name"],
+                    "description": row["Description"] + " " + comments,
+                    "labels": row["References"], # Make relations to each as a reporter
+                    "votes": row["Votes"],
+                    "status": row["Status"],
+                    "phase": row["Phase"]
+                })["data"]
+                new_nodes+=1
+                references = [r.strip() for r in row["References"].split("|")]
+                for r in references:
+                # Check if in the index
+                    ref_node = self.create_node(**{
+                        "class_name": "Object",
+                        "description": "Reference from CVE %s" % r,
+                        "Category": "Vulnerability Reference",
+                        "Ext_key": r,
+                        "source": "MITRE"
                     })["data"]
-                    vul_index[row["Name"]] = cve_node["key"]
-                    new_nodes+=1
-
-                    references = [r.strip() for r in row["References"].split("|")]
-                    for r in references:
-                        # Check if in the index
-                        ref_index = r[:6]
-                        if ref_index not in indexes.keys():
-                            indexes[r[:6]] = {}
-                        ref_index = indexes[ref_index]
-                        if r in ref_index:
-                            ref_node = {"key": ref_index[r]}
-                        else:
-                            ref_node = self.create_node(**{
-                                "class_name": "Object",
-                                "description": "Reference from CVE %s" % r,
-                                "Category": "Vulnerability Reference",
-                                "Ext_key": r,
-                                "source": "MITRE"
-                            })["data"]
-                            ref_index[r] = ref_node["key"]
-                            new_references+=1
-                        if "%sTO%s" % (ref_node["key"], cve_node["key"])not in rel_index:
-                            self.create_edge(
-                                fromNode=ref_node["key"], fromClass="Object", edgeType="References",
-                                toNode=cve_node["key"], toClass="Vulnerability"
-                            )
-                            rel_index.append("%sTO%s" % (ref_node["key"], cve_node["key"]))
+                    new_references+=1
+                if "%sTO%s" % (ref_node["key"], cve_node["key"])not in rel_index:
+                    self.create_edge(
+                        fromNode=ref_node["key"], fromClass="Object", edgeType="References",
+                        toNode=cve_node["key"], toClass="Vulnerability"
+                    )
+                    rel_index.append("%sTO%s" % (ref_node["key"], cve_node["key"]))
             except Exception as e:
                 click.echo('[%s_OSINT_cve] Error %s' % (get_datetime(), str(e)))
                 pass
