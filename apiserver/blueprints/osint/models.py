@@ -66,6 +66,18 @@ class OSINT(ODB):
                 "class": "Location",
                 "filter_att": "Latitude",
                 "keys": []
+            },
+            "Vulnerabilities": {
+                "index_att": "Ext_key",
+                "class": "Vulnerability",
+                "filter_att": "source",
+                "keys": []
+            },
+            "Objects": {
+                "index_att": "Ext_key",
+                "class": "Object",
+                "filter_att": "Ext_key",
+                "keys": []
             }
         }
 
@@ -1322,7 +1334,6 @@ class OSINT(ODB):
             if user_id not in self.OSINT_index["Users"]["keys"]:
                 self.OSINT_index["Users"]["keys"].append(user_id)
                 node = ({
-                    "key": user_id,
                     "class_name": "Object",
                     "title": kwargs['user']['name'],
                     "status": "Alert",
@@ -1347,6 +1358,7 @@ class OSINT(ODB):
                     ]
                 })
                 node = self.create_node(**node)["data"]
+
             return node
         data = {
             "graph": graph,
@@ -1425,7 +1437,7 @@ class OSINT(ODB):
             self.create_edge(edgeType=n["description"], fromNode=entityKeyMap[n["from"]]["key"],
                              toNode=entityKeyMap[n["to"]]["key"], fromClass=fromClass, toClass=toClass)
 
-    def getEntityData(self, user_ids, sourceID, reltype, username, graph):
+    def get_entity_data(self, user_ids, sourceID, reltype, username, graph):
         """
         Call the
         :param user_ids:
@@ -1513,26 +1525,35 @@ class OSINT(ODB):
                 i = 0
                 user_ids = []
                 # Use the OSINT index to check if there have been any additions and not to get those users who are already in the index
+                # Get EntityNode will create the user via the processTweets function.
                 for user_id in associate_list:
-                    user_ids.append(user_id)
-                    if len(user_ids) == 100:
-                        print("[*] 100 %s limit for entity. Request to Twitter." % r)
-                        graph = self.getEntityData(user_ids, userKey, r, username, graph)
-                        i = 0
-                        del user_ids[:]
-                    if i == len(associate_list) - 1:
-                        print("[*] %d %s for entity info. Request to Twitter." % (len(user_ids), r))
-                        graph = self.getEntityData(user_ids, userKey, r, username, graph)
-                    i += 1
+                    user_idA = "TWT_%s" % user_id
+                    if user_idA not in self.OSINT_index["Users"]["keys"] and user_id not in user_ids:
+                        user_ids.append(user_id)
+                        if len(user_ids) == 100:
+                            print("[*] 100 %s limit for entity. Request to Twitter." % r)
+                            graph = self.get_entity_data(user_ids, userKey, r, username, graph)
+                            i = 0
+                            del user_ids[:]
+                        if i == len(associate_list) - 1:
+                            print("[*] %d %s for entity info. Request to Twitter." % (len(user_ids), r))
+                            graph = self.get_entity_data(user_ids, userKey, r, username, graph)
+                        i += 1
+                    else:
+                        usr_node = self.get_node(class_name="Object", var="Ext_key", val=user_idA)
+                        usr_node = self.format_node(**usr_node)
+                        graph["nodes"].append(usr_node)
 
         return {"data": graph, "message": "Retrieved %d associates" % len(graph["nodes"])}
 
-    def cve(self):
+    def get_cve(self):
         """
         TODO Data quality. charmap breaks on for loop and miss half the rest of the data
         Data is master data only. Is there transaction data that create links and dynamic stuff
         :return:
         """
+        class_name = "Vulnerability"
+        source = "MITRE"
         path = os.path.join(self.datapath, "%s_cve.csv" % get_datetime()[:10])
         url = "https://cve.mitre.org/data/downloads/allitems.csv"
         data = self.get_url(url, path)
@@ -1556,7 +1577,68 @@ class OSINT(ODB):
                         for k, l in zip(df.keys(), r):
                             df[k].append(l)
                 i+=1
-        click.echo('[%s_OSINT_cve] Complete with raw data cleaning' % (get_datetime()))
+        click.echo('[%s_OSINT_cve] Complete with raw data cleaning. Starting Extraction' % (get_datetime()))
+        df = pd.DataFrame.from_dict(df)
+        i = 0
+        c = 0
+        pct = .0001
+        new_nodes = new_references = 0
+        vul_index = {}
+        for index, row in df.iterrows():
+            if i > df.size*.0001:
+                i = 0
+                c+=1
+                click.echo('[%s_OSINT_cve] Completed %f percent. %d Vuls, %d Refs' % (
+                    get_datetime(), pct*10*c, new_nodes, new_references))
+            i+=1
+            if 'Comments\n' in row.keys():
+                comments = row['Comments\n']
+            elif 'Comments' in row.keys():
+                comments = row['Comments']
+            else:
+                comments = ""
+            try:
+                # Create the CVE node and then make relations to any entities if they don't exist
+                if row["Name"] in vul_index.keys():
+                    cve_node = {"key": vul_index[row["Name"]]}
+                else:
+                    cve_node = self.create_node(**{
+                        "class_name": class_name,
+                        "source": source,
+                        "Ext_key": row["Name"],
+                        "description": row["Description"] + " " + comments,
+                        "labels": row["References"], # Make relations to each as a reporter
+                        "votes": row["Votes"],
+                        "status": row["Status"],
+                        "phase": row["Phase"]
+                    })["data"]
+                    vul_index[row["Name"]] = cve_node["key"]
+                    new_nodes+=1
+                references = [r.strip() for r in row["References"].split("|")]
+                for r in references:
+                    # Check if in the index
+                    if r in vul_index.keys():
+                        ref_node = {"key": vul_index[r]}
+                    else:
+                        ref_node = self.create_node(**{
+                            "class_name": "Object",
+                            "description": "Reference from CVE %s" % r,
+                            "Category": "Vulnerability Reference",
+                            "Ext_key": r,
+                            "source": "MITRE"
+                        })["data"]
+                        vul_index[r] = r
+                        new_references+=1
+                    if "%sTO%s" % (ref_node["key"], cve_node["key"])not in vul_index.keys():
+                        self.create_edge(
+                            fromNode=ref_node["key"], fromClass="Object", edgeType="References",
+                            toNode=cve_node["key"], toClass="Vulnerability"
+                        )
+                        vul_index["%sTO%s" % (ref_node["key"], cve_node["key"])] = True
+            except Exception as e:
+                print(str(e))
+                pass
+
         return df
 
     def poisonivy(self):
@@ -1704,7 +1786,7 @@ class OSINT(ODB):
 
     def get_url(self, url, path):
         if not os.path.exists(path):
-            print("%s_Fetching latest %s" % (get_datetime(), url))
+            click.echo('[%s_OSINT_get_url] Getting %s' % (get_datetime(), url))
             data = requests.get(url)
             return data
         else:

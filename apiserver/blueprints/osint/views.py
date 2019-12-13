@@ -6,6 +6,7 @@ from flask_cors import CORS
 osint = Blueprint('osint', __name__)
 osintserver = OSINT()
 osintserver.open_db()
+osintserver.refresh_indexes()
 osintserver.check_base_book()
 osintserver.fill_db()
 CORS(osint)
@@ -134,7 +135,7 @@ def get_neighbors():
 
 
 @osint.route('/osint/cve', methods=['GET'])
-def cve():
+def get_cve():
     '''
     Base route for merging nodes
     :return:
@@ -142,7 +143,7 @@ def cve():
     return jsonify({
         "status": 200,
         "message": "Database updated with latest CVE",
-        "data": osintserver.cve()
+        "data": osintserver.get_cve()
     })
 
 
