@@ -377,6 +377,7 @@ class ODB:
                     # Handle the case with a person
                     if k == "ITM_PROJECT_RESP_NAME" and row[k] != "<Null>":
                         if row["ITM_PROJECT_RESP"] not in r["index"]:
+                            r["index"].append(row["ITM_PROJECT_RESP"])
                             r["nodes"].append({
                                 "key": row["ITM_PROJECT_RESP"],
                                 "icon": self.ICON_PERSON,
