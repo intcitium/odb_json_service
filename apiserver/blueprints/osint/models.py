@@ -1552,8 +1552,6 @@ class OSINT(ODB):
         Data is master data only. Is there transaction data that create links and dynamic stuff
         :return:
         """
-        class_name = "Vulnerability"
-        source = "MITRE"
         path = os.path.join(self.datapath, "%s_cve.csv" % get_datetime()[:10])
         url = "https://cve.mitre.org/data/downloads/allitems.csv"
         data = self.get_url(url, path)
@@ -1579,11 +1577,28 @@ class OSINT(ODB):
                 i+=1
         click.echo('[%s_OSINT_cve] Complete with raw data cleaning. Starting Extraction' % (get_datetime()))
         df = pd.DataFrame.from_dict(df)
+        t = threading.Thread(
+            target=self.graph_cve,
+            kwargs={
+                "df": df,
+            })
+        t.start()
+
+    def graph_cve(self, df=pd.DataFrame()):
+        """
+        Thread that is called to start the long extraction process
+        :param df:
+        :return:
+        """
+        class_name = "Vulnerability"
+        source = "MITRE"
         i = 0
         c = 0
         pct = .0001
         new_nodes = new_references = 0
         vul_index = {}
+        ref_index = {}
+        rel_index = []
         for index, row in df.iterrows():
             if i > df.size*.0001:
                 i = 0
@@ -1617,8 +1632,8 @@ class OSINT(ODB):
                 references = [r.strip() for r in row["References"].split("|")]
                 for r in references:
                     # Check if in the index
-                    if r in vul_index.keys():
-                        ref_node = {"key": vul_index[r]}
+                    if r in ref_index:
+                        ref_node = {"key": ref_index[r]}
                     else:
                         ref_node = self.create_node(**{
                             "class_name": "Object",
@@ -1627,19 +1642,19 @@ class OSINT(ODB):
                             "Ext_key": r,
                             "source": "MITRE"
                         })["data"]
-                        vul_index[r] = r
+                        ref_index[r] = ref_node["key"]
                         new_references+=1
-                    if "%sTO%s" % (ref_node["key"], cve_node["key"])not in vul_index.keys():
+                    if "%sTO%s" % (ref_node["key"], cve_node["key"])not in rel_index:
                         self.create_edge(
                             fromNode=ref_node["key"], fromClass="Object", edgeType="References",
                             toNode=cve_node["key"], toClass="Vulnerability"
                         )
-                        vul_index["%sTO%s" % (ref_node["key"], cve_node["key"])] = True
+                        rel_index.append("%sTO%s" % (ref_node["key"], cve_node["key"]))
             except Exception as e:
-                print(str(e))
+                click.echo('[%s_OSINT_cve] Error %s' % (get_datetime(), str(e)))
                 pass
 
-        return df
+        click.echo('[%s_OSINT_cve] Complete with graphing CVE %s' % (get_datetime()))
 
     def poisonivy(self):
         source = "%s_poisonivy.json" % get_datetime()[:10]
