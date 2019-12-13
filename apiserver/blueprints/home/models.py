@@ -876,21 +876,21 @@ class ODB:
         '''
         icon = title = status = None
         mtoka = 0
-        for key_attribute in kwargs.keys():
-            if key_attribute in ["key", "GUID", "guid", "uid", "Key"]:
-                if mtoka == 0:
-                    kwargs["Ext_key"] = kwargs[key_attribute]
-                else:
-                    kwargs["Ext_key_%d" % mtoka] = kwargs[key_attribute]
-                mtoka+=1
-                kwargs.pop(key_attribute)
-            elif key_attribute in ["icon", "title", "status"]:
-                if key_attribute == "icon":
-                    icon = kwargs[key_attribute]
-                if key_attribute == "title":
-                    title = kwargs[key_attribute]
-                if key_attribute == "status":
-                    status = kwargs[key_attribute]
+        if "Ext_key" not in kwargs.keys():
+            for key_attribute in kwargs.keys():
+                if key_attribute in ["key", "GUID", "guid", "uid", "Key"]:
+                    if mtoka == 0:
+                        kwargs["Ext_key"] = kwargs[key_attribute]
+                    else:
+                        kwargs["Ext_key_%d" % mtoka] = kwargs[key_attribute]
+                    mtoka+=1
+                elif key_attribute in ["icon", "title", "status"]:
+                    if key_attribute == "icon":
+                        icon = kwargs[key_attribute]
+                    if key_attribute == "title":
+                        title = kwargs[key_attribute]
+                    if key_attribute == "status":
+                        status = kwargs[key_attribute]
 
         # start the SQL insert statement with the key based on whether or not it was there before
         labels = "(key"
