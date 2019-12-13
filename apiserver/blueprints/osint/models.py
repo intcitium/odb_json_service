@@ -1587,7 +1587,7 @@ class OSINT(ODB):
         :param df:
         :return:
         """
-        pid = "CVE_graph_%s" % randomString(32)
+        pid = "CVE_graph_%s" % randomString(8)
         self.create_node(**{
             "class_name": "Process",
             "category": "Graphing",
