@@ -1,1757 +1,1626 @@
-import click, os
-import requests, json, random
+import pyorient
+import json
+import random
+import click
 import pandas as pd
-import codecs
+import numpy as np
+import os
 import time
-import threading
-from OTXv2 import OTXv2
-from apiserver.models import OSINTModel as Models
-from apiserver.utils import get_datetime, clean, change_if_date, TWITTER_AUTH, randomString
-from apiserver.blueprints.home.models import ODB
-from apiserver.blueprints.osint.geo import get_location
-from requests_oauthlib import OAuth1
-import urllib3
-urllib3.disable_warnings()
-
-"""
-TODO Create a combined GEO view from ACLED and UCDP that can animate organizations in time
-PoC of just any Location - Event based rel to create the view
-"""
+import operator
+import hashlib
+from apiserver.utils import get_datetime, HOST_IP, change_if_number, clean,\
+    clean_concat, change_if_date, date_to_standard_string
 
 
-class OSINT(ODB):
+class ODB:
 
-    def __init__(self, db_name="OSINT"):
-        ODB.__init__(self, db_name, models=Models)
+    def __init__(self, db_name="GratefulDeadConcerts", models=None):
+
+        self.client = pyorient.OrientDB(HOST_IP, 2424)
+        self.user = 'root'
+        self.pswd = 'admin'
         self.db_name = db_name
-        self.basebook = None
-        self.models = Models
-        # In memory DB used for creating simulation data in the format for network graph UX rendering
-        self.DB = {'nodes': {},
-                   'lines': [],
-                   'groups': [],
-                   'node_keys': [],
-                   'group_index': [],
-                   'ucdp_org': {},
-                   'ucdp_sources': {},
-                   'ucdp_events': {}
-                   }
-        click.echo('[%s_OSINT_init] Complete' % (get_datetime()))
-        self.ACLED_Base_URL = "https://api.acleddata.com/acled/read?terms=accept"
-        self.UCDP_Page_Size = 200
-        self.UCDP_Base_URL = "https://ucdpapi.pcr.uu.se/api/gedevents/19.1?pagesize=%s" % self.UCDP_Page_Size
-        self.UCDP_Country_URL = "%s&Country=" % self.UCDP_Base_URL
-        self.UCDP_Time_URL = "%s&StartDate=" % self.UCDP_Base_URL
-        self.TWITTER_AUTH = TWITTER_AUTH
-        self.base_twitter_url = "https://api.twitter.com/1.1/"
-        self.monitors = {"twitter": False, "merger": False}
-        self.default_number_of_tweets = 200
-        self.cve = ["AttackPattern", "Campaign", "CourseOfAction", "Identity",
-                    "Indicator", "IntrusionSet", "Malware", "ObservedData",
-                    "Report", "Sighting", "ThreatActor", "Tool", "Vulnerability"]
+        self.path = os.getcwd()
+        self.datapath = os.path.join(self.path, 'data')
+        self.mapspath = os.path.join(self.datapath, 'maps.json')
+        self.ICON_PERSON = "sap-icon://person-placeholder"
+        self.ICON_OBJECT = "sap-icon://add-product"
+        self.ICON_ORGANIZATION = "sap-icon://manager"
+        self.ICON_INFO_SOURCE = "sap-icon://newspaper"
+        self.ICON_LOCATION = "sap-icon://map"
+        self.ICON_EVENT = "sap-icon://date-time"
+        self.ICON_HUMINT = "sap-icon://collaborate"
+        self.ICON_GEOINT = "sap-icon://geographic-bubble-chart"
+        self.ICON_SOCINT = "sap-icon://hello-world"
+        self.ICON_CONFLICT = "sap-icon://alert"
+        self.ICON_CASE = "sap-icon://folder"
+        self.ICON_STATUSES = ["Warning", "Error", "Success"]
+        self.ICON_TWEET = "sap-icon://jam"
+        self.ICON_TWITTER_USER = "sap-icon://customer-view"
+        self.ICON_HASHTAG = "sap-icon://number-sign"
+        self.index = {"nodes": {}, "edges": []}
+        # Keeping the nodeKeys in this order assures that matches will be checked in the same consistent string
+        self.nodeKeys = ['class_name', 'title', 'FirstName', 'LastName', 'Gender', 'DateOfBirth', 'PlaceOfBirth',
+                    'Name', 'Owner', 'Classification', 'Category', 'Latitude', 'Longitude', 'description',
+                    'EndDate', 'StartDate', 'DateCreated', 'Ext_key', 'category', 'pid', 'name', 'started', 'searchValue']
+        if not models:
+            self.models = {
+                "Vertex": {
+                    "key": "integer",
+                    "tags": "string",
+                    "hash": "string",
+                    "class": "V"
+                },
+                "Line":{
+                    "class": "E",
+                    "tags": "string"
+                }
+            }
+        self.get_maps()
+        self.standard_classes = ['OFunction', 'OIdentity', 'ORestricted',
+                                 'ORole', 'OSchedule', 'OSequence', 'OTriggered',
+                                 'OUser', '_studio' ]
 
 
-    @staticmethod
-    def ucdp_conflict_type(row):
+        #self.create_index()
 
-        if row['type_of_violence'] == str(1):
-            return "State-based Conflict"
-        elif row['type_of_violence'] == str(2):
-            return "Non-state Conflict"
-        else:
-            return "One-sided Conflict"
-
-    def monitor_merges(self):
+    def get_maps(self):
         """
-        Crawler makes queries every hour to check the database for nodes with the same Ext_ID and then perform a merge
-        on the first one found with the links of the others. TODO, include more attributes to crawl for and return
-        likely nodes based on cases where similarity but not exact matches
+        Called by the init function to load the models stored to the file system into
+        the application for matching against incoming models needed for ETL graph
+        translation
         :return:
         """
-        while self.monitors["merger"] == True:
-            click.echo('[%s_OSINT_run_monitor_merges] Starting...' % (get_datetime()))
-            index = {}
-            r = self.client.command('''
-            select @class, key, Ext_key from V where Ext_key != ""
-            ''')
-            for i in r:
-                if i.oRecordData["Ext_key"] in index.keys():
-                    index[i.oRecordData["Ext_key"]].append(i.oRecordData)
-                else:
-                    index[i.oRecordData["Ext_key"]] = [i.oRecordData]
-            merges = 0
-            for i in index:
-                if len(index[i]) > 1:
-                    merges+=1
-                    # Check if each of them are in the same class by making buckets
-                    class_buckets = {}
-                    for o in index[i]:
-                        if o["class"] in class_buckets.keys():
-                            class_buckets[o["class"]].append(o["key"])
-                        else:
-                            class_buckets[o["class"]] = [o["key"]]
-                    # Run through each bucket and if there is more than 1, then we still have entities needing merging
-                    for bucket in class_buckets:
-                        if len(class_buckets[bucket]) > 1:
-                            # Run through the nodes in the bucket using an "ni" node iterator to determine if at first node
-                            ni = 0
-                            node_A = node_B = None
-                            for n in class_buckets[bucket]:
-                                if ni == 0:
-                                    node_A = n
-                                # this is skipped the first round as the source node is set
-                                else:
-                                    node_B = n
-                                # only after both nodes are set, at ni > 0, merge the nodes
-                                if ni > 0 and node_A and node_B:
-                                    self.merge_nodes(node_A=node_A, node_B=node_B)
-                                ni+=1
-            click.echo('[%s_OSINT_run_monitor_merges] Complete with %d merge operations ' % (get_datetime(), merges))
-            time.sleep(60*60*2)
+        with open(self.mapspath, 'r') as f:
+            self.maps = json.load(f)
 
-    def run_otx(self):
+    def save_model_to_map(self, model):
+        """
+        Expects a model which will reference a file already in the system
+        :return:
+        """
+        if model["Name"] in self.maps.keys():
+            return
 
-        click.echo('[%s_OSINT_otx_init] Starting OTX feed download' % (get_datetime()))
-        otx = OTXv2("4b11dfc51d0cd00e8cf01b268c3dbfde15090be65f6a2b58a5f102a600cfb8ee")
-        events = otx.getall()
-        click.echo('[%s_OSINT_otx_init] OTX feed download complete with %d events' % (get_datetime(), len(events)))
-        graph = {"nodes": [], "edges": [], "index": []}
-        j = 0
-        r = 1
-        for e in events:
-            if "indicators" in e.keys() and "author_name" in e.keys():
-                auth_node = {
-                    "id": e["author_name"],
-                    "tags": e["tags"],
-                    "description": e["description"]
+        self.maps[model["Name"]] = {
+            "Entities": model["Entities"],
+            "Relations": model["Relations"],
+            "headers": model["headers"]
+        }
+        with open(self.mapspath, 'w') as f:
+            json.dump(self.maps, f)
+
+    def file_to_frame(self, filename):
+        try:
+            if filename[-4:] == "xlsx":
+                return {"data": pd.read_excel(os.path.join(self.datapath, filename))}
+            elif filename[-3:] == "csv":
+                return {"data": pd.read_csv(os.path.join(self.datapath, filename))}
+            else:
+                return {
+                    "data": None,
+                    "headers": None,
+                    "ftype": "Unknown",
+                    "message": "Rejected %s." % (filename)
                 }
-                if auth_node["id"] not in graph["index"]:
-                    graph["index"].append(e["author_name"])
-                    graph["nodes"].append({"title": e["author_name"]})
-                for i in e["indicators"]:
-                    otx_node = {
-                        "id": "otx_%s" % i["id"],
-                        "description": i["description"],
-                        "created": i["created"],
-                        "expiration": i["expiration"],
-                        "category": i["type"],
-                        "ip_address": i["indicator"]
-                    }
-                    if otx_node["id"] not in graph["index"]:
-                        graph["nodes"].append(otx_node)
-                        graph["index"].append(otx_node["id"])
-                        graph["edges"].append({"to": otx_node["id"], "from": auth_node["id"]})
+        except Exception as e:
+            if "No such file or directory" in str(e):
+                return {
+                    "data": None,
+                    "headers": None,
+                    "ftype": "Unknown",
+                    "message": "No file loaded to the directory with name %s. Try uploading again." % (filename)
+                }
 
-            j+=1
-            if i == 100:
-                click.echo('[%s_OSINT_otx_init] Completed %d items' % (get_datetime(), 100*r))
-                r+=1
-                i=0
+    def file_to_graph(self, filename):
+        """
+        Based on acceptable file extensions but not necessarily known file types in terms of content, the function
+        checks which of the acceptable extensions the file is so that it can change it into a standard format to read.
+        In most cases tabular data is expected in which Pandas dataframes provide a way to get the headers and data into
+        a dictionary/JSON friendly format.
+
+        If the file is recognized based on keys and the matched model extraction is successfully completed, it will
+        return data as a graph. If not the data is returned as a sample of the file to provide content for configuration.
+        :param filename:
+        :return:
+        """
+        file = self.file_to_frame(filename)
+        if str(type(file["data"])) != "<class 'pandas.core.frame.DataFrame'>":
+            return file
+        else:
+            file = file["data"]
+        check = self.file_type_check(file.keys())
+        check["size"] = str(os.stat(os.path.join(self.datapath, filename)).st_size) + " bytes"
+        check["source"] = filename
+        if check["score"] > .9999:
+            click.echo(check["name"])
+            click.echo(self.maps[check["name"]])
+            '''
+            data = self.graph_etl_model({
+                "Name": check["name"],
+                "Entities": self.maps[check["name"]]["model"]["Entities"],
+                "Relations": self.maps[check["name"]]["model"]["Relations"],
+            }, file)
+            '''
+            if check["name"] == 'eppm':
+                data = self.graph_eppm_nodes(file)
+            return {
+                "data": data,
+                "ftype": check,
+                "message": "Uploaded file with file type model %s." % (check["name"])
+            }
+        elif check["score"] > 0:
+            # Can check if the file run against the model works but do so with a try to return the result
+            try:
+                data = self.graph_eppm(file)
+                message = "Uploaded file with model type %s." % (check["name"])
+                return {
+                    "data": data,
+                    "ftype": check,
+                    "message": message
+                }
+            except Exception as e:
+                message = "Attempted with %s file type model but file is missing %s" % (
+                    check["name"], str(e)
+                )
+                return {
+                    "headers": list(file.columns),
+                    "data": file.sample(n=10).fillna(value="null").to_dict(),
+                    "ftype": check,
+                    "message": message
+            }
+        elif check["score"] == 0:
+            data = self.graph_eppm_lines(file)
+            #data = self.graph_hier(file)
+            return data
+        else:
+            return {
+                "data": file.sample(n=10).fillna(value="null").to_dict(),
+                "headers": list(file.columns),
+                "ftype": check,
+                "message": "Could not identify the file type. Prepared %s for configuration." % (filename)
+            }
+
+    def graph_etl_model(self, model, data):
+        """
+        The model should be a dictionary containing all the entities and their attributes. The attributes are mapped
+        to headers within the data which is expected to be in a tabular format.
+        Data
+            Animal_name: [Abe, Babe...]
+            Animal_color: [Red, Blue...]
+        Model
+            Entities:
+                Animal: {Id: key, name : Animal_name}
+                Color: {Id: key, label: Animal_color}
+            Relations:
+                HasColor: {from: Animal, to: Color}
+
+        Includes a function for etl processing of node
+        Includes checking if the model is saved for file_type_check and then calling that model
+        TODO, change EPPM extraction to model based that is called from the server at initiation
+
+        :param model:
+        :param data:
+        :return:
+        """
+        self.save_model_to_map(model)
+        node_index = []
+        graph = {"nodes": [], "lines": [], "n_index": []}
+        # Ensure the data received is changed into a DataFrame if it is not already
+        if str(type(data)) != "<class 'pandas.core.frame.DataFrame'>":
+            file = self.file_to_frame(data)
+            if str(type(file["data"])) != "<class 'pandas.core.frame.DataFrame'>":
+                return file
+            else:
+                data = file["data"]
+
+        def get_key(**kwargs):
+            """
+            Handles node creation based on the local node_index and the local create_node function.
+            The node expects an icon and class_name (EntityType)
+            expects an Icon with a key but if there is none it will create it
+            :param kwargs:
+            :return:
+            """
+            if "key" in kwargs.keys():
+                if kwargs["key"] in node_index:
+                    return kwargs["key"]
+                else:
+                    node_index.append(kwargs['key'])
+                    graph["nodes"].append(self.create_node(**kwargs)["data"])
+                    return kwargs["key"]
+            else:
+                h_key = self.hash_node(kwargs)
+                if h_key in node_index:
+                    return h_key
+                else:
+                    node_index.append(h_key)
+                    kwargs["key"] = h_key
+                    graph["nodes"].append(self.create_node(**kwargs)["data"])
+                    return h_key
+
+        for index, row in data.iterrows():
+            if index != 0:
+                # Based on the entities in the model, get IDs that can be used to create relationships
+                rowConfig = {}
+                for entity in model["Entities"]:
+                    # The extracted entity is based on the model and mapped row value to entity attributes
+                    extractedEntity = {"class_name": entity}
+                    for att in model["Entities"][entity]:
+                        if model["Entities"][entity][att] in row.keys():
+                            extractedEntity[att] = row[model["Entities"][entity][att]]
+                        else:
+                            extractedEntity[att] = model["Entities"][entity][att]
+                    # Check if this Entity has already been extracted and get the key.
+                    # The function also adds the entity to the graph which will be exported
+                    exEntityKey = get_key(**extractedEntity)
+                    if exEntityKey in graph["n_index"]:
+                        graph["n_index"].append(exEntityKey)
+                    # Add the entity key to its spot within the mapping configuration so the lines can be built
+                    rowConfig[entity] = exEntityKey
+                # Use the entity names that are saved into the relation to and from to assign the row config entity key
+                for line in model["Relations"]:
+                    if({"to": rowConfig[model["Relations"][line]["to"]], "from": rowConfig[model["Relations"][line]["from"]], "description": line }) not in graph["lines"]:
+                        graph["lines"].append({
+                            "to": rowConfig[model["Relations"][line]["to"]],
+                            "from": rowConfig[model["Relations"][line]["from"]],
+                            "description": line,
+                        })
 
         return graph
 
-    def create_CTI_node(self, **kwargs):
+    def get_latlon(self):
+        return np.random.normal(0, 45)
 
-        attributes = kwargs['attributes']
-        if attributes:
-            att_sql = ""
-            for a in attributes:
-                try:
-                    att_sql = att_sql + ", %s = '%s'" % (a['label'], a['value'])
-                except Exception as e:
-                    print(str(e))
+    def get_status(self, status):
 
-            sql = ('''
-            create vertex %s set key = '%s', title = '%s' %s
-            ''' % (kwargs['class_name'], kwargs['key'], kwargs['title'], att_sql))
-        else:
-            sql = ('''
-            create vertex %s set key = '%s', title = '%s'
-            ''' % (kwargs['class_name'], kwargs['key'], kwargs['title']))
-        try:
-            self.client.command(sql)
-        except Exception as e:
-            if str(e) == "":
-                return
-            elif str(type(e)) == "<class 'pyorient.exceptions.PyOrientORecordDuplicatedException'>":
-                return
-            else:
-                return
+        if status in ["Active", "2", "10", "Created", "Approved", "Completed"]:
+            return "Success"
+        if status in ["Inactive", "Deletion Request", "Ready for Decision", "Canceled"]:
+            return "Error"
+        if status in ["To be Archived", "Closed", "Flagged for Archiving", "Released"]:
+            return "Warning"
 
-    def get_suggestion_items(self, **kwargs):
+    def make_line(self, **kwargs):
+        if ({"to": kwargs['r_to']["key"], "from": kwargs['r_from']["key"],
+             "description": kwargs['r_type']}) not in kwargs["r"]['lines']:
+            kwargs["r"]['lines'].append({"to": kwargs['r_to']["key"], "from": kwargs['r_from']["key"], "description": kwargs['r_type']})
+
+        return kwargs["r"]
+
+    def check_node(self, n_dict, r):
+        newKey = self.hash_node(n_dict)
+        if newKey not in r['index']:
+            r['index'].append(n_dict['key'])
+            r['nodes'].append(n_dict)
+
+        return n_dict, r
+
+    '''
+    EPPM Specific functions for Demo data. To be removed and put into a separate function file within the blueprints
+    '''
+
+    def graph_eppm_nodes(self, data):
         """
-        Using the LUCENE text indexing of the different classes available,
-        return a small sample of matching items that can be chosen from a search list.
-        :param kwargs:
-        :return:
-        """
-        # Build the SQL that will be sent to the server
-        sql = '''
-        SELECT EXPAND( $models )
-        LET 
-        '''
-        union = "$models = UNIONALL("
-        i = 0
-        for m in self.models.keys():
-            sql = sql + '''
-            $%s = (SELECT key, title, @class, description FROM %s WHERE [description] LUCENE "%s*" LIMIT 5),\n
-            ''' % (m[0:3].lower(), m, kwargs['searchterms'])
-            union = union + "$%s" % m[0:3].lower()
-            if i != len(self.models.keys())-1:
-                union = union + ", "
-            else:
-                union = union + ")"
-            i+=1
 
-        sql = sql + union
-        r = self.client.command(sql)
-        suggestionItems = []
-        for i in r:
-            try:
-                suggestionItems.append({
-                    "NODE_KEY": i.oRecordData["key"],
-                    "NODE_TYPE": i.oRecordData["class"],
-                    "NODE_NAME": i.oRecordData["title"]
-                })
-            except Exception as e:
-                if e.args[0] == "title":
-                    suggestionItems.append({
-                        "NODE_KEY": i.oRecordData["key"],
-                        "NODE_TYPE": i.oRecordData["class"],
-                        "NODE_NAME": i.oRecordData["description"]
-                    })
-                else:
-                    suggestionItems.append({
-                        "NODE_KEY": i.oRecordData["key"],
-                        "NODE_TYPE": i.oRecordData["class"],
-                        "NODE_NAME": "Unknown title for " + i.oRecordData["class"]
-                    })
-
-        return suggestionItems
-    
-    def get_neighbors(self, **kwargs):
-        """
-        Get the neighbors of a selected Node and return a flat file only of the new neighbors
-        and their relationships with cardinality
-        NODE_KEY, NODE_TYPE, NODE_NAME, NODE_ATTR_ID, EDGE_SOURCE, EDGE_TARGET, EDGE_NAME
-        :param kwargs:
-        :return:
-        """
-        sql = '''
-        MATCH
-        {class:V, where: (key = '%s')}
-        .bothE(){as:o2n}
-        .bothV(){class:V, as:n}
-        RETURN 
-        o2n.@class as EDGE_TYPE, o2n.out.key as EDGE_SOURCE , o2n.in.key as EDGE_TARGET,
-        n.key as NODE_KEY, n.title as NODE_NAME, n.@class as NODE_TYPE, n.description as NODE_ATTR_ID
-        ''' % (kwargs["nodekey"])
-        # Start a response object with data array and node_keys including the queried so it is not included
-        response = {"data": [], "node_keys": [kwargs["nodekey"]]}
-        for r in self.client.command(sql):
-            r = r.oRecordData
-            if r["EDGE_TARGET"] == kwargs["nodekey"]:
-                r["EDGE_DIRECTION"] = "IN"
-            else:
-                r["EDGE_DIRECTION"] = "OUT"
-            if r["NODE_KEY"] not in response["node_keys"]:
-                response["data"].append(r)
-                response["node_keys"].append(r["NODE_KEY"])
-        response["message"] = "Get neighbors for %s resulted in %d nodes" % (kwargs["nodekey"], len(response["data"]))
-        return response
-
-    def check_base_book(self):
-        """
-        Check if the Organizations have been set by UCDP
-        :return:
-        """
-        click.echo('[%s_OSINTserver_check_base_book] Checking base OSINT settings' % (get_datetime()))
-        try:
-            r = self.client.command('select * from Organization where UCDP_id != "" limit 50')
-            if len(r) == 0:
-                if not self.basebook:
-                    click.echo('[%s_OSINTserver_check_base_book] Initializing basebook UCDP codes' % (get_datetime()))
-                    self.basebook = pd.ExcelFile(os.path.join(self.datapath, 'Base_Book.xlsx'))
-                    UCDP = self.basebook.parse('UCDP')
-                    a = c = 0
-                    for index, row in UCDP.iterrows():
-                        if row['table'] == 'actor':
-                            self.create_node(
-                                title="Organization %s" % row['name'],
-                                class_name="Organization",
-                                UCDP_id=row['new_id'],
-                                UCDP_old=row['old_id'],
-                                Name=row['name'],
-                                Source="UCDP",
-                                Category="Political",
-                                icon=self.ICON_ORGANIZATION
-                            )
-                            a+=1
-                        else:
-                            conflict_type = self.ucdp_conflict_type(row)
-                            self.create_node(
-                                title="%s %s" % (conflict_type, row['name']),
-                                class_name="Object",
-                                Category="Conflict",
-                                UCDP_id=row['new_id'],
-                                UCDP_old=row['old_id'],
-                                Name=row['name'],
-                                Source="UCDP",
-                                icon=self.ICON_CONFLICT
-                            )
-                            c+=1
-
-                    click.echo('[%s_OSINTserver_check_base_book] Complete with UCDP setup including %s actors and %s conflicts'
-                               % (get_datetime(), a, c))
-        except Exception as e:
-            click.echo('[%s_OSINTserver_check_base_book] Encountered non-critical error\n%s'
-                       % (get_datetime(), str(e)))
-
-    def fill_db(self):
-
-        # Fill UCDP Organisations
-        r = self.client.command(
-            'select key, UCDP_id, title, Name, Source, icon from Organization where Category = "Politcal" '
-        )
-        for i in r:
-            self.DB['ucdp_org'][i.oRecordData['UCDP_id']] = {
-                "title": i.oRecordData['title'],
-                "key": i.oRecordData['key'],
-                "class_name": "Organization",
-                "group": "UCDP",
-                "icon": i.oRecordData['icon'],
-                "attributes": [
-                    {"label": "Category", "value": i.oRecordData['Category']},
-                    {"label": "UCDP_id", "value": i.oRecordData['UCDP_id']},
-                    {"label": "Source", "value": i.oRecordData['Source']},
-                    {"label": "Name", "value": i.oRecordData['Name']}
-                ]
-            }
-        click.echo('[%s_OSINTserver_fill_db]  Complete with %d UCDP organizations'
-                   % (get_datetime(), len(self.DB['ucdp_org'])))
-        # Fill UCDP Information sources
-        r = self.client.command(
-            'select key, UCDP_id, title, Name, Source, icon from Organization where Category = "Information Source" '
-        )
-        for i in r:
-            self.DB['ucdp_sources'][i.oRecordData['Name']] = {
-                "title": i.oRecordData['title'],
-                "key": i.oRecordData['key'],
-                "group": "UCDP",
-                "class_name": "Organization",
-                "icon": i.oRecordData['icon'],
-                "attributes": [
-                    {"label": "Category", "value": "Information Source"},
-                    {"label": "Name", "value": i.oRecordData['Name']}
-                ]
-            }
-        click.echo('[%s_OSINTserver_fill_db]  Complete with %d UCDP information sources'
-                   % (get_datetime(), len(self.DB['ucdp_org'])))
-        # Fill UCDP Events
-        r = self.client.command(
-            ''' select key, UCDP_id, Category, icon, title, description, Sources, StartDate, EndDate, Deaths, Origin,
-             Civilians, Source from Event where UCDP_id != ""
-             ''')
-        for i in r:
-            self.DB['ucdp_events'][i.oRecordData['UCDP_id']] = {
-                "title": i.oRecordData['title'],
-                "key": i.oRecordData['key'],
-                "class_name": "Event",
-                "group": "UCDP",
-                "icon": i.oRecordData['icon'],
-                "attributes": [
-                    {"label": "Category", "value": i.oRecordData['Category']},
-                    {"label": "Description", "value": i.oRecordData['description']},
-                    {"label": "Sources", "value": i.oRecordData['Sources']},
-                    {"label": "StartDate", "value": i.oRecordData['StartDate']},
-                    {"label": "EndDate", "value": i.oRecordData['EndDate']},
-                    {"label": "Deaths", "value": i.oRecordData['Deaths']},
-                    {"label": "Civilians", "value": i.oRecordData['Civilians']},
-                    {"label": "Origin", "value": i.oRecordData['Origin']},
-                    {"label": "UCDP_id", "value": i.oRecordData['UCDP_id']},
-                    {"label": "Source", "value": i.oRecordData['Source']},
-                ]
-            }
-        click.echo('[%s_OSINTserver_fill_db]  Complete with %d UCDP events'
-                   % (get_datetime(), len(self.DB['ucdp_events'])))
-
-    def get_acled(self):
-        """
-        Using the ACLED API transform results into a graph format
-        Variable data is a list of dictionary elements as follows:
-            1.actor1            11.event_id_cnty        21.latitude
-            2.actor2            12.event_id_no_cnty     22.location
-            3.admin1            13.event_type           23.longitude
-            4.admin2            14.fatalities           24.notes
-            5.admin3            15.geo_precision        25.region
-            6.assoc_actor_1     16.inter1               26.source
-            7.assoc_actor_2     17.inter2               27.source_scale
-            8.country           18.interaction          28.sub_event_type
-            9.data_id           19.iso                  29.time_precision
-            10.event_date       20.iso3                 30.timestamp
-                                                        31.year
-
-        :return:
-        """
-        data = requests.get(self.ACLED_Base_URL).json()['data']
-        return data
-
-    def get_ucdp(self):
-        """
-        Using the UCDP API get the results and for each row extract columns into OSINT DB entities
-            1.id                11.dyad_new_id          21.source_office            31.longitude            41.deaths_a
-            2.relid             12.dyad_name            22.source_date              32.geom_wkt             42.deaths_b
-            3.year              13.side_a_dset_id       23.source_headline          33.priogrid_gid         43.deaths_civilian
-            4.active_year       14.side_a_new_id        24.source_original          34.country              44.deaths_unknown
-            5.code_status       15.side_a               25.where_prec               35.country_id           45:best
-            6.type_of_violence  16.side_b_dset_id       26.where_coordinates        36.region               46:high
-            7.conflict_dset_id  17.side_b_new_id        27.where_description        37.event_clarity        47:low
-            8.conflict_new_id   18.side_b               28.adm_1                    38.date_prec            48.gwnoa
-            9.conflict_name     19.number_of_sources    29.adm_2                    39.date_start           49.gwnob
-            10.dyad_dset_id     20.source_article       30.latitude                 40.date_end
-
-        :return:
-        """
-        results = requests.get(self.UCDP_Base_URL).json()
-        data = results['Result']
-        graph_build = {"nodes": [], "lines": [], "groups": [{"key": "UCDP", "title": "UCDP"}]}
-        geo = []
-        for row in data:
-            # Get the sources who reported the event
-            sources = list(set(row['source_office'].split(";")))
-            sources.append(row['source_original'])
-            source_keys = []
-            for s in sources:
-                if s != "":
-                    if s in self.DB['ucdp_sources'].keys():
-                        source_node = {"data" : self.DB['ucdp_sources'][s]}
-                        if self.DB['ucdp_sources'][s] not in graph_build['nodes']:
-                            graph_build['nodes'].append(self.DB['ucdp_sources'][s])
-                    else:
-                        source_node = self.create_node(
-                            class_name="Organization",
-                            Category="Information Source",
-                            Name=s,
-                            title="%s information source" % s,
-                            icon=self.ICON_INFO_SOURCE,
-                            description="Organization from UCDP. %s" % s,
-                            Source="UCDP"
-                        )
-                        graph_build['nodes'].append(source_node['data'])
-                source_keys.append(source_node['data']['key'])
-            # Get the Event
-            if row['id'] in self.DB['ucdp_events'].keys():
-                event_node = {"data" : self.DB['ucdp_events'][row['id']]}
-                if event_node['data'] not in graph_build['nodes']:
-                    graph_build['nodes'].append(event_node['data'])
-            else:
-                StartDate = change_if_date(row['date_start'])
-                EndDate = change_if_date(row['date_end'])
-                Category = self.ucdp_conflict_type(row)
-                event_node = self.create_node(
-                    class_name="Event",
-                    icon=self.ICON_CONFLICT,
-                    Category=Category,
-                    UCDP_id=row['id'],
-                    title="%s %s, %s" % (Category, row['country'], row['source_original']),
-                    description=("Headline: %s Article: %s" % (
-                        row['source_headline'],
-                        row['source_article'])).replace("'", ""),
-                    Sources=len(sources),
-                    StartDate=StartDate,
-                    EndDate=EndDate,
-                    Deaths=row['best'],
-                    Origin=clean(row['source_original']),
-                    Civilians=row['deaths_civilians'],
-                    Source="UCDP"
-                )
-                try:
-                    graph_build['nodes'].append(event_node['data'])
-                except Exception as e:
-                    print(str(e))
-                self.DB['ucdp_events'][row['id']] = event_node['data']
-            # Wire up the Sources as reporting on the Event
-            for k in source_keys:
-                self.create_edge(
-                    fromClass="Organization",
-                    toClass="Event",
-                    edgeType="ReportedOn",
-                    fromNode=k,
-                    toNode=event_node['data']['key']
-                )
-                graph_build['lines'].append({"from": k, "to": event_node['data']['key'], "title": "GeoSpatial"})
-            # Get the 2 conflicting organizations
-            if row['side_a_new_id'] in self.DB['ucdp_org'].keys():
-                side_a_key = self.DB['ucdp_org'][row['side_a_new_id']]['key']
-                if self.DB[row['side_a_new_id']] not in graph_build['nodes']:
-                    graph_build['nodes'].append(self.DB[row['side_a_new_id']])
-
-            else:
-                side_a_node = self.create_node(
-                    class_name="Organization",
-                    Category="Political",
-                    description="Political %s" % row['side_a'],
-                    title="Organization %s" % row['side_a'],
-                    UCDP_id=row['side_a_new_id'],
-                    UCDP_old=row['side_a_dset_id'],
-                    Name=row['side_a'],
-                    icon=self.ICON_ORGANIZATION,
-                    Source="UCDP"
-                )
-                graph_build['nodes'].append(side_a_node['data'])
-                side_a_key = side_a_node['data']['key']
-                self.DB['ucdp_org'][row['side_a']] = side_a_node['data']
-
-            if row['side_b_new_id'] in self.DB.keys():
-                side_b_key = self.DB[row['side_b_new_id']]['key']
-                if self.DB[row['side_b_new_id']] not in graph_build['nodes']:
-                    graph_build['nodes'].append(self.DB[row['side_b_new_id']])
-            else:
-                side_b_node = self.create_node(
-                    class_name="Organization",
-                    title="Organization %s" % row['side_b'],
-                    Category="Political",
-                    description="Political %s" % row['side_b'],
-                    UCDP_id=row['side_b_new_id'],
-                    UCDP_old=row['side_b_dset_id'],
-                    Name=row['side_b'],
-                    icon=self.ICON_ORGANIZATION,
-                    Source="UCDP"
-                )
-                graph_build['nodes'].append(side_b_node['data'])
-                side_b_key = side_b_node['data']['key']
-                self.DB['ucdp_org'][row['side_b']] = side_b_node['data']
-            # Wire up the Organizations with the Event
-            self.create_edge(
-                fromClass="Organization",
-                toClass="Event",
-                fromNode=side_a_key,
-                toNode=event_node['data']['key'],
-                edgeType="Involved"
-            )
-            graph_build['lines'].append({"from": side_a_key, "to": event_node['data']['key'], "title": "Event"})
-            self.create_edge(
-                fromClass="Organization",
-                toClass="Event",
-                fromNode=side_b_key,
-                toNode=event_node['data']['key'],
-                edgeType="Involved"
-            )
-            graph_build['lines'].append({"from": side_b_key, "to": event_node['data']['key'], "title": "Event"})
-            # Get the Location
-            if row['adm_1'] != "":
-                city = row['adm_1']
-            elif row['adm_2'] != "":
-                city = row['adm_2']
-            elif row['where_coordinates'] != "":
-                city = row['where_coordinates']
-            else:
-                city = "Unknown"
-            location_node = self.create_node(
-                class_name="Location",
-                Category="Conflict site",
-                description="%s %s %s %s" % (row['adm_1'], row['adm_2'], row['country'], row['region']),
-                Latitude=row['latitude'],
-                Longitude=row['longitude'],
-                title="%s %s" % (city, row['country']),
-                city=city,
-                country=row['country'],
-                icon=self.ICON_LOCATION
-            )
-            geo.append({
-                "pos": "%f;%f;0" % (row['longitude'], row['latitude']),
-                "tooltip": city,
-                "type": "Error"
-            })
-            graph_build['nodes'].append(location_node['data'])
-            location = location_node['data']['key']
-            # Wire up the Event to Location (OccurredAt)
-            self.create_edge(
-                fromClass="Event",
-                fromNode=event_node['data']['key'],
-                toClass="Location",
-                toNode=location,
-                edgeType="OccurredAt"
-            )
-            graph_build['lines'].append({"from": event_node['data']['key'], "to": location, "title": "OccurredAt"})
-            # Wire up the Organizations to the Location (ReportedAt)
-            self.create_edge(
-                fromClass="Organization",
-                fromNode=side_a_key,
-                toClass="Location",
-                toNode=location,
-                edgeType="OccurredAt"
-            )
-            graph_build['lines'].append({"from": side_a_key, "to": location, "title": "OccurredAt"})
-            self.create_edge(
-                fromClass="Organization",
-                fromNode=side_b_key,
-                toClass="Location",
-                toNode=location,
-                edgeType="OccurredAt"
-            )
-            graph_build['lines'].append({"from": side_b_key, "to": location, "title": "OccurredAt"})
-
-        message = {
-            "graph": self.quality_check(graph_build),
-            "raw": data,
-            "geo": {
-                "Spots": {
-                    "items": geo
-                }
-            }
-        }
-        return message
-
-    def create_profile(self):
-
-        return
-
-    def fill_cache(self):
-        """
-        Fill the self.DB with existing entities to prevent unnecessary calls to the DB. Select * from OSINT
+        :param data:
         :return:
         """
 
-        return
+        no_take_attributes = ["NODE_KEY", "LEVEL", "ITM_ZPR_PRG_ID", "ITM_DELIVERY_NAME_LONG", "PPORADM", "PPORAPC",
+                              "PPORAPLS", "PPORAH", "PPORAPRC", "PPORAPRSC", "PPORARLQ", "PPORASB", "PPORASSR",
+                              "PPORARDU", "CC_AGE_IN_YEARS", "ITM_P1", "ITM_P1_TEXT", "ITM_P2", "ITM_P2_TEXT",
+                              "ITM_P3", "ITM_P3_TEXT", "ITM_P4", "ITM_P4_TEXT", "ITM_PROJECT_RESP",
+                              "ITM_PROJECT_RESP_NAME", "KEY_COUNTER", "ITM_PROJECT_SYS_STATUS"]
 
-    def run_osint_simulation(self):
-        """
-        1) Choose from a random social media profile (TODO Make social media profiles from basebook twitter and other accounts)
-        2) Create post based on social media profile type (TODO Get standard post types and content) - get tweets and label them
-        3) Create re-tweets from profiles that follow the chosen profile
-        :return:
-        """
-        # get social media profiles and their followers
-
-        return
-
-    def create_monitor(self, searchValue="vulnerability", userName="SocAnalyst", name="Twitter", type="Search", description="hashtag"):
-        '''
-
-        insert into Monitor (key, name, searchValue, type, user, description) values (sequence('idseq').next(), "Twitter", null, "Channel", "SocAnalyst", "Hashtags, User timelines, and location based search") return @this.key
-        insert into Monitor (key, name, searchValue, type, user, description) values (sequence('idseq').next(), "Twitter", "vulnerability", "Search", "SocAnalyst", "hashtag") return @this.key
-        insert into Monitor (key, name, searchValue, type, user, description) values (sequence('idseq').next(), "Twitter", "realDonaldTrump", "Search", "SocAnalyst", "user") return @this.key
-
-        :param kwargs:
-        :return:
-        '''
-        # Check if the user exists within OSINT
-        if len(self.client.command('''select key from User where userName = "%s"''' % userName)) == 0:
-            self.client.command('''
-            insert into User (key, userName) values (sequence('idseq').next(), "%s") return @this.key 
-            ''' % userName)
-
-        # Next check if the channel exists
-        message = "%s adding channel %s with search %s." % (userName, name, searchValue)
-        monitor_channel = self.client.command('''
-        select key from Monitor where type = 'Channel' and name = '%s'
-        ''' % (name))
-        if len(monitor_channel) > 0:
-            # Set the monitor channel key for relating to the searchTerm and user
-            monitor_channel = monitor_channel[0].oRecordData["key"]
-            # Check if the monitor is subscribed to be the user
-            sql = '''
-            match
-            {class:Monitor, as:m, where: (name = '%s' and type = 'Channel')}.in("SubscribesTo")
-            {class:User, as:u, where: (userName = '%s')}
-            return m
-            ''' % (name, userName)
-            if len(self.client.command(sql)) == 0:
-                message += "\n%s exists but user is now newly subscribed to it. " % name
-                self.client.command('''
-                create edge SubscribesTo from 
-                (select from User where userName = '%s') to 
-                (select from Monitor where key = %d )
-                ''' % (userName, monitor_channel))
-            else:
-                message += "\n%s exists and user already subscribed. " % name
-        else:
-            # The monitor channel needs to be created...
-            message += "\n%s doesn't exist so has been created with user subscribed. " % name
-            monitor_channel = self.create_node(
-                class_name="Monitor",
-                name=name,
-                searchValue=None,
-                type="Channel",
-                description=description
-            )["data"]["key"]
-            # ...and the user subscription to the monitor
-            self.client.command('''
-            create edge SubscribesTo from 
-            (select from User where userName = '%s') to 
-            (select from Monitor where key = %d )
-            ''' % (userName, monitor_channel))
-
-        # If the monitor is a search
-        if type == "Search":
-            # Check if it exists
-            monitor_search = self.client.command('''
-            select key from Monitor where name = "%s" and searchValue = "%s" and description = "%s"
-            ''' % (name, searchValue, description))
-            if len(monitor_search) == 0:
-                # If not create it and relate it to the channel
-                message += "\n%s doesn't exist so has been created with user subscribed. " % searchValue
-                monitor_search = self.create_node(
-                    class_name="Monitor",
-                    name=name,
-                    searchValue=searchValue,
-                    type="Search",
-                    description=description
-                )["data"]["key"]
-                # Relate to the channel
-                self.client.command('''
-                create edge SearchesOn from 
-                (select from Monitor where key = %d) to 
-                (select from Monitor where key = %d )
-                ''' % (monitor_channel, monitor_search))
-                # Make the user subscription relation
-                self.client.command('''
-                create edge SubscribesTo from 
-                (select from User where userName = '%s') to 
-                (select from Monitor where key = %d )
-                ''' % (userName, monitor_search))
-            else:
-                monitor_search = monitor_search[0].oRecordData["key"]
-                sql = '''
-                match
-                {class:Monitor, as:m, where: (key = %d and type = 'Search' and searchValue = '%s')}.in("SubscribesTo")
-                {class:User, as:u, where: (userName = '%s')}
-                return m
-                ''' % (monitor_search, searchValue, userName)
-                if len(self.client.command(sql)) == 0:
-                    message += "%s is now subscribed to %s. " % (userName, searchValue)
-                    # Make the user subscription relation
-                    self.client.command('''
-                    create edge SubscribesTo from 
-                    (select from User where userName = '%s') to 
-                    (select from Monitor where key = %d )
-                    ''' % (userName, monitor_search))
-                else:
-                    message += "%s is already subcribed to %s." % (userName, searchValue)
-
-        return message
-
-    def start_merge_monitor(self):
-        """
-        Start a thread to run the monitor
-        :return:
-        """
-        r = {}
-        if self.monitors["merger"] == False:
-            t = threading.Thread(target=self.monitor_merges)
-            self.monitors["merger"] = True
-            t.start()
-            r["message"] = '[%s_OSINT_start_merge_monitor] Turned on' % (get_datetime())
-            click.echo(r["message"])
-        else:
-            r["message"] = '[%s_OSINT_start_merge_monitor] Turned off' % (get_datetime())
-            self.monitors["merger"] = False
-
-        return r
-
-    def create_report(self, **kwargs):
-        """
-        Create a record of summary activity from an automated process such as a crawler
-        Store the record for later use including analysis of time stamps and production
-        :param kwargs:
-        :return:
-        """
-        pid = randomString(32)
-        self.create_node(
-            class_name="Process",
-            category="Report",
-            pid=pid,
-            name=kwargs["name"],
-            started=get_datetime(),
-            summary=kwargs["summary"]
-        )
-        return pid
-
-    def create_update(self, **kwargs):
-        """
-        Create a record that updates the report
-        :param kwargs:
-        :return:
-        """
-        update_key = self.create_node(
-            class_name="Process",
-            category="Update",
-            pid=kwargs['pid'],
-            name=kwargs["name"],
-            started=get_datetime(),
-            summary=kwargs["summary"]
-        )
-
-        self.client.command('''
-        create edge UpdateTo from 
-        (select from Process where key = %d) to 
-        (select from Process where pid = '%s' and category = "Report")
-        ''' % (update_key['data']['key'], kwargs['pid']))
-
-        return update_key
-
-    def update_report(self, **kwargs):
-        """
-        Using a new line for a summary report, update the report by its process pid
-
-        :param kwargs:
-        :return:
-        """
-        update_key = self.create_update(pid=kwargs['pid'], name=kwargs['name'], summary=kwargs['summary'])
-        if "ended" in kwargs.keys():
-            self.client.command('''
-            update Process set ended = '%s' where pid = '%s'
-            ''' % (get_datetime(), kwargs['pid']))
-
-        return update_key["data"]["key"]
-
-    def get_user_monitor(self, userName="SocAnalyst"):
-        monitors = []
-        sql = '''
-        match
-        {class:User, where: (userName = '%s')}.out("SubscribesTo")
-        {class:Monitor, as:s}.in("SearchesOn")
-        return s.key as key, s.description as label, s.searchValue as value, s.name as source
-        ''' % (userName)
-        for i in self.client.command(sql):
-            monitors.append(i.oRecordData)
-        message = "Retrieved %s monitored terms for %s" % (len(monitors), userName)
-
-        return {"data": monitors, "message": message}
-
-    def start_twitter_monitor(self, user="SocAnalyst"):
-        """
-        Start a thread to run the monitor. Using the username, get all the channels they are subscribed to on Twitter
-        and start the monitor. SocAnalyst is standard user subscribed to all channels and can therefore be used for a
-        full monitor. For all others, the channels can be made customized and only the channels they search for are
-        returned.
-        Example monitors for twitter:
-        user_monitor = [
-            "realDonaldTrump", "WhatsTrending", "BernieSanders", "PeteButtigieg", "benshapiro", "jeremycorbyn",
-            "CVEcommunity", "BBCWorld", "AJEnglish"
-        ]
-        locations_monitor = [{"lat": 48.83, "lon": 2.3}, {"lat": 40.254, "lon": -73.93}, {"lat": 51.441, "lon": -0.002}]
-        hashtags_monitor = ["bbc", "vulnerability", "MITRE"]
-        :return:
-        """
-        # Get the user's monitors
-        sql = '''
-        match
-        {class:User, where: (userName = '%s')}.out("SubscribesTo")
-        {class:Monitor, as:s}.in("SearchesOn")
-        {class:Monitor, as:channel, where: (name = 'Twitter')}
-        return s.key, s.description, s.searchValue, s.type
-        ''' % (user)
-        monitors = self.client.command(sql)
-        user_monitor = []
-        locations_monitor = []
-        hashtags_monitor = []
-        for m in monitors:
-            if m.oRecordData["s_description"] == "location":
-                try:
-                    locations_monitor.append(json.loads(m.oRecordData["s_searchValue"].replace("'", '"')))
-                except:
-                    click.echo('[%s_OSINT_start_twitter_monitor] Error with location %s' % (
-                        get_datetime(), m.oRecordData["s_searchValue"]))
-            elif m.oRecordData["s_description"] == "hashtag":
-                hashtags_monitor.append(m.oRecordData["s_searchValue"])
-            elif m.oRecordData["s_description"] == "user":
-                user_monitor.append(m.oRecordData["s_searchValue"])
-
-        r = {}
-        t = threading.Thread(
-            target=self.monitor_twitter,
-            kwargs={
-                "user_monitor": user_monitor,
-                "locations_monitor": locations_monitor,
-                "hashtags_monitor": hashtags_monitor
-            })
-        if self.monitors["twitter"] == False:
-            self.monitors["twitter"] = True
-            click.echo('[%s_OSINT_start_twitter_monitor] Turned on' % (get_datetime()))
-            t.start()
-            r["message"] = "Twitter monitor started"
-        else:
-            click.echo('[%s_OSINT_start_twitter_monitor] Turned off' % (get_datetime()))
-            r["message"] = "Twitter monitor stopped"
-            self.monitors["twitter"] = False
-
-        return r
-
-    def monitor_twitter(self, **kwargs):
-        """
-        The thread that runs until turned off. When started runs every 30 minutes.
-        The thread is stored in the self.monitors{twitter: var}. The thread can be turned off
-        by means of setting it to False. TODO create a higher level process that is monitor and relate the others to it
-        :param kwargs:
-        :return:
-        """
-        minutes = 30
-        name = "Twitter"
-        while self.monitors["twitter"]:
-            pid = self.create_report(name=name, summary="Starting")
-            update_key = self.update_report(pid=pid, summary="Getting users", name=name)
-            for u in kwargs["user_monitor"]:
-                graphs, message = self.get_twitter(number_of_tweets=100, username=u)
-                for g in graphs:
-                    self.process_graph(graph=g["graph"], update_key=update_key)
-
-            update_key = self.update_report(pid=pid, summary="Getting locations", name=name)
-            for l in kwargs["locations_monitor"]:
-                graphs, message = self.get_twitter(number_of_tweets=100, latitude=l["lat"], longitude=l["lon"])
-                for g in graphs:
-                    self.process_graph(graph=g["graph"], update_key=update_key)
-            update_key = self.update_report(pid=pid, summary="Getting hashtags", name=name)
-            for l in kwargs["hashtags_monitor"]:
-                graphs, message = self.get_twitter(number_of_tweets=100, hashtag=l)
-                for g in graphs:
-                    self.process_graph(graph=g["graph"], update_key=update_key)
-            self.update_report(ended=True, pid=pid,
-                               name=name, summary="Complete with requests. Sleeping for %d minutes" % minutes)
-            time.sleep(60 * minutes)
-
-    def get_twitter(self, **kwargs):
-        """
-        Optional uses of the Twitter API as configured in the settings. Process the tweets into a graph and then a thread
-        to process them in the back end. Query for existing keys to Nodes
-        1) statuses/user_timeline: get all the tweets by username
-        2)
-        :param kwargs:
-        :return:
-        """
-
-        if "max_id" not in kwargs.keys():
-            kwargs['max_id'] = None
-        if "number_of_tweets" not in kwargs.keys():
-            kwargs['number_of_tweets'] = self.default_number_of_tweets
-        if "request" not in kwargs.keys():
-            kwargs['request'] = 0
-
-        client_key = self.TWITTER_AUTH['client_key']
-        client_secret = self.TWITTER_AUTH['client_secret']
-        token = self.TWITTER_AUTH['token']
-        token_secret = self.TWITTER_AUTH['token_secret']
-        oauth  = OAuth1(client_key, client_secret, token, token_secret)
-        graphs = []
-        locationsChecked = False
-        message = "Retrieved twitter API: "
-
-        if "username" in kwargs.keys():
-            if kwargs['username'] != "":
-                api_url  = "%s/statuses/user_timeline.json?" % self.base_twitter_url
-                api_url += "screen_name=%s&" % kwargs['username']
-                api_url += "count=%d" % kwargs['number_of_tweets']
-
-                if kwargs['max_id'] is not None:
-                    api_url += "&max_id=%d" % kwargs['max_id']
-                # send request to Twitter
-                response = requests.get(api_url, auth=oauth, verify=False) # if ssl error use verify=False
-                kwargs['request']+=1
-                tweets = self.responseHandler(response, kwargs['username'])
-                if response.status_code != 401:
-                    tweets = self.processTweets(tweets=tweets)
-                    graphs.append(tweets)
-                    message+= " %s tweets" % kwargs['username']
-                else:
-                    message+= " %s protects tweets" % kwargs['username']
-                    graphs.append({
-                        "nodes": [],
-                        "lines": [],
-                        "groups": [
-                            {"key": "Profiles", "title": "Profiles"},
-                            {"key": "Posts", "title": "Posts"},
-                            {"key": "Locations", "title": "Locations"},
-                            {"key": "Hashtags", "title": "Hashtags"}
-                    ]})
-
-        if "hashtag" in kwargs.keys():
-            if kwargs['hashtag'] != "":
-                api_url = "%s/search/tweets.json?" % self.base_twitter_url
-                api_url += "q=%%23%s&result_type=recent" % kwargs['hashtag']
-                if "latitude" in kwargs.keys() and "longitude" in kwargs.keys() and kwargs['latitude'] != "":
-                    api_url += "&geocode=%f,%f" % (float(kwargs['latitude']), float(kwargs['longitude']))
-                    if "radius" in kwargs:
-                        api_url += ",%dkm&count=%s" % (int(kwargs['radius']), kwargs['number_of_tweets'])
-                    else:
-                        api_url += ",5km&count=%s" % kwargs['number_of_tweets']
-                    locationsChecked = True
-                response = requests.get(api_url, auth=oauth, verify=False)
-                tweets = self.responseHandler(response, kwargs['hashtag'])
-                tweets = self.processTweets(tweets=tweets['statuses'])
-                graphs.append(tweets)
-                message+= " %s resulted in %d records" % (kwargs['hashtag'], len(tweets['graph']['nodes']))
-
-        if "latitude" in kwargs.keys() and "longitude" in kwargs.keys()and not locationsChecked:
-            if kwargs['latitude'] != "" and kwargs['longitude'] != "":
-                api_url = "https://api.twitter.com/1.1/search/tweets.json?q=&geocode=%f,%f" % (
-                    float(kwargs['latitude']), float(kwargs['longitude']))
-                if "radius" in kwargs.keys():
-                    if kwargs['radius'] != "":
-                        api_url += ",%dkm&count=%s" % (int(kwargs['radius']), kwargs['number_of_tweets'])
-                    else:
-                        api_url += ",5km&count=%s" % kwargs['number_of_tweets']
-                response = requests.get(api_url, auth=oauth, verify=False)
-                tweets = self.responseHandler(response, "%s, %s" % (kwargs['latitude'], kwargs['longitude']))
-                #graphs.append(tweets['statuses'])
-                tweets = self.processTweets(tweets=tweets['statuses'])
-                graphs.append(tweets)
-                message += " %s resulted in %s, %d records" % (kwargs['latitude'], kwargs['latitude'], len(tweets['graph']['nodes']))
-
-        # TODO implement crawlers to get loads that don't break the API quota rules
-        if "popular" in kwargs.keys():
-            api_url = "https://api.twitter.com/1.1/trends/place.json?id=1&count=100"
-            response = requests.get(api_url, auth=oauth, verify=False)
-            tweets = self.responseHandler(response, "Popular, %s" % get_datetime())
-            tweets = self.processTweets(tweets=tweets)
-            graphs.append(tweets)
-
-        return graphs, message
-
-    def geo_spatial_view(self, **kwargs):
-        """
-        Create a record for every location->event->Vertex and for every location->Event. If there is a case in the
-        request, only get those items related to case. By book-ending the query with the case, there is no risk in
-        picking up data not part of the case. TODO Additional check on data to ensure classification does not break rule
-            {position: l.latitude, l.longitude, e.startDate
-            tooltip:
-            DependentData: time?  , v.type, v.category, e.type
-            {circle: position, tooltip, radius, color, colorborder, hotDeltaColor, click
-        Enables user in a geo view to filter on type, category and time windows (if position[2] in between time range or
-        other filter
-
-        :return:
-        """
-        if "caseKey" in kwargs.keys():
-            sql = '''
-            MATCH
-            {class:Case, where: (key = '%s')}.out("Attached")
-            {class:Location, as:l}.bothE(){as:l2e}.bothV()
-            {class:Event, as:e}.bothE(){as:e2v}.bothV()
-            {class:V, as:v}.in("Attached"){class:Case, where: (key = '%s')}
-            RETURN 
-            l.key, l.Longitude, l.Latitude, l.title, l.Category, l.Type, l.icon,  
-            l2e.@class as EventLocation, 
-            e.key, e.Description, e.Category, e.Civilians, e.Deaths, e.EndDate, e.icon, e.EndDate, e.Source,
-            e2v.@class as EventVertex,
-            v.key, v.title, v.icon, v.Description, v.Gender, v.LastName, v.FirstName, v.@class as class_name 
-            ''' % (kwargs['caseKey'], kwargs['caseKey'])
-        else:
-            sql = '''
-            MATCH
-            {class:Location, as:l}.bothE(){as:l2e}.bothV()
-            {class:Event, as:e}.bothE(){as:e2v}.bothV()
-            {class:V, as:v}
-            RETURN 
-            l.key, l.Longitude, l.Latitude, l.title, l.Category, l.Type, l.icon,  
-            l2e.@class as EventLocation, 
-            e.key, e.Description, e.Category, e.Civilians, e.Deaths, e.EndDate, e.icon, e.EndDate, e.Source,
-            e2v.@class as EventVertex,
-            v.key, v.title, v.icon, v.Description, v.Gender, v.LastName, v.FirstName, v.@class as class_name 
-            '''
-        r = self.client.command(sql)
-        curLocation = None
-        curEvent = None
-        index = []
-        for i in r:
-
-            click.echo(i.oRecordData)
-
-    def save_osint(self, **kwargs):
-        """
-        Checks if the Case already exists and if not, creates it.
-        Checks if the Nodes sent in the graphCase are already "Attached" to the Case if the Case does exist.
-        Expects a request with graphCase containing the graph from the user's canvas and assumes that all nodes have an
-        attribute "key". The creation of a node is only if the node is new and taken from a source that doesn't exist in
-        POLE yet.
-        TODO: Implement classification and Owner/Reader relations
-        1) Match all
-        :param r:
-        :return:
-        """
-        if "nodes" in kwargs.keys():
-            fGraph = {"nodes": kwargs['nodes'], "lines": kwargs['lines'], "groups": kwargs['groups']}
-        else:
-            fGraph = {}
-            for k in kwargs.keys():
-                fGraph[k] = kwargs[k]
-
-        case, message = self.save(
-            graphCase=fGraph,
-            Owners=kwargs['Owners'],
-            Members=kwargs['Members'],
-            CreatedBy=kwargs['CreatedBy'],
-            Classification=kwargs['Classification'],
-            graphName=kwargs['graphName'])
-        data = {
-            "graph": case,
-            "geo": {
-                "Spots": {
-                    "items": []
-                }
-            }
-        }
-        graphs = [data]
-
-        return graphs, message
-
-    def processTweets(self, **kwargs):
-        """
-        Using the basic structure below, create a relationship between a user and all the tweets. Extract Hashtags
-        from tweets where applicable. Extract Locations where applicable.
-        Tweet structure:
-            uid: id, id_str, quoted_status_id
-        int:
-            favorite_count, retweet_count
-        dtg:
-            created_at
-        obj:
-            retweeted_status, entities, user
-        str:
-            lang, text
-        bin:
-            favorited, in_reply_to_screen_name, in_reply_to_status_id, in_reply_to_user_id,
-            is_quote_status, retweeted, truncated
-        user:
-            created_at, description, url, name, location, listed_count, profile_image_url_https
-
-        Node structure:
-            key=key,                            ## TweetID
-            class_name=kwargs['class_name'],    ## Event Tweet, Object User
-            title=title,
-            status=status,                      ## TODO sentiment
-            icon=icon,
-            attributes=attributes               ## [label, value]
-
-        :param kwargs:
-        :return:
-        """
-        graph = {
+        print( '[%s_graph_eppm] Starting' % (get_datetime()))
+        r = {
             "nodes": [],
             "lines": [],
             "groups": [
-                {"key": "Profiles", "title": "Profiles"},
-                {"key": "Posts", "title": "Posts"},
-                {"key": "Locations", "title": "Locations"},
-                {"key": "Hashtags", "title": "Hashtags"}
-            ]
-        }
-        geo = []
-        index = []
-        if "tweets" in kwargs.keys():
-            for t in kwargs['tweets']:
-                twt_id = "TWT_%s" % t['id']
-                hash_tags_str = ""
-                if twt_id not in index:
-                    index.append(twt_id)
-                    node = {
-                        "key": twt_id,
-                        "class_name": "Event",
-                        "title": "Tweet from " + t['user']['name'],
-                        "status": random.choice(self.ICON_STATUSES),
-                        "icon": self.ICON_TWEET,
-                        "group": "Posts",
-                        "attributes": [
-                            {"label": "Created", "value": t['created_at']},
-                            {"label": "Text", "value": t['text']},
-                            {"label": "description", "value": "%s tweeted %s" % (t['user']['name'], t['text'])},
-                            {"label": "Language", "value": t['lang']},
-                            {"label": "Re_message", "value": t['retweet_count']},
-                            {"label": "Favorite", "value": t['favorite_count']},
-                            {"label": "URL", "value": t['source']},
-                            {"label": "Geo", "value": t['coordinates']},
-                            {"label": "Hashtags", "value": hash_tags_str},
-                            {"label": "User", "value": t['user']['screen_name']},
-                        ]
-                    }
-                    graph['nodes'].append(node)
-                    if "PROCESS" in kwargs.keys():
-                        TWT_NODE = self.create_node(**node)
+                {"key": "Portfolio", "title": "Portfolio"},
+                {"key": "CRPS", "title": "Cross Product Services"},
+                {"key": "HIER", "title": "Hierarchy"},
+                {"key": "CRDS", "title": "Cross Category"},
+                {"key": "RSCH", "title": "Research"},
+                {"key": "LOGP", "title": "Products"},
+                {"key": "Initiative", "title": "Initiative"},
+            ],
 
-                    ht_count = 0
-                    # Process Hashtags by creating a string and an entity. Then create a line to the HT from the Tweet
-                    for ht in t['entities']['hashtags']:
-                        if ht_count == len(t['entities']['hashtags']):
-                            hash_tags_str = hash_tags_str + ht['text']
-                        else:
-                            hash_tags_str = hash_tags_str + ht['text']+ ", "
-                        ht_count+=1
-                        ht_id = "%s_hashtag_id" % ht['text']
-                        if ht_id not in index:
-                            index.append(ht_id)
-                            node = {
-                                "key": ht_id,
-                                "class_name": "Object",
-                                "title": "#%s" % ht['text'],
-                                "icon": self.ICON_HASHTAG,
-                                "group": 4,
-                                "attributes": [
-                                    {"label": "Text", "value": ht['text']},
-                                    {"label": "description", "value": "Hashtag %s" % ht['text']}
-                                ]
-                            }
-                            graph['nodes'].append(node)
-                            if "PROCESS" in kwargs.keys():
-                                HT_NODE = self.create_node(**node)
-                                self.create_edge(toClass=node["class_name"], fromClass="Event", edgeType="Included",
-                                                 toNode=HT_NODE["data"]["key"], fromNode=TWT_NODE["data"]["key"])
-                        graph['lines'].append(
-                            {"to": ht_id, "from": twt_id, "description": "Included"}
+            "index": []
+        }
+        data = data.fillna("<Null>")
+        for index, row in data.iterrows():
+            node = {
+                "key": None,
+                "icon": None,
+                "group": None,
+                "title": None,
+                "status": None,
+                "attributes": []}
+            for k in row.keys():
+                if row[k] != "<Null>":
+                    if "datetime" in str(type(row[k])):
+                        rowk = date_to_standard_string(row[k])
+                    else:
+                        rowk = row[k]
+                    if k == "NODE_ATTR_GUID":
+                        node["key"] = rowk
+                        node["attributes"].append({
+                            "label": "EXT_KEY", "value": rowk
+                        })
+                    elif k == "NODE_NAME":
+                        node["title"] = rowk
+                    elif k == "NODE_ATTR_ID":
+                        node["attributes"].append({
+                            "label": "ID", "value": rowk
+                        })
+                    elif k == "NODE_TYPE":
+                        node["attributes"].append({
+                            "label": "Type", "value": rowk
+                        })
+                    elif k == "NODE_ATTR_DATA_SOURCE":
+                        node["attributes"].append({
+                            "label": "Data source", "value": rowk
+                        })
+
+                    elif k not in no_take_attributes:
+                        node["attributes"].append(
+                            {"label": k, "value": rowk}
                         )
-                    # Process Locations
-                    if "place" in t.keys():
-                        if t['place']:
-                            if len(t['place']['bounding_box']['coordinates'][0]) > 0:
-                                loc_id = "TWT_Place_%s" % t['place']['id']
-                                if loc_id not in index:
-                                    index.append(loc_id)
-                                    node = {
-                                        "key": loc_id,
-                                        "class_name": "Locations",
-                                        "title": t['place']['name'],
-                                        "status": random.choice(self.ICON_STATUSES),
-                                        "icon": self.ICON_LOCATION,
-                                        "group": "Locations",
-                                        "attributes": [
-                                            {"label": "Re_message", "value": t['place']['url']},
-                                            {"label": "Country", "value": t['place']['country']},
-                                            {"label": "Longitude", "value": t['place']['bounding_box']['coordinates'][0][0][0]},
-                                            {"label": "Latitude", "value": t['place']['bounding_box']['coordinates'][0][0][1]},
-                                            {"label": "Type", "value": t['place']['place_type']},
-                                            {"label": "description", "value": "%s %s %s,%s" % (
-                                                t['place']['country'],
-                                                t['place']['place_type'],
-                                                t['place']['bounding_box']['coordinates'][0][0][0],
-                                                t['place']['bounding_box']['coordinates'][0][0][1]
-                                            )}
-                                        ]
-                                    }
-                                    graph['nodes'].append(node)
-                                    if "PROCESS" in kwargs.keys():
-                                        LOC_NODE = self.create_node(**node)
-                                        self.create_edge(toClass=node["class_name"], fromClass="Event",
-                                                         edgeType="TweetedFrom",
-                                                         toNode=LOC_NODE["data"]["key"],
-                                                         fromNode=TWT_NODE["data"]["key"])
-                                    geo.append({
-                                        "pos": "%f;%f:0" % (
-                                            t['place']['bounding_box']['coordinates'][0][0][0],
-                                            t['place']['bounding_box']['coordinates'][0][0][1]),
-                                        "type": random.choice(self.ICON_STATUSES),
-                                        "tooltip": t['place']['name']
-                                    })
-                                graph['lines'].append({"from": twt_id, "to": loc_id, "description": "TweetedFrom"})
+                    # Handle the case with a person
+                    if k == "ITM_PROJECT_RESP_NAME" and row[k] != "<Null>":
+                        if row["ITM_PROJECT_RESP"] not in r["index"]:
+                            r["nodes"].append({
+                                "key": row["ITM_PROJECT_RESP"],
+                                "icon": self.ICON_PERSON,
+                                "title": row["ITM_PROJECT_RESP_NAME"],
+                            })
+                        if "%s%s%s" %(row["NODE_ATTR_GUID"], row["ITM_PROJECT_RESP"], "RESPFOR") not in r["index"]:
+                            r["lines"].append({
+                                "to": row["NODE_ATTR_GUID"],
+                                "from": row["ITM_PROJECT_RESP"],
+                                "description": "responsible for"
+                        })
 
-                    # Process the User by creating an entity. Then create a line from the User to the Tweet
-                    user_id = "TWT_%s" % t['user']['id']
-                    if user_id not in index:
-                        index.append(user_id)
-                        node = {
-                            "key": user_id,
-                            "class_name": "Object",
-                            "title": t['user']['name'],
-                            "status": "Alert",
-                            "group": "Profiles",
-                            "icon": self.ICON_TWITTER_USER,
-                            "attributes": [
-                                {"label": "Screen_name", "value": t['user']['screen_name']},
-                                {"label": "Created", "value": t['user']['created_at']},
-                                {"label": "description", "value": t['user']['description']},
-                                {"label": "Favorite", "value": t['user']['favourites_count']},
-                                {"label": "Followers", "value": t['user']['followers_count']},
-                                {"label": "Friends", "value": t['user']['friends_count']},
-                                {"label": "Following", "value": t['user']['following']},
-                                {"label": "listed_count", "value": t['user']['listed_count']},
-                                {"label": "statuses_count", "value": t['user']['statuses_count']},
-                                {"label": "Geo", "value": t['user']['geo_enabled']},
-                                {"label": "Location", "value": t['user']['location']},
-                                {"label": "Image", "value": t['user']['profile_image_url_https']},
-                                {"label": "Verified", "value": t['user']['verified']},
-                                {"label": "Source", "value": "Twitter"}
-                            ]
-                        }
-                        graph['nodes'].append(node)
-                        # Check if there is a location
-                        Location = None
-                        if t["user"]["location"] != "":
-                            Location = get_location(t["user"]["location"], self)
-                            if Location:
-                                graph['lines'].append(
-                                    {"from": user_id, "to": Location["key"], "description": "LocatedAt"}
-                                )
-                                if Location["key"] not in index:
-                                    index.append(Location["key"])
-                        if "PROCESS" in kwargs.keys():
-                            USR_NODE = self.create_node(**node)
-                            self.create_edge(toClass="Event", fromClass=node["class_name"],
-                                             edgeType="Tweeted",
-                                             toNode=TWT_NODE["data"]["key"],
-                                             fromNode=USR_NODE["data"]["key"])
-                            if Location:
-                                self.create_edge(
-                                    fromClass="Object", fromNode=USR_NODE["data"]["key"], edgeType="LocatedAt",
-                                    toClass="Location", toNode=Location["key"]
-                                )
+                    if k == "PPORATYPE":
+                        node["group"] = rowk
+                        try:
+                            if rowk.replace(" ", "") == "CRDS":
+                                node["icon"] = "sap-icon://opportunity"
+                            elif rowk.replace(" ", "")  == "CrossCat.DEV&S":
+                                node["icon"] = "sap-icon://business-by-design"
+                            elif rowk.replace(" ", "") == "CRPS":
+                                node["icon"] = "sap-icon://manager-insight"
+                            elif rowk.replace(" ", "")  == "Development":
+                                node["icon"] = "sap-icon://source-code"
+                            elif rowk.replace(" ", "")  == "HIER":
+                                node["icon"] = "sap-icon://org-chart"
+                            elif rowk.replace(" ", "")  == "IPO":
+                                node["icon"] = "sap-icon://business-objects-experience"
+                            elif rowk.replace(" ", "")  == "LOB":
+                                node["icon"] = "sap-icon://building"
+                            elif rowk.replace(" ", "")  == "LOGP":
+                                node["icon"] = "sap-icon://product"
+                            elif rowk.replace(" ", "") == "PCAT":
+                                node["icon"] = "sap-icon://sap-box"
+                            elif rowk.replace(" ", "")  == "RIH":
+                                node["icon"] = "sap-icon://grid"
+                            elif rowk.replace(" ", "")  == "RSCH":
+                                node["icon"] = "sap-icon://lab"
+                            elif rowk.replace(" ", "")  == "SVPSIRIUS_618":
+                                node["icon"] = "sap-icon://task"
+                        except:
+                            pass
+            r["nodes"].append(node)
+        print('[%s_graph_eppm] Complete with graphing. Exporting file' % (get_datetime()))
+        label = "graph.json"
+        with open(os.path.join(self.datapath, label), 'w') as outfile:
+            json.dump(r, outfile)
 
-                    graph['lines'].append(
-                        {"from": user_id, "to": twt_id, "description": "Tweeted"}
-                    )
+        print('[%s_graph_eppm] Complete with file export' % (get_datetime()))
+        return r
 
+    def graph_eppm_lines(self, data):
+        """
+        Independent extractor that uses the latest validated nodes file to fill lines. The nodes or master data
+        table from a separate file
+        :param data:
+        :return:
+        """
+        print('[%s_graph_eppm] Starting' % (get_datetime()))
+        with open(os.path.join(self.datapath, "graph.json")) as jsonfile:
+            graph = json.load(jsonfile)
+        data = data.fillna("<Null>")
+        for index, row in data.iterrows():
+            try:
+                if row["EDGE_TARGET"] != "<Null>" and row["EDGE_SOURCE"] != "<Null>":
+                    graph["lines"].append({
+                        "to": row["EDGE_TARGET"],
+                        "from": row["EDGE_SOURCE"],
+                        "description": row["EDGE_NAME"]
+                    })
+            except:
+                pass
+        print('[%s_graph_eppm] Complete with lines. Saving file...' % (get_datetime()))
+        with open(os.path.join(self.datapath, "graph.json"), 'w') as outfile:
+            json.dump(graph, outfile)
+        print('[%s_graph_eppm] Complete with file.' % (get_datetime()))
 
-        elif "user" in kwargs.keys():
-            user_id = kwargs['user']['id']
-            if user_id not in index:
-                index.append(user_id)
-                node = ({
-                    "key": user_id,
-                    "class_name": "Object",
-                    "title": kwargs['user']['name'],
-                    "status": "Alert",
-                    "group": "Profiles",
-                    "icon": self.ICON_TWITTER_USER,
-                    "attributes": [
-                        {"label": "Screen_name", "value": kwargs['user']['screen_name']},
-                        {"label": "Created", "value": kwargs['user']['created_at']},
-                        {"label": "description", "value": kwargs['user']['description']},
-                        {"label": "Favorite", "value": kwargs['user']['favourites_count']},
-                        {"label": "Followers", "value": kwargs['user']['followers_count']},
-                        {"label": "Friends", "value": kwargs['user']['friends_count']},
-                        {"label": "Following", "value": kwargs['user']['following']},
-                        {"label": "listed_count", "value": kwargs['user']['listed_count']},
-                        {"label": "statuses_count", "value": kwargs['user']['statuses_count']},
-                        {"label": "Geo", "value": kwargs['user']['geo_enabled']},
-                        {"label": "Location", "value": kwargs['user']['location']},
-                        {"label": "Image", "value": kwargs['user']['profile_image_url_https']},
-                        {"label": "Verified", "value": kwargs['user']['verified']},
-                        {"label": "Source", "value": "Twitter"}
-                    ]
-                })
-                if "PROCESS" in kwargs.keys():
-                    self.create_node(**node)
-            return node
-        data = {
-            "graph": graph,
-            "geo": {
-                "Spots": {
-                    "items": geo
-                }
-            }
+    def get_eppm(self):
+        """
+        Load the nodes file which holds the latest verified data and pass it through the REST API back to requestor
+        :return:
+        """
+        with open(os.path.join(self.datapath, "graph.json")) as jsonfile:
+            graph = json.load(jsonfile)
+
+        return graph
+
+    def graph_eppm(self, data):
+        print( '[%s_graph_eppm] Starting' % (get_datetime()))
+        r = {
+            "nodes": [],
+            "lines": [],
+            "groups": [
+                {"key": "Portfolio", "title": "Portfolio"},
+                {"key": "CRPS", "title": "Cross Product Services"},
+                {"key": "HIER", "title": "Hierarchy"},
+                {"key": "CRDS", "title": "Cross Category"},
+                {"key": "RSCH", "title": "Research"},
+                {"key": "LOGP", "title": "Products"},
+                {"key": "Initiative", "title": "Initiative"},
+                {"key": "Item", "title": "ITem"},
+                {"key": "Classification", "title": "Classification"},
+                {"key": "Project", "title": "Project"},
+                {"key": "Delivery", "title": "Delivery"}
+            ],
+
+            "index": []
         }
 
-        return data
+        for index, row in data.iterrows():
+            i = 120
+            portfolio, r = self.check_node({
+                "key": str(row['ITM_PORTFOLIO_TEXT'].replace(" ", "")),
+                "title": str(row['ITM_PORTFOLIO_TEXT']),
+                "group": "Portfolio",
+                "icon": "sap-icon://tree",
+                "status": "CustomPortfolio",
+                "attributes": [
+                    {"label": "EntityType", "value": "Portfolio"},
+                    {"label": "ExternalID", "value": str(row['ITM_PORTFOLIO_TEXT'])},
+                    {"label": "Latitude", "value": self.get_latlon()},
+                    {"label": "Longitude", "value": self.get_latlon()},
+                ]
+            }, r)
+            bucketType = str(row['ITM_BUCKET_CATEGORY'].lower().replace(" ", ""))
+            if bucketType == "logp":
+                icon = "sap-icon://product"
+            elif bucketType == "crds":
+                icon = "sap-icon://it-system"
+            elif bucketType == "crps":
+                icon = "sap-icon://supplier"
+            elif bucketType == "hier":
+                icon = "sap-icon://expand"
+            elif bucketType == "rsch":
+                icon = "sap-icon://manager-insight"
+            else:
+                icon = "sap-icon://puzzle"
+            portfolio_element, r = self.check_node({
+                    "key": str(row['ITM_BUCKET_GUID']),
+                    "group": str(row['ITM_BUCKET_CATEGORY']),
+                    "status": self.get_status(str(row['BUCKET_STATUS_TEXT'])),
+                    "title": str(row['ITM_BUCKET_TEXT']),
+                    "icon": icon,
+                    "attributes": [
+                        {"label": "EntityType", "value": "Bucket"},
+                        {"label": "ExternalID", "value": str(row['ITM_BUCKET_GUID'])},
+                        {"label": "StartDate FP", "value": str(row['BUCKET_FP_START_DATE'])},
+                        {"label": "EndDate FP", "value": str(row['BUCKET_FP_END_DATE'])},
+                        {"label": "Category", "value": str(row['BUCKET_CATEGORY_TEXT'])},
+                        {"label": "ID", "value": str(row['ITM_BUCKET_ID'])},
+                        {"label": "Status code", "value": str(row['BUCKET_STATUS'])},
+                        {"label": "BucketID", "value": str(row['ITM_BUCKET_ID'])},
+                        {"label": "Latitude", "value": self.get_latlon()},
+                        {"label": "Longitude", "value": self.get_latlon()},
+                    ]
+                }, r)
+            initiative, r = self.check_node({
+                "key": str(row['ITM_INITIATIVE_GUID']),
+                "group": "Initiative",
+                "status": self.get_status(str(row['INITIATIVE_STATUS_TEXT'])),
+                "title": str(row['ITM_INITIATIVE_TEXT']),
+                "icon": "sap-icon://legend",
+                "attributes": [
+                    {"label": "EntityType", "value": "Initiative"},
+                    {"label": "GUID", "value": str(row['ITM_INITIATIVE_GUID'])},
+                    {"label": "ExternalID", "value": str(row['ITM_INITIATIVE_GUID'])},
+                    {"label": "ID", "value": str(row['ITM_INITIATIVE_ID'])},
+                    {"label": "Category", "value": str(row['INITIATIVE_CATEGORY_TEXT'])},
+                    {"label": "Status", "value": str(row['INITIATIVE_STATUS_TEXT'])},
+                    {"label": "StartDate", "value": str(row['INITIATIVE_START_DATE'])},
+                    {"label": "EndDate", "value": str(row['INITIATIVE_END_DATE'])},
+                    {"label": "Latitude", "value": self.get_latlon()},
+                    {"label": "Longitude", "value": self.get_latlon()},
+                ]
+            }, r)
+            # Should ITM_P# be their own entities?
+            item, r = self.check_node({
+                "key": str(row['ITM_GUID']),
+                "group": "Item",
+                "status": self.get_status(str(row['ITM_STATUS_TEXT'])),
+                "title": str(row['ITM_TEXT']),
+                "icon": "sap-icon://checklist-item",
+                "attributes": [
+                    {"label": "EntityType", "value": "Item"},
+                    {"label": "GUID", "value": str(row['ITM_GUID'])},
+                    {"label": "ExternalID", "value": str(row['ITM_ID'])},
+                    {"label": "Type code", "value": str(row['ITM_TYPE'])},
+                    {"label": "StartDate", "value": str(row['ITEM_START_DATE'])},
+                    {"label": "EndDate", "value": str(row['ITEM_END_DATE'])},
+                    {"label": "Latitude", "value": self.get_latlon()},
+                    {"label": "Longitude", "value": self.get_latlon()},
+                ]
+            }, r)
+            project, r = self.check_node({
+                "key": str(row['ITM_GUID']) + str(row['ITM_PROJECT_TEXT']),
+                "group": "Project",
+                "status": self.get_status(str(row['ITM_PROJECT_SYS_STATUS_TEXT'])),
+                "title": str(row['ITM_PROJECT_TEXT']),
+                "icon": "sap-icon://capital-projects",
+                "attributes": [
+                    {"label": "EntityType", "value": "Project"},
+                    {"label": "ExternalID", "value": str(row['ITM_EXTERNAL_ID'])},
+                    {"label": "Responsible", "value": str(row['ITM_PROJECT_RESP'])},
+                    {"label": "Name", "value": str(row['ITM_PROJECT_RESP_NAME'])},
+                    {"label": "Status", "value": str(row['ITM_PROJECT_SYS_STATUS_TEXT'])},
+                    {"label": "Latitude", "value": self.get_latlon()},
+                    {"label": "Longitude", "value": self.get_latlon()},
+                ]
+            }, r)
+            internal_order, r = self.check_node({
+                "key": str(row['ITM_INTERNAL_ORDER']),
+                "group": "Project",
+                "status": "CustomInternalOrders",
+                "title": "IO %s" % str(row['ITM_INTERNAL_ORDER']),
+                "icon": "sap-icon://customer-order-entry",
+                "attributes": [
+                    {"label": "EntityType", "value": "Internal Order"},
+                    {"label": "Latitude", "value": self.get_latlon()},
+                    {"label": "Longitude", "value": self.get_latlon()},
+                ]
+            }, r)
+            project_responsible, r = self.check_node({
+                "key": str(row['ITM_PROJECT_RESP']),
+                "group": "Project",
+                "status": "CustomProgram",
+                "title": "Project Responsible",
+                "icon": "sap-icon://employee",
+                "attributes": [
+                    {"label": "EntityType", "value": "Person"},
+                    {"label": "Name", "value": str(row['ITM_PROJECT_RESP_NAME'])},
+                    {"label": "ID", "value": str(row['ITM_PROJECT_RESP'])},
+                    {"label": "Latitude", "value": self.get_latlon()},
+                    {"label": "Longitude", "value": self.get_latlon()},
+                ]
+            }, r)
+            classification, r = self.check_node({
+                "key": (str(row['ITM_P1']) + str(row['ITM_P1']) + str(row['ITM_P2'])
+                        + str(row['ITM_P3']) + str(row['ITM_P4'])).replace(" ", "").lower(),
+                "group": "Classifications",
+                "status": "CustomClassification",
+                "title": "Classification %s" % str(row['ITM_P4_TEXT']),
+                "icon": "sap-icon://blank-tag",
+                "attributes": [
+                    {"label": "EntityType", "value": "Classification"},
+                    {"label": "P1", "value": str(row['ITM_P1_TEXT'])},
+                    {"label": "P2", "value": str(row['ITM_P2_TEXT'])},
+                    {"label": "P3", "value": str(row['ITM_P3_TEXT'])},
+                    {"label": "P4", "value": str(row['ITM_P4_TEXT'])},
+                    {"label": "Latitude", "value": self.get_latlon()},
+                    {"label": "Longitude", "value": self.get_latlon()},
+                ]
+            }, r)
+            delivery, r = self.check_node({
+                "key": str(row['ITM_ZPR_PRG_ID']),
+                "group": "Project",
+                "status": "CustomDelivery",
+                "title": str(row['ITM_DELIVERY_NAME_LONG']),
+                "icon": "sap-icon://supplier",
+                "attributes": [
+                    {"label": "EntityType", "value": "Delivery"},
+                    {"label": "Name", "value": str(row['PPORADM_TXT'])},
+                    {"label": "Date", "value": str(row['PPORACDAT'])},
+                    {"label": "Category", "value": str(row['PPORAPC_TXT'])},
+                    {"label": "Status", "value": str(row['PPORAPLS_TXT'])},
+                    {"label": "Scope", "value": str(row['PPORAPRC_TXT'])},
+                    {"label": "Latitude", "value": self.get_latlon()},
+                    {"label": "Longitude", "value": self.get_latlon()},
+                ]
+            }, r)
+            # Break out person responsible
+            if bucketType != "logp":
+                r = self.make_line(r_to=portfolio_element, r_from=portfolio, r_type="PartOf", r=r)
+            r = self.make_line(r_to=initiative, r_from=portfolio_element, r_type="PartOf", r=r)
+            r = self.make_line(r_to=item, r_from=initiative, r_type="PartOf", r=r)
+            r = self.make_line(r_to=initiative, r_from=item, r_type="PartOf", r=r)
+            r = self.make_line(r_to=item, r_from=project, r_type="PartOf", r=r)
+            r = self.make_line(r_to=item, r_from=classification, r_type="ClassifiedAs", r=r)
+            r = self.make_line(r_to=project, r_from=project_responsible, r_type="Owns", r=r)
+            r = self.make_line(r_to=project, r_from=delivery, r_type="DeliveredBy", r=r)
+            r = self. make_line(r_to=project, r_from=internal_order, r_type="Supports", r=r)
+            if index > i:
+                print('[%s_graph_eppm] Ending' % (get_datetime()))
+                return({"graphs": [
+                    {
+                        "nodes": r['nodes'],
+                        "lines": r['lines'],
+                        "groups": r['groups']
+                    }
+                ]})
 
-    def responseHandler(self, response, searchterm):
+        print('[%s_graph_eppm] Ending' % (get_datetime()))
+        return r
 
-        if response.status_code == 401:
-            return "[!] <401> User %s protects tweets" % searchterm
+    def graph_hier(self, data):
+        """
+        Recreate the getNeighbors result format all relationships given the eppm_hier.xls
+        Lookups of Child GUIDs from the eppm_hier into the Masterdata EPPM_MD.xls result in the entity types based on
+        column headers of those GUIDs. For example Children in Levels 3, 8, and 9 are all part of an Initiative Column
+        :param data:
+        :return:
+        """
+        r = {
+            "nodes": [],
+            "lines": [],
+            "groups": [
+                {"key": "Portfolio", "title": "Portfolio"},
+                {"key": "CRPS", "title": "Cross Product Services"},
+                {"key": "HIER", "title": "Hierarchy"},
+                {"key": "CRDS", "title": "Cross Category"},
+                {"key": "RSCH", "title": "Research"},
+                {"key": "LOGP", "title": "Products"},
+                {"key": "Initiative", "title": "Initiative"},
+                {"key": "Item", "title": "Item"},
+                {"key": "Classification", "title": "Classification"},
+                {"key": "Project", "title": "Project"},
+                {"key": "Delivery", "title": "Delivery"}
+            ],
 
-        if response.status_code == 200:
-            tweets = json.loads(response.text)
-            return tweets
+            "index": []
+        }
 
-        if response.status_code == 429:
-            click.echo("[!] <429> Too many requests to Twitter. Sleep for 15 minutes started at: %s" % get_datetime())
-            time.sleep(60*15)
+        data.fillna("")
+        for index, row in data.iterrows():
+            # TODO get the entity details and fill in the node
+            try:
+                node, r = self.check_node({
+                    "key": str(row["Child "]),
+                    "title": row["Text"],
+                    "attributes": []
+                }, r)
+                if int(row["Level"]) == 1:
+                    node["group"] = "Portfolio"
+                    node["status"] = "CustomPortfolio"
+                    node["icon"] = "sap-icon://tree"
+                    node["attributes"].append({"label": "EntityType", "value": "Portfolio"})
+                elif int(row["Level"]) == 2:
+                    node["group"] = "Bucket"
+                    node["status"] = "CustomClassification"
+                    node["icon"] = "sap-icon://it-system"
+                    node["attributes"].append({"label": "EntityType", "value": "Bucket"})
+                elif int(row["Level"]) in [3, 8, 9]:
+                    node["group"] = "Initiative"
+                    node["status"] = "CustomPortfolio"
+                    node["icon"] = "sap-icon://legend"
+                    node["attributes"].append({"label": "EntityType", "value": "Initiative"})
+                elif int(row["Level"]) == 5:
+                    node["group"] = "Item"
+                    node["status"] = "CustomItem"
+                    node["icon"] = "sap-icon://checklist-item"
+                    node["attributes"].append({"label": "EntityType", "value": "Item"})
+                else:
+                    node["group"] = "LogicalProduct"
+                    node["status"] = "CustomProduct"
+                    node["icon"] = "sap-icon://product"
+                    node["attributes"].append({"label": "EntityType", "value": "Product"})
+
+                if int(row["Level"]) != 1 and row["Parent "] in r["index"] :
+                    r = self.make_line(r_to={"key": row["Parent "]}, r_from=node, r_type="P_level%s_to_C_level_%s" % (
+                        int(row["Level"]-1), int(row["Level"])), r=r)
+
+            except Exception as e:
+                print(str(e))
+
+        return {"graph": {"nodes": r["nodes"], "lines": r["lines"], "groups": r["groups"]},
+                "message": "Loaded %d nodes and %d lines" % (len(r["nodes"]), len(r["lines"]))}
+
+    def hash_node(self, node):
+
+        node_id = ""
+        for k in node.keys():
+            node_id+=str(node[k])
+            node_id = hashlib.md5(str(node_id).encode()).hexdigest()
+
+        return node_id
+
+    def file_type_check(self, key_list):
+        """
+        Expects a set of keys to compare to the known keys.
+        Compares the lists to return the file type with the max score
+        :param key_list:
+        :return:
+        """
+        key_list = [x.lower().replace(' ', '') for x in key_list.to_list()]
+        score = {}
+        for ftype in self.maps:
+            score[ftype] = 0
+            for k in key_list:
+                if k in self.maps[ftype]["headers"]:
+                    score[ftype]+=1
+        for ftype in score:
+            if score[ftype] > 0:
+                score[ftype] = len(key_list) / len(self.maps[ftype]["headers"])
+        ftype = max(score.items(), key=operator.itemgetter(1))[0]
+        if score[ftype] == 0:
+            check = {
+                "name": None,
+                "score": 0
+            }
+        # Divide the length of the key_list with the length of the ftype.keys to return a probability rather than integer
+        else:
+            check = {
+                "name": ftype,
+                "score": score[ftype]
+            }
+        return check
+
+    def create_edge(self, **kwargs):
+        if self.check_index_edges("%sTo%sFrom%s" % (kwargs['edgeType'], kwargs['fromNode'], kwargs['toNode'])):
             return
+        else:
+            self.index['edges'].append("%sTo%sFrom%s" % (kwargs['edgeType'], kwargs['fromNode'], kwargs['toNode']))
+        if change_if_number(kwargs['fromNode']) and change_if_number(kwargs['toNode']):
+            sql = '''
+            create edge {edgeType} from 
+            (select from {fromClass} where key = {fromNode}) to 
+            (select from {toClass} where key = {toNode})
+            '''.format(edgeType=kwargs['edgeType'], fromNode=kwargs['fromNode'], toNode=kwargs['toNode'],
+                       fromClass=kwargs['fromClass'], toClass=kwargs['toClass'])
 
-        if response.status_code == 503:
-            return "[!] <503> The Twitter servers are up, but overloaded with requests. Try again later: %s" % get_datetime()
+        elif change_if_number(kwargs['fromNode']):
+            sql = '''
+            create edge {edgeType} from 
+            (select from {fromClass} where key = {fromNode}) to 
+            (select from {toClass} where key = '{toNode}')
+            '''.format(edgeType=kwargs['edgeType'], fromNode=kwargs['fromNode'], toNode=kwargs['toNode'],
+                       fromClass=kwargs['fromClass'], toClass=kwargs['toClass'])
+        elif change_if_number(kwargs['toNode']):
+            sql = '''
+            create edge {edgeType} from 
+            (select from {fromClass} where key = '{fromNode}') to 
+            (select from {toClass} where key = {toNode})
+            '''.format(edgeType=kwargs['edgeType'], fromNode=kwargs['fromNode'], toNode=kwargs['toNode'],
+                       fromClass=kwargs['fromClass'], toClass=kwargs['toClass'])
+        else:
+            sql = '''
+            create edge {edgeType} from 
+            (select from {fromClass} where key = '{fromNode}') to 
+            (select from {toClass} where key = '{toNode}')
+            '''.format(edgeType=kwargs['edgeType'], fromNode=kwargs['fromNode'], toNode=kwargs['toNode'],
+                       fromClass=kwargs['fromClass'], toClass=kwargs['toClass'])
 
+        try:
+            self.client.command(sql)
+            return True
+        except Exception as e:
+            return str(e)
+
+    def create_node(self, **kwargs):
+        """
+        Use the idseq to iterate the key and require a class name to create the node
+        Go through the properties and add a new piece to the sql statement for each using a label and values for insert
+        Only insert statements return values and the key is needed
+        While creating the sql, save attributes for formatting to a SAPUI5 node
+        If there is a key, set the key as the label but wait to determine if the key is a number or string before
+        adding to the values part of the sql insert statement
+        Create a hashkey that will be used to resolve entity keys on merged entities
+        TODO Method to update the hashkey on merge and another method to add the multiple hashkeys to the index.
+        index: {entity1: 1, entityOne, 1}
+        Add the node to the index
+
+        :param kwargs: str(db_name), str(class_name), list(properties{property: str, value: str)
+        :return:
+        """
+        attributes = []
+        '''
+        In the case attributes as an array is received instead of directly in kwargs, flatten the attributes and then 
+        pop attributes out
+        '''
+        if 'attributes' in kwargs.keys():
+            if type(kwargs['attributes']) == list:
+                attributes = kwargs['attributes']
+                for a in kwargs['attributes']:
+                    # Ensure the labels received don't break the sql
+                    for i in ["'", '"', "\\", "/", ",", ".", "-", "?", "%", "&", " ", "\r", "\n", "\t", " "]:
+                        a['label'] = a['label'].replace(i, "_")
+                        newVal = change_if_number(a['value'])
+                        if newVal:
+                            kwargs[a['label']] = newVal
+                        else:
+                            kwargs[a['label']] = str(a['value']).replace("\r", "_")
+                kwargs.pop('attributes')
+
+        # Check the Vertex Class
+        if 'class_name' in kwargs.keys() or 'EntityType' in kwargs.keys():
+            if 'EntityType' in kwargs.keys():
+                kwargs["class_name"] = kwargs["EntityType"]
+        else:
+            kwargs["class_name"] = "V"
+        '''
+        Check if there already an associated key type attribute and make it the external key. If more than one, add it 
+        as a new key iterating with the more_than_one_key mtoka token. There must be only a single "key" attribute to
+        identify the Node. Therefore, this process ensures the key is iterated according to the DB identification. But
+        the hashing process and external keys allow means for searching on the node. While checking the flattened
+        attributes, check if there are other node formatting attributes that can be normalized. 
+        '''
+        icon = title = status = None
+        mtoka = 0
+        for key_attribute in kwargs.keys():
+            if key_attribute in ["key", "GUID", "guid", "uid", "Key"]:
+                if mtoka == 0:
+                    kwargs["Ext_key"] = kwargs[key_attribute]
+                else:
+                    kwargs["Ext_key_%d" % mtoka] = kwargs[key_attribute]
+                mtoka+=1
+                kwargs.pop(key_attribute)
+            elif key_attribute in ["icon", "title", "status"]:
+                if key_attribute == "icon":
+                    icon = kwargs[key_attribute]
+                if key_attribute == "title":
+                    title = kwargs[key_attribute]
+                if key_attribute == "status":
+                    status = kwargs[key_attribute]
+
+        # start the SQL insert statement with the key based on whether or not it was there before
+        labels = "(key"
+        values = "(sequence('idseq').next()"
+        # Check the index
+        hash_key, check = self.check_index_nodes(**kwargs)
+        if check:
+            formatted_node = self.format_node(
+                key=hash_key,
+                class_name=kwargs['class_name'],
+                title=title,
+                status=status,
+                icon=icon,
+                attributes=attributes
+            )
+            message = '[%s_%s_create_node] Node exists' % (get_datetime(), self.db_name)
+            return {"message": message, "data": formatted_node}
+        labels = labels + ", hashkey"
+        values = values + ", '%s'" % hash_key
+        for k in kwargs.keys():
+            if list(kwargs.keys())[-1] == k:
+                # Close the labels and values with a ')'
+                labels = labels + ", %s)" % k.replace(" ", "")
+                if change_if_number(kwargs[k]):
+                    values = values + ", {value})".format(value=kwargs[k])
+                else:
+                    values = values + ", '{value}')".format(value=clean(kwargs[k]))
+            else:
+                labels = labels + ", %s" % k.replace(" ", "")
+                if change_if_number(kwargs[k]):
+                    values = values + ", {value}".format(value=kwargs[k])
+                else:
+                    values = values + ", '{value}'".format(value=clean(kwargs[k]))
+
+            if k == 'icon':
+                icon = kwargs[k]
+            if k == 'title':
+                title = kwargs[k]
+            if k == 'status':
+                status = kwargs[k]
+            if k != 'passWord':
+                attributes.append({"label": k, "value": kwargs[k]})
+        sql = '''
+        insert into {class_name} {labels} values {values} return @this.key
+        '''.format(class_name=kwargs['class_name'], labels=labels, values=values)
+        try:
+            key = self.client.command(sql)[0].oRecordData['result']
+            # Update the index with the hash_key identified before and the key created by the DB
+            self.index['nodes'][hash_key] = key
+            formatted_node = self.format_node(
+                key=key,
+                class_name=kwargs['class_name'],
+                title=title,
+                status=status,
+                icon=icon,
+                attributes=attributes
+            )
+            message = '[%s_%s_create_node] Create node %s' % (get_datetime(), self.db_name, key)
+            return {"message": message, "data": formatted_node}
+
+        except Exception as e:
+            if str(type(e)) == str(type(e)) == "<class 'pyorient.exceptions.PyOrientORecordDuplicatedException'>":
+                if kwargs['class_name'] == "Case":
+                    node = self.get_node(val=kwargs['Name'], var="Name", class_name="Case")
+                    return {"data" :{"key": node['key']}}
+            message = '[%s_%s_create_node] ERROR %s\n%s' % (get_datetime(), self.db_name, str(e), sql)
+            click.echo(message)
+            return message
+
+    def check_index_nodes(self, **kwargs):
+        """
+        Use the nodeKeys to cycle through in sequential order and match the input attributes to build a hash string in
+        the same format of previous nodes. If the node exists, return the key. Otherwise return None.
+        self.nodeKeys = ['class_name', 'title', 'FirstName', 'LastName', 'Gender', 'DateOfBirth', 'PlaceOfBirth',
+            'Name', 'Owner', 'Classification', 'Category', 'Latitude', 'Longitude', 'description',
+            'EndDate', 'StartDate', 'DateCreated', 'Ext_key', 'searchValue']
+        :param kwargs:
+        :return:
+        """
+        hash_str = ""
+        for k in self.nodeKeys:
+            if k in kwargs.keys():
+                if kwargs[k] != "":
+                    # Remove commas since this will be a str treated as a list
+                    hash_str = hash_str + k + str(kwargs[k])
+                    hash_str = clean_concat(hash_str).replace(",", "")
+        # Change the str to a hash string value TODO: evaluate method for robustness in terms of unique values produced
+        hash_str = hashlib.md5(str(hash_str).encode()).hexdigest()
+        if hash_str in self.index['nodes'].keys():
+            return self.index['nodes'][hash_str], True
+        else:
+            return hash_str, False
+
+    def check_index_edges(self, edge):
+        """
+        Use the edge hash to check if it is in the index
+        :param kwargs:
+        :return:
+        """
+        if edge in self.index['edges']:
+            return True
+        else:
+            return False
+
+    def get_hash_keys(self):
+        """
+        Get the key, hash_key pair that is used for the index
+        :return:
+        """
+        r = self.client.command('''
+        select key, hash from V
+        ''')
+
+    def create_index(self):
+        """
+        Fill the index of a database to be used for entity resolution in data collection
+        :return:
+        """
+
+        self.open_db()
+        r = self.client.command('''
+        select key, hashkey, title, class_name,  
+        DateOfBirth, PlaceOfBirth, FirstName, LastName, Gender, 
+        Name, Owner, Classification,
+        Category, Latitude, Longitude, Description, 
+        EndDate, StartDate, DateCreated, 
+        In().key as InKeys, OUT().key as OutKeys, OutE().@class, InE().@class from V
+        ''')
+        for i in r:
+            hash = ""
+            rec = i.oRecordData
+            # Create a single string to assign to the key TODO change to get hashkey and sep where comma
+            for k in self.nodeKeys:
+                if k in rec.keys():
+                    if rec[k] != "":
+                        hash+=str(rec[k])
+            hash = clean_concat(hash)
+            if hash not in self.index.keys():
+                self.index['nodes'][hash] = rec['key']
+            # Make
+            if len(rec['OutKeys']) > 0:
+                if len(rec['OutKeys']) == len(rec['OutE']):
+                    for rkey, rtyp in zip(rec['OutKeys'], rec['OutE']):
+                        self.index['edges'].append("%sTo%sFrom%s" % (rtyp, rec['key'], rkey))
+            if len(rec['InKeys']) > 0:
+                if len(rec['InKeys']) == len(rec['InE']):
+                    for rkey, rtyp in zip(rec['InKeys'], rec['InE']):
+                        self.index['edges'].append("%sTo%sFrom%s" % (rtyp, rkey, rec['key']))
+
+        click.echo('[%s_%s_create_index] Created index with %s nodes and %s edges' % (
+            get_datetime(), self.db_name, len(self.index['nodes']), len(self.index['edges'])))
+
+    def create_db(self):
+        """
+        Build the schema in OrientDB using the models established in __init__
+        1) Cycle through the model configuration
+        2) Use custom rules as part of the model to trigger an index
+        :return:
+        """
+        self.client.db_create(self.db_name, pyorient.DB_TYPE_GRAPH)
+        click.echo('[%s_%s_create_db] Starting process...' % (get_datetime(), self.db_name))
+        sql = ""
+        for m in self.models:
+            sql = sql+"create class %s extends %s;\n" % (m, self.models[m]['class'])
+            for k in self.models[m].keys():
+                if k != 'class':
+                    sql = sql+"create property %s.%s %s;\n" % (m, k, self.models[m][k])
+                    # Custom rules for establishing indexing
+                    if (str(k)).lower() in ["key", "id", "uid", "userid"] \
+                            or (self.db_name == "Users" and str(k).lower == "username")\
+                            or (m == "Case" and k == "Name"):
+                        sql = sql + "create index %s_%s on %s (%s) UNIQUE ;\n" % (m, k, m, k)
+
+        sql = sql + "create sequence idseq type ordered;"
+        click.echo('[%s_%s_create_db]'
+                   ' Initializing db with following batch statement'
+                   '\n***************   SQL   ***************\n'
+                   '%s\n***************   SQL   ***************\n' % (get_datetime(), self.db_name, sql))
+
+        try:
+            self.client.batch(sql)
+            click.echo('[%s_create_db_%s] Completed process' % (get_datetime(), self.db_name))
+            self.create_text_indexes()
+            created = True
+        except Exception as e:
+            click.echo('[%s_create_db_%s] ERROR: %s' % (self.db_name, get_datetime(), str(e)))
+            created = False
+
+        return created
+
+    def open_db(self):
+        self.client.connect(self.user, self.pswd)
+        if self.client.db_exists(self.db_name):
+            self.client.db_open(self.db_name, self.user, self.pswd)
+        else:
+            self.create_db()
+
+    def get_node(self, **kwargs):
+
+        sql = ('''
+        select * from {class_name} where {var} = '{val}'
+        ''').format(class_name=kwargs['class_name'], var=kwargs['var'], val=kwargs['val'])
+        r = self.client.command(sql)
+
+        if len(r) > 0:
+            return r[0].oRecordData
         else:
             return None
 
-    def merge_osint(self, **kwargs):
-        r = self.merge_nodes(node_A=kwargs['node_A'], node_B=kwargs['node_B'])
-        return r
+    def get_db_stats(self):
 
-    def process_graph(self, **kwargs):
-        '''
-        :param graph: 
-        :return: 
-        '''
-        entityKeyMap = {}
-        odb_graph = {"nodes": [], "lines": []}
-        for n in kwargs["graph"]["nodes"]:
-            new_node = self.create_node(**n)["data"]
-            # If the graph was created by an automated process, related the entities to the collection
-            if "update_key" in kwargs.keys():
-                self.create_edge(edgeType="CollectedFrom", fromNode=new_node["key"],
-                                 toNode=kwargs["update_key"], fromClass=n["class_name"], toClass="Process")
-            entityKeyMap[n["key"]] = {"key": new_node["key"], "class": n["class_name"]}
-            odb_graph["nodes"].append(new_node)
-        for n in kwargs["graph"]["lines"]:
-            fromClass = entityKeyMap[n["from"]]["class"]
-            toClass = entityKeyMap[n["to"]]["class"]
-            self.create_edge(edgeType=n["description"], fromNode=entityKeyMap[n["from"]]["key"],
-                             toNode=entityKeyMap[n["to"]]["key"], fromClass=fromClass, toClass=toClass)
+        return({
+            "name": self.db_name,
+            "size": self.client.db_size(),
+            "records": self.client.db_count_records(),
+            "details": self.get_db_details(self.db_name)})
 
-    def getEntityData(self, user_ids, sourceID, reltype, username, graph):
+    def get_db_details(self, db_name):
+
+        schema = self.client.command('''select expand(classes) from metadata:schema ''')
+        details = []
+        for s in schema:
+            s = s.oRecordData
+            if s['name'] not in self.standard_classes:
+                try:
+                    props = s['properties']
+                    f_props = ""
+                    prop_list = []
+                    for p in props:
+                        f_props = f_props + p['name'] + "\n"
+                        prop_list.append(p['name'])
+                    details.append(
+                      {'name': s['name'],
+                       'clusterIds': s['clusterIds'],
+                       'properties': f_props,
+                       'prop_dict': props,
+                       'prop_list': prop_list
+                       }
+                    )
+                except:
+                    pass
+
+        return details
+
+    def get_data(self):
+        return self.open_file(os.path.join(self.datapath, "netgraph.json"))
+
+    def open_file(self, filename):
         """
-        Call the
-        :param user_ids:
-        :param sourceID:
-        :param sourcename:
-        :param reltype:
-        :param username:
+        Open any file type and normalize into an dictionary object with the payload stored in
+        a pandas dataframe or a json
+        :param filename:
+        :return: dict data
+        """
+
+        ftype = filename[filename.rfind('.'):]
+        data = {'status': True, 'filename': filename, 'ftype': ftype}
+        if ftype == '.csv':
+            data['d'] = pd.read_csv(filename)
+        elif ftype == '.xls' or type == '.xlsx':
+            data['d'] = pd.read_excel(filename)
+        elif ftype == '.json':
+            try:
+                with open(filename, 'r') as f:
+                    data['d'] = json.load(f)
+            except Exception as e:
+                click.echo('[%s_%s_open_file] Failed to open %s\n%s' % (get_datetime(), self.db_name, filename, str(e)))
+
+        elif ftype == '.txt':
+            with open(filename) as f:
+                for line in f:
+                    (key, val) = line.split()
+                    data[int(key)] = val
+        else:
+            data['status'] = False
+            data['d'] = "File %s not in acceptable types" % ftype
+
+        data['basename'] = os.path.basename(filename)
+        data['file_size'] = os.stat(filename).st_size
+        data['create_date'] = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(os.stat(filename).st_atime))
+
+        return data
+
+    def update(self, **kwargs):
+
+        sql = ('''
+          update {class_name} set {var} = '{val}' where key = {key}
+          ''').format(class_name=kwargs['class_name'], var=kwargs['var'], val=kwargs['val'], key=kwargs['key'])
+        r = self.client.command(sql)
+
+        if len(r) > 0:
+            return r
+        else:
+            return None
+
+    def delete_node(self, **kwargs):
+
+        sql = ('''
+          delete vertex {class_name} where key = {key}
+          ''').format(class_name=kwargs['class_name'], key=kwargs['key'])
+        r = self.client.command(sql)
+
+        if len(r) > 0:
+            return r
+        else:
+            return None
+
+    def format_node(self, **kwargs):
+        """
+        Create a SAPUI5 formatted node
+        :param kwargs:
         :return:
         """
-        client_key = self.TWITTER_AUTH['client_key']
-        client_secret = self.TWITTER_AUTH['client_secret']
-        token = self.TWITTER_AUTH['token']
-        token_secret = self.TWITTER_AUTH['token_secret']
-        oauth = OAuth1(client_key, client_secret, token, token_secret)
-        i = 0
-        # Set the url and build it from the names until 100 as a fail safe
-        api_url = "https://api.twitter.com/1.1/users/lookup.json?user_id="
-        while i < len(user_ids) and i < 100:
-            api_url += ",%s" % user_ids[i]
-            i+=1
-        response = requests.get(api_url, auth=oauth, verify=False)
-        users = self.responseHandler(response, username)
-        if users == None:
-            print("[*] No users in list.")
-            return
+        if not kwargs['icon']:
+            kwargs['icon'] = "sap-icon://add"
+        if 'class_name' not in kwargs.keys():
+            kwargs['class_name'] = 'No class name'
+        if not kwargs['title']:
+            kwargs['title'] = kwargs['class_name']
+        if not kwargs['status']:
+            kwargs['status'] = random.choice(['Information', 'Success', 'Error', 'Warning', 'None'])
 
-        for user in users:
-            graph["nodes"].append(self.processTweets(user=user))
-            # Create the node in the database
-            graph["lines"].append({
-                "to": graph["nodes"][len(graph["nodes"])-1]["key"],
-                "from": sourceID,
-                "description": reltype
-            })
-            #self.create_edge(fromClass="Object", toClass="Object", fromNode=sourceID, toNode=O_GUID, edgeType=reltype)
+        if "attributes" not in kwargs.keys():
+            atts = []
+            for k in kwargs.keys():
+                if str(k).lower() not in ["hashkey", "key", "icon", "class_name", "title"] and "pyorient" not in str(type(kwargs[k])):
+                    atts.append({"label": k, "value": kwargs[k]})
+            kwargs["attributes"] = atts
 
-        return graph
-
-    def sendRequest(self, username, reltype, next_cursor=None):
-
-        client_key = self.TWITTER_AUTH['client_key']
-        client_secret = self.TWITTER_AUTH['client_secret']
-        token = self.TWITTER_AUTH['token']
-        token_secret = self.TWITTER_AUTH['token_secret']
-        oauth = OAuth1(client_key, client_secret, token, token_secret)
-        url = "https://api.twitter.com/1.1/%s/ids.json?screen_name=%s&count=5000" % (reltype, username)
-        if next_cursor is not None:
-            url += "&cursor=%s" % next_cursor
-        click.echo('[%s_OSINT_sendRequest] %s' % (get_datetime(), url))
-        response = requests.get(url, auth=oauth, verify=False)
-        return self.responseHandler(response, username)
-
-    def get_associates(self, username=None):
-        """
-        Get the friends and followers of a username
-        Store the two types of relationships as associates' IDS which can then be looked up in bulk of 100
-        User 2 internal functions to process the URL instead of 2 steps each time
-
-        :param username:
-        :return:
-        """
-        # Set up the API call
-        graph = {
-            "nodes": [],
-            "lines": []
+        node_format = {
+            "key": kwargs['key'],
+            "title": kwargs['title'],
+            "status": kwargs['status'],
+            "icon": kwargs['icon'],
+            "attributes": kwargs['attributes']
         }
 
-        associate_list = []
-        if username:
-            userKey = self.client.command('''select key from Object where Screen_name = '%s' '''
-                                          % username)[0].oRecordData["key"]
+        return node_format
 
-            for r in ["friends"]:
-                associates = self.sendRequest(username, r, None)
-                if associates is not None:
-                    associate_list.extend(associates["ids"])
-                    # while we have a cursor keep downloading friends/followers
-                    while associates["next_cursor"] != 0 and associates["next_cursor"] != -1:
-                        associates = self.sendRequest(username, r, associates["next_cursor"])
-                        if associates is not None:
-                            associate_list.extend(associates["ids"])
-                        else:
-                            break
-                # Break down the associate list into groups of 100 to submit to UserInfo
-                i = 0
-                user_ids = []
-                for user_id in associate_list:
-                    user_ids.append(user_id)
-                    if len(user_ids) == 100:
-                        print("[*] 100 %s limit for entity. Request to Twitter." % r)
-                        graph = self.getEntityData(user_ids, userKey, r, username, graph)
-                        i = 0
-                        del user_ids[:]
-                    if i == len(associate_list) - 1:
-                        print("[*] %d %s for entity info. Request to Twitter." % (len(user_ids), r))
-                        graph = self.getEntityData(user_ids, userKey, r, username, graph)
-                    i += 1
-
-        return {"data": graph, "message": "Retrieved %d associates" % len(graph["nodes"])}
-
-    def cve(self):
+    def quality_check(self, graph):
         """
-        TODO Data quality. charmap breaks on for loop and miss half the rest of the data
-        Data is master data only. Is there transaction data that create links and dynamic stuff
+        Create a chrono view and geo view from a graph
+        :param graph:
         :return:
         """
-        path = os.path.join(self.datapath, "%s_cve.csv" % get_datetime()[:10])
-        url = "https://cve.mitre.org/data/downloads/allitems.csv"
-        data = self.get_url(url, path)
-        if data:
-            open(path, 'wb').write(data.content)
 
-        with codecs.open(path, encoding="utf8", errors='ignore') as data_csv:
-            click.echo('[%s_OSINT_cve] Cleaning raw data' % (get_datetime()))
-            df = {}
+        node_keys = []
+        group_keys = [{"key": "NoGroup", "title": "NoGroup" }]
+
+        if "groups" in graph.keys():
+            for g in graph['groups']:
+                if ({"key": g['key'], "title": g['title']}) not in graph['groups']:
+                    group_keys.append({"key": g['key'], "title": g['title']})
+
+        graph['groups'] = group_keys
+
+        if "nodes" in graph.keys() and "lines" in graph.keys():
+            for n in graph['nodes']:
+                node_keys.append(n['key'])
+                if "group" in n.keys():
+                    if {"key": n['group'], "title": n['group']} not in group_keys:
+                        graph['groups'].append({'key': n['group'], 'title': n['group']})
+                else:
+                    n['group'] = "NoGroup"
+            for l in graph['lines']:
+                if l['to'] not in node_keys:
+                    click.echo("Relationship TO with %s not found in nodes. Creating dummy node.")
+                    graph['nodes'].append(self.create_node(key=l['to'], class_name="Object"))
+                if l['from'] not in node_keys:
+                    click.echo("Relationship TO with %s not found in nodes. Creating dummy node.")
+                    graph['nodes'].append(self.create_node(key=l['from'], class_name="Object"))
+        else:
+            click.echo("Missing nodes or lines")
+            return None
+        return graph
+
+    def merge_nodes(self, **kwargs):
+        """
+        Enforces the value of a 3 step process in which records are assigned a single key based on DB sequence but also
+        a hashkey that represents several instances of the same record. The first step is to normalize all new records
+        into a hashkey that uses basic attributes/fields of a record. The normalization process changes the record into
+        a lowercase string with all spaces and punctuation removed. For example a person's names and DoB if available are
+        reduced. Then the record is hashed and compared against an index of DB_key and hash pairs. A DB_Key to hash_pair
+        is 1 to many. When a new record is created, the hash_key is compared to the index and assigned to the key of that
+        hashed normalized string. This reduces entire bodies of text down to a single hash that can be compared. When
+        merged, the B record is destroyed and replaced with the A key.
+        Input: node_A key, node_B key
+        Get the hash of each
+        Update the node_A hash_str to be a combination of the 2 with a , sep
+        Update the index by changing the key of the node_B hash to the node_A key
+        :param kwargs:
+        :return:
+        """
+        if 'node_A' in kwargs.keys() and 'node_B' in kwargs.keys():
+            results = "Merged node %d into %d resulting in " % (kwargs['node_B'], kwargs['node_A'])
+            # Get the relationships and hashkeys for both the A and B nodes
+            r = self.client.command('''
+                select hashkey, @class, key,
+                In().key as InKeys, In().class_name as n_in_class, 
+                Out().key as OutKeys, Out().class_name as n_out_class, OutE().@class, InE().@class 
+                from V where key in [%d, %d]''' % (kwargs['node_A'], kwargs['node_B']))
+            try:
+                A = r[0].oRecordData
+                if A["key"] == kwargs['node_B']:
+                    B = A
+            except:
+                return "No record for %d" % kwargs['node_A']
+            try:
+                # Normal case
+                if len(r) > 1:
+                    B = r[1].oRecordData
+                # B was created in the first
+                elif A["key"] == kwargs['node_B']:
+                    A = {"key": kwargs['node_A'], "hashkey": "", "class": B["class"],
+                         'InKeys': [], 'n_in_class': [], 'OutKeys': [],
+                         'n_out_class': [], 'OutE': [], 'InE': []}
+            except:
+                return "No record for %d" % kwargs['node_A']
+
+            A['rels'] = []
+            B['rels'] = []
+            # Format A and B so relations can easily be compared through dictionaries within lists. Use a dir for direction
+            for n in [A, B]:
+                if (len(n['OutKeys']) == len(n['OutE'])) and len(n['OutKeys']) > 0:
+                    for k, l, c in zip(n['OutKeys'], n['OutE'], n['n_out_class']):
+                        n['rels'].append({
+                            "edgeNode": k,
+                            "edgeType": l,
+                            "dir": "out",
+                            "class": c
+                        })
+                # change of the from since it's an incoming edge
+                if (len(n['InKeys']) == len(n['InE'])) and len(n['InKeys']) > 0:
+                    for k, l, c in zip(n['InKeys'], n['InE'], n['n_in_class']):
+                        n['rels'].append({
+                            "edgeNode": k,
+                            "edgeType": l,
+                            "dir": "in",
+                            "class": c
+                        })
+
+            # Check all the relationships for B and if it is not in A's relationships, create the rel using the dir
             i = 0
-            for row in data_csv:
-                # Change the string into a list
-                r = row.split(",")
-                # Check if this is the headers row. Sometimes has double quotes
-                if r[0] == 'Name' or r[0] == '"Name"':
-                    for k in r:
-                        df[k.replace('"', "")] = []
-                # Only check the first column if the entry is longer than 3
-                if len(r[0]) > 3:
-                    if r[0][:4] == 'CVE-':
-                        for k, l in zip(df.keys(), r):
-                            df[k].append(l)
-                i+=1
-        click.echo('[%s_OSINT_cve] Complete with raw data cleaning' % (get_datetime()))
-        return df
+            for rel in B['rels']:
+                if rel not in A['rels']:
+                    i+=1
+                    if rel['dir'] == "out":
+                        self.create_edge(fromClass=A['class'], fromNode=A['key'], toClass=rel['class'],
+                                         toNode=rel['edgeNode'], edgeType=rel['edgeType'])
+                    else:
+                        self.create_edge(fromClass=rel['class'], fromNode=rel['edgeNode'], toClass=A['class'],
+                                         toNode=A['key'], edgeType=rel['edgeType'])
+            results+= "%d new relations." % i
 
-    def poisonivy(self):
-        source = "%s_poisonivy.json" % get_datetime()[:10]
-        path = os.path.join(self.datapath, source)
-        url = 'https://oasis-open.github.io/cti-documentation/examples/example_json/poisonivy.json'
-        data = self.get_url(url, path)
-        rels = []
-        if data:
-            data = json.loads(data.content)
-            with open(path, 'w') as fp:
-                json.dump(data, fp)
+            # Update the hashkey of the A node for future indexing
+            newHashKey = A['hashkey'] + "," + B['hashkey']
+            self.update(key=A['key'], var="hashkey", val=newHashKey, class_name=A['class'])
+
+            # Delete the B node
+            self.delete_node(key=B['key'], class_name=B['class'])
+
         else:
-            with open(path) as fp:
-                data = json.load(fp)
-        ctr = 0
-        tm = 1
-        for i in data['objects']:
-            ctr+=1
-            if ctr == 100:
-                ctr = 0
-                print("%s %d, %d" % (get_datetime(), tm, tm*ctr))
-                tm+=1
-            if i['type'] == 'attack-pattern':
-                attributes = self.get_attributes(i, source)
-                self.create_CTI_node(
-                    class_name="AttackPattern",
-                    key=i['id'],
-                    title=i['name'],
-                    CTI=True,
-                    attributes = attributes
-                )
-            elif i['type'] == 'campaign':
-                attributes = self.get_attributes(i, source)
-                self.create_CTI_node(
-                    class_name="Campaign",
-                    key=i['id'],
-                    title=i['name'],
-                    CTI=True,
-                    attributes = attributes
-                )
-            elif i['type'] == 'course-of-action':
-                attributes = self.get_attributes(i, source)
-                self.create_CTI_node(
-                    class_name="CourseOfAction",
-                    key=i['id'],
-                    title=i['name'],
-                    CTI=True,
-                    attributes=attributes
-                )
-            elif i['type'] == 'identity':
-                attributes = self.get_attributes(i, source)
-                self.create_CTI_node(
-                    class_name="Identity",
-                    key=i['id'],
-                    title=i['name'],
-                    CTI=True,
-                    attributes=attributes
-                )
-            elif i['type'] == 'indicator':
-                attributes = self.get_attributes(i, source)
-                self.create_CTI_node(
-                    class_name="Indicator",
-                    key=i['id'],
-                    title=i['name'],
-                    CTI=True,
-                    attributes=attributes
-                )
-            elif i['type'] == 'intrusion-set':
-                attributes = self.get_attributes(i, source)
-                self.create_CTI_node(
-                    class_name="IntrusionSet",
-                    key=i['id'],
-                    title=i['name'],
-                    CTI=True,
-                    attributes=attributes
-                )
-            elif i['type'] == 'malware':
-                attributes = self.get_attributes(i, source)
-                self.create_CTI_node(
-                    class_name="Malware",
-                    key=i['id'],
-                    title=i['name'],
-                    CTI=True,
-                    attributes=attributes
-                )
-            elif i['type'] == 'observed-data':
-                attributes = self.get_attributes(i, source)
-                self.create_CTI_node(
-                    class_name="ObservedData",
-                    key=i['id'],
-                    title="Observed data",
-                    CTI=True,
-                    attributes=attributes
-                )
-            elif i['type'] == 'report':
-                attributes = self.get_attributes(i, source)
-                self.create_CTI_node(
-                    class_name="ObservedData",
-                    key=i['id'],
-                    title=i['name'],
-                    CTI=True,
-                    attributes=attributes
-                )
-            elif i['type'] == 'threat-actor':
-                attributes = self.get_attributes(i, source)
-                self.create_CTI_node(
-                    class_name="ThreatActor",
-                    key=i['id'],
-                    title=i['name'],
-                    CTI=True,
-                    attributes=attributes
-                )
-            elif i['type'] == 'tool':
-                attributes = self.get_attributes(i, source)
-                self.create_CTI_node(
-                    class_name="Tool",
-                    key=i['id'],
-                    title=i['name'],
-                    CTI=True,
-                    attributes=attributes
-                )
-            elif i['type'] == 'vulnerability':
-                attributes = self.get_attributes(i, source)
-                self.create_CTI_node(
-                    class_name="Vulnerability",
-                    key=i['id'],
-                    title=i['name'],
-                    CTI=True,
-                    attributes=attributes
-                )
-            elif i['type'] == 'relationship':
-                rels.append(i)
+            results = "Need both an A node and B node."
+        return results
 
+    def key_comparison(self, keys):
+        """
+        Using the keys from a node, check the Databases models for the one with the most similar keys to
+        determine the class_name. For each model, use the list of keys to compare against the input keys. Each time
+        there is a matching key, increase the similarity score
+        :param keys:
+        :return:
+        """
+        simScores = {}
+        c_keys = []
+        for k in keys:
+            c_keys.append(str(k).lower())
+        click.echo('[%s_%s] Running similarity on attributes:\n\t%s' % (get_datetime(), "home.key_comparison", keys))
+        for m in self.models:
+            simScores[m] = 0
+            m_keys = []
+            for k in list(self.models[m].keys()):
+                m_keys.append(str(k).lower())
+            for k in c_keys:
+                if k in m_keys:
+                    simScores[m]+=1
 
-            print("%s_Cleaning raw data %s" % (get_datetime(), i))
+            #click.echo('[%s_%s] Compared %s\nScore: %s' % (get_datetime(), "home.key_comparison", m_keys, simScores[m]))
+        class_name = max(simScores, key=simScores.get)
+        click.echo('[%s_%s] Most likely class is %s with score %d.' % (
+            get_datetime(), "home.key_comparison", class_name, simScores[max(simScores)]))
 
-        for r in rels:
+        return class_name
+
+    def save(self, **kwargs):
+        """
+        Expects a request with graphCase containing the graph from the user's canvas and assumes that all nodes have an
+        attribute "key". The creation of a node is only if the node is new and taken from a source that doesn't exist in
+        POLE yet.
+        If it is an existing case, set the LastUpdate to the current date time.
+        QUERY 1 Checks if the Case already exists and if not, creates it.
+        QUERY 2 Gets existing keys if the Nodes sent in the graphCase are already "Attached" to the Case from QUERY 1
+        QUERY 3 Compares edges between the new case and old case and only adds a new relation where one doesn't exist
+        Run a match query that returns only those nodes in the case and their relationships. The query uses the book-end
+        method in a manner: Case-Attached->Vertex1-(any)->Vertex2-Attached->Case. Return v1, v2 and the type of relation
+        TODO: Relation duplication quality - Include all edge attributes beyond description
+        TODO: Implement classification on related nodes
+
+        Owner/Member relations are maintained by storing the unique UserName of the user in the Case.Owners/Members
+        string. The string is split into a list to compare with the incoming keys. If there is a gap, the string is
+        updated. When the user logs in from the User Database side, it can call each other database to find out which
+        cases the user belongs to and return those in an object.
+        :param kwargs: graphCase, graphName, Classification, Owners, Members, CreatedBy
+        :return: graph (in the UI form), message (summary of actions)
+        """
+        # The graph being saved
+        fGraph = kwargs['graphCase']
+        click.echo(fGraph)
+        if "groups" in fGraph.keys():
+            groups = fGraph['groups']
+        else:
+            groups = []
+        # The new graph to be returned which includes nodes from fGraph with new keys if they are not stored yet
+        graph = {
+            "nodes": [],
+            "lines": [],
+            "groups": groups
+        }
+        # QUERY 1: Get the case by Name and Classification in the case there is no case key
+        sql = ('''
+            select key, class_name, Name, Owners, Classification, Members, StartDate, CreatedBy  
+            from Case where Name = '%s' and Classification = '%s'
+        ''' % (clean(kwargs['graphName']), kwargs['Classification'])
+               )
+        click.echo('[%s_%s] Q1: Getting Case:\n\t%s' % (get_datetime(), "home.save", sql))
+        case = self.client.command(sql)
+        # Array for the node keys related to the case if it exists returned from Query 2
+        current_nodes = []
+        # UPDATE CASE if it was found
+        ownersString = str(kwargs['Owners']).strip('[]').replace("'", "")
+        membersString = str(kwargs['Members']).strip('[]').replace("'", "")
+        if len(case) > 0:
+            # Settings for the update
+            updateCaseWorkers = False
+            casedata = dict(case[0].oRecordData)
+
+            # CHECK users to see if there are new ones to be added
+            for user in kwargs['Owners']:
+                if user not in casedata['Owners'].split(","):
+                    ownersString+=",%s" % user
+                    updateCaseWorkers = True
+            if updateCaseWorkers:
+                print("update attribute")
+            for user in kwargs['Members']:
+                if user not in casedata['Members'].split(","):
+                    membersString+=",%s" % user
+                    updateCaseWorkers = True
+            if updateCaseWorkers:
+                print("update attribute")
+
+            # Store the other variables for the return value
+            case = dict(key=casedata['key'], icon=self.ICON_CASE, status="CustomCase", title=casedata['Name'])
+            # UPDATE the LastUpdate attribute and carry the variable over to the return value
+            LastUpdate = get_datetime()
+            self.update(class_name="Case", var="LastUpdate", val=LastUpdate, key=case['key'])
+            case['attributes'] = [
+                {"label": "Owners", "value": casedata['Owners']},
+                {"label": "Members", "value": casedata['Members']},
+                {"label": "Classification", "value": casedata['Classification']},
+                {"label": "StartDate", "value": casedata['StartDate']},
+                {"label": "LastUpdate", "value": LastUpdate},
+                {"label": "className", "value": "Case"},
+                {"label": "CreatedBy", "value": casedata['CreatedBy']}
+            ]
+            # Carry the case_key over to the relationship creation
+            case_key = str(case['key'])
+            message = "Updated %s" % case['title']
+            # QUERY 2: Get the node keys related to the case that was found T
+            # TODO don't get just keys but attributes and compare
             sql = '''
-            create edge %s from 
-            (select from V where key = '%s') to 
-            (select from V where key = '%s')
-            ''' % (r['relationship_type'], r['source_ref'], r['target_ref'])
-            self.client.command(sql)
-
-    def get_url(self, url, path):
-        if not os.path.exists(path):
-            print("%s_Fetching latest %s" % (get_datetime(), url))
-            data = requests.get(url)
-            return data
+            match {class: Case, as: u, where: (key = '%s')}.out(Attached)
+            {class: V, as: e} return e.key
+            '''  % case_key
+            click.echo('[%s_%s] Q2: Getting Case nodes:\n\t%s' % (get_datetime(), "home.save", sql))
+            Attached = self.client.command(sql)
+            for k in Attached:
+                current_nodes.append(k.oRecordData['e_key'])
+        # SAVE CASE if it was not found
         else:
-            print("%s_Latest data exists. No need to download" % get_datetime())
+            fGraph = json.loads(fGraph["graphCase"])
+            message = "Saved %s" % kwargs['graphName']
+            case = self.create_node(
+                class_name="Case",
+                Name=clean(kwargs["graphName"]),
+                CreatedBy=clean(kwargs["CreatedBy"]),
+                Owners=ownersString,
+                Members=membersString,
+                Classification=kwargs["Classification"],
+                StartDate=get_datetime(),
+                LastUpdate=get_datetime(),
+                NodeCount=len(fGraph['nodes']),
+                EdgeCount=len(fGraph['lines'])
+            )['data']
+            case_key = str(case['key'])
+            click.echo('[%s_%s_create_db] Created Case:\n\t%s' % (get_datetime(), "home.save", case))
+        # Attach the Case record to the nodes
+        graph['nodes'].append(case)
+        # ATTACHMENTS of Nodes and Edges from the Request.
+        newNodes = newLines = 0
+        if "nodes" in fGraph.keys() and "lines" in fGraph.keys():
+            for n in fGraph['nodes']:
+                # If the new Case node is not in the keys from the collection create a node
+                if n['key'] not in current_nodes:
+                    newNodes += 1
+                    # To add the Node with a new key, need to pop this node's key out and then replace in the lines
+                    oldKey = n['key']
+                    try:
+                        n['class_name'] = self.get_node_att(n, 'className')
+                    except:
+                        n['class_name'] = self.get_node_att(n, 'class_name')
+                    if not n['class_name']:
+                        keys_to_compare = []
+                        for k in n.keys():
+                            keys_to_compare.append(k)
+                        if 'attributes' in n.keys():
+                            for a in n['attributes']:
+                                keys_to_compare.append(a['label'])
+                        n['class_name'] = self.key_comparison(keys_to_compare)
+                    # Save the class name for use in the relationship since it is otherwise buried in the attributes
+                    class_name = n['class_name']
+                    n.pop("key")
+                    n = self.create_node(**n)
+                    n_key = str(n['data']['key'])
+                    # Go through the lines and change the key to this new key
+                    for l in fGraph['lines']:
+                        if l['to'] == oldKey:
+                            l['to'] = n_key
+                        elif l['from'] == oldKey:
+                            l['from'] = n_key
+                    if {"from": case_key, "to": n_key, "description": "Attached"} not in graph['lines']:
+                        self.create_edge(fromNode=case_key, toNode=n['data']['key'],
+                                         edgeType="Attached", fromClass="Case", toClass=class_name)
+                        graph['lines'].append({"from": case_key, "to": n_key, "description": "Attached"})
+
+                    # Add the node to the graph
+                    graph['nodes'].append(n['data'])
+                # Otherwise just add it as is to the new graph that will be sent back
+                else:
+                    graph['lines'].append({"from": str(case_key), "to": str(n['key']), "description": "Attached"})
+                    graph['nodes'].append(n)
+
+            # QUERY 3: Compare the edges between nodes from the saved case and the new case
+            # to determine if new edge is needed
+            oldRels = graph['lines']
+            sql = ('''
+            match
+            {class:Case, as:c, where: (key = '%s')}.out("Attached")
+            {class:V, as:v1}.outE(){as:v2e}.inV()
+            {class:V, as:v2}.in("Attached")
+            {class:Case, where: (key = '%s')}
+            return v1.key as from_key, v2.key as to_key, v2e.@class as description
+            ''' % (case_key, case_key))
+            rels = self.client.command(sql)
+            # Compare the rels that are currently stored with the ones in that were added during Case creation step 1
+            click.echo('[%s_%s] Q3: Compare existing case to new:\n\t%s' % (get_datetime(), "home.save", sql))
+            for rel in rels:
+                rel = rel.oRecordData
+                oldRels.append({"from": rel['from_key'], "to": rel['to_key'], "description": rel['description']})
+            for l in graph['lines']:
+                if {"from": l['from'], "to": l['to'], "description": l['description']} not in oldRels:
+                    newLines += 1
+                    self.create_edge(fromNode=l['from'], fromClass=self.get_class_name(graph, l['from']),
+                                     toNode=l['to'], toClass=self.get_class_name(graph, l['to']),
+                                     edgeType=l['description'])
+            # Final Comparison of relations using the fGraph where keys of ne nodes are changed
+            for r in fGraph['lines']:
+                if {"from": r['from'], "to": r['to'], "description": r['description']} not in graph['lines']:
+                    graph['lines'].append({"from": r['from'], "to": r['to'], "description": r['description']})
+                    self.create_edge(fromNode=r['from'], fromClass=self.get_class_name(graph, r['from']),
+                                     toNode=r['to'], toClass=self.get_class_name(graph, r['to']),
+                                     edgeType=r['description'])
+
+            if newNodes == 0 and newLines == 0:
+                message = "No new data received. Case %s is up to date." % clean(kwargs["graphName"])
+            else:
+                message = "%s with %d nodes and %d edges." % (message, newNodes, newLines)
+        click.echo('[%s_%s] %s' % (get_datetime(), "home.save", message))
+        return graph, message
+
+    @staticmethod
+    def get_class_name(graph, key):
+        """
+        Needed for the SAPUI5 graph because relations/lines do not have class_names and this is needed to create an edge
+        :param graph:
+        :param key:
+        :return:
+        """
+        for n in graph['nodes']:
+            try:
+                if str(n['key']) == str(key):
+                    if 'class_name' in n.keys():
+                        return n['class_name']
+                    elif 'attributes' in n.keys():
+                        for a in n['attributes']:
+                            if a['label'] == 'class_name' or a['label'] == 'className':
+                                return a['value']
+            except Exception as e:
+                click.echo("ERROR in get_class_name: %s" % str(e) )
         return
 
-    def get_attributes(self, record, source):
-        attributes = [{"label": "source", "value": source}]
-        for k in record.keys():
-            if k not in ['id']:
-                if type(record[k]) == list:
-                    if type(record[k][0]) == dict:
-                        val = ""
-                        for a in record[k][0].keys():
-                            val = val + "%s - %s " % (a, record[k][0][a])
+    @staticmethod
+    def get_node_att(node, att):
 
-                    else:
-                        val = ','.join(map(str, record[k]))
-                else:
-                    try:
-                        new_val = change_if_date(record[k])
-                        if new_val:
-                            val = new_val
-                        else:
-                            val = record[k]
-                    except Exception as e:
-                        print(str(e))
-                if not new_val:
-                    try:
-                        val = val.replace("'", "")
-                        date_val = change_if_date(val)
-                        if date_val:
-                            val = date_val
-                    except:
-                        pass
-                attributes.append({"label": k, "value": val})
+        try:
+            for a in node['attributes']:
+                if a['label'] == att:
+                    return a['value']
+            return None
+        except:
+            print(node)
 
-        return attributes
-
-    def get_latest_cti(self):
-        sql = '''
-        MATCH
-        {class:AttackPattern, as:a}.outE(){as:a2t}.inV()
-        {class:V, as:t}
-        RETURN a.key, a.title, a.type, a.created, a.modified, t.key, t.title, a2t.@class, a.@class, t.@class
+    def create_text_indexes(self):
         '''
-        graph = {
-            "nodes": [],
-            "links": [],
-            "index": []
-        }
-        r = self.client.command(sql)
-        for i in r:
-            o = i.oRecordData
-            if o["a_key"] not in graph["index"]:
-                graph["nodes"].append(self.create_d3_node(
-                    id=o["a_key"],
-                    n_type=o["a_@class"],
-                    title=o["a_title"],
-                    created=o["a_created"],
-                    modified=o["a_modified"]
-                ))
-                graph["index"].append(o["a_key"])
-            if o["t_key"] not in graph["index"]:
-                graph["nodes"].append(self.create_d3_node(
-                    id=o["t_key"],
-                    n_type=o["t_@class"],
-                    title=o["t_title"]
-                ))
-                graph["index"].append(o["t_key"])
-            rel = {"source": o["a_key"], "target": o["t_key"], "label": o["a2t_@class"]}
-            if(rel not in graph["links"]):
-                graph['links'].append(rel)
-        return graph
+        Create text indexes on the model entities with description attributes
+        '''
+        click.echo('[%s_OSINTserver_create_text_indexes] Creating indexes' % (get_datetime()))
+        for m in self.models:
+            for k in self.models[m].keys():
+                if str(k) == "description":
+                    sql = '''
+                    CREATE INDEX %s.search_fulltext ON %s(description) FULLTEXT ENGINE LUCENE METADATA
+                              {
+                                "default": "org.apache.lucene.analysis.standard.StandardAnalyzer",
+                                "index": "org.apache.lucene.analysis.en.EnglishAnalyzer",
+                                "query": "org.apache.lucene.analysis.standard.StandardAnalyzer",
+                                "analyzer": "org.apache.lucene.analysis.en.EnglishAnalyzer",
+                                "allowLeadingWildcard": true
+                              }
+                    ''' % (m, m)
+                    self.client.command(sql)
+        click.echo('[%s_OSINTserver_create_indexes] Indexes complete' % (get_datetime()))
 
-    def create_d3_node(self, **kwargs):
-        node = {
-            "id": None,
-            "data": [],
-            "n_type": None
-        }
-        if "id" in kwargs.keys():
-            node["id"] = kwargs["id"]
-        if "n_type" in kwargs.keys():
-            node["n_type"] = kwargs["n_type"]
-        for k in kwargs.keys():
-            if k not in ["id", "n_type"]:
-                node["data"].append({"label": k, "value": kwargs[k]})
-                node[k] = kwargs[k]
-
-        return node
