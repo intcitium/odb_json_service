@@ -1577,12 +1577,15 @@ class OSINT(ODB):
                 i+=1
         click.echo('[%s_OSINT_cve] Complete with raw data cleaning. Starting Extraction' % (get_datetime()))
         df = pd.DataFrame.from_dict(df)
+        self.graph_cve(df=df)
+        '''
         t = threading.Thread(
             target=self.graph_cve,
             kwargs={
                 "df": df,
             })
         t.start()
+        '''
 
     def graph_cve(self, df=pd.DataFrame()):
         """
@@ -1596,15 +1599,14 @@ class OSINT(ODB):
         c = 0
         pct = .0001
         new_nodes = new_references = 0
-        vul_index = {}
-        ref_index = {}
+        indexes = {}
         rel_index = []
         for index, row in df.iterrows():
-            if i > df.size*.0001:
+            if i > df.size*pct:
                 i = 0
                 c+=1
-                click.echo('[%s_OSINT_cve] Completed %f percent. %d Vuls, %d Refs' % (
-                    get_datetime(), pct*10*c, new_nodes, new_references))
+                click.echo('[%s_OSINT_cve] Completed %f percent. %d Vuls, %d Refs, %d Indexes' % (
+                    get_datetime(), (index/df.size)*100, new_nodes, new_references, len(indexes.keys())))
             i+=1
             if 'Comments\n' in row.keys():
                 comments = row['Comments\n']
@@ -1614,6 +1616,11 @@ class OSINT(ODB):
                 comments = ""
             try:
                 # Create the CVE node and then make relations to any entities if they don't exist
+
+                cve_index = row["Name"][:8]
+                if cve_index not in indexes.keys():
+                    indexes[row["Name"][:8]] = {}
+                vul_index = indexes[cve_index]
                 if row["Name"] in vul_index.keys():
                     cve_node = {"key": vul_index[row["Name"]]}
                 else:
@@ -1629,27 +1636,32 @@ class OSINT(ODB):
                     })["data"]
                     vul_index[row["Name"]] = cve_node["key"]
                     new_nodes+=1
-                references = [r.strip() for r in row["References"].split("|")]
-                for r in references:
-                    # Check if in the index
-                    if r in ref_index:
-                        ref_node = {"key": ref_index[r]}
-                    else:
-                        ref_node = self.create_node(**{
-                            "class_name": "Object",
-                            "description": "Reference from CVE %s" % r,
-                            "Category": "Vulnerability Reference",
-                            "Ext_key": r,
-                            "source": "MITRE"
-                        })["data"]
-                        ref_index[r] = ref_node["key"]
-                        new_references+=1
-                    if "%sTO%s" % (ref_node["key"], cve_node["key"])not in rel_index:
-                        self.create_edge(
-                            fromNode=ref_node["key"], fromClass="Object", edgeType="References",
-                            toNode=cve_node["key"], toClass="Vulnerability"
-                        )
-                        rel_index.append("%sTO%s" % (ref_node["key"], cve_node["key"]))
+
+                    references = [r.strip() for r in row["References"].split("|")]
+                    for r in references:
+                        # Check if in the index
+                        ref_index = r[:6]
+                        if ref_index not in indexes.keys():
+                            indexes[r[:6]] = {}
+                        ref_index = indexes[ref_index]
+                        if r in ref_index:
+                            ref_node = {"key": ref_index[r]}
+                        else:
+                            ref_node = self.create_node(**{
+                                "class_name": "Object",
+                                "description": "Reference from CVE %s" % r,
+                                "Category": "Vulnerability Reference",
+                                "Ext_key": r,
+                                "source": "MITRE"
+                            })["data"]
+                            ref_index[r] = ref_node["key"]
+                            new_references+=1
+                        if "%sTO%s" % (ref_node["key"], cve_node["key"])not in rel_index:
+                            self.create_edge(
+                                fromNode=ref_node["key"], fromClass="Object", edgeType="References",
+                                toNode=cve_node["key"], toClass="Vulnerability"
+                            )
+                            rel_index.append("%sTO%s" % (ref_node["key"], cve_node["key"]))
             except Exception as e:
                 click.echo('[%s_OSINT_cve] Error %s' % (get_datetime(), str(e)))
                 pass
