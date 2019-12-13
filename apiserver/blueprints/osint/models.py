@@ -258,6 +258,20 @@ class OSINT(ODB):
                     })
 
         return suggestionItems
+
+    def get_most_connected_references(self, description):
+        sql = '''
+        select Ext_key, out() from Object where description containstext("%s") and out().size() > 3
+        ''' % description
+        r = self.client.command(sql)
+        return r
+
+    def get_most_connected_vulnerabilities(self):
+        sql = '''
+        select Ext_key, in().size() from Vulnerability where in().size() > 10
+        '''
+        r = self.client.command(sql)
+        return r
     
     def get_neighbors(self, **kwargs):
         """
@@ -1643,7 +1657,7 @@ class OSINT(ODB):
                 click.echo('[%s_OSINT_cve] Error %s' % (get_datetime(), str(e)))
                 pass
 
-        click.echo('[%s_OSINT_cve] Complete with graphing CVE %s' % (get_datetime()))
+        click.echo('[%s_OSINT_cve] Complete with graphing CVE' % (get_datetime()))
 
     def poisonivy(self):
         source = "%s_poisonivy.json" % get_datetime()[:10]
