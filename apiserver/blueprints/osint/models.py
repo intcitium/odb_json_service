@@ -60,24 +60,6 @@ class OSINT(ODB):
                 "class": "Event",
                 "filter_att": "Screen_name",
                 "keys": []
-            },
-            "Locations": {
-                "index_att": "Ext_key",
-                "class": "Location",
-                "filter_att": "Latitude",
-                "keys": []
-            },
-            "Vulnerabilities": {
-                "index_att": "Ext_key",
-                "class": "Vulnerability",
-                "filter_att": "source",
-                "keys": []
-            },
-            "Objects": {
-                "index_att": "Ext_key",
-                "class": "Object",
-                "filter_att": "Ext_key",
-                "keys": []
             }
         }
 
@@ -1605,19 +1587,31 @@ class OSINT(ODB):
         :param df:
         :return:
         """
+        pid = "CVE_graph_%s" % randomString(32)
+        self.create_node(**{
+            "class_name": "Process",
+            "category": "Graphing",
+            "name": "CVE",
+            "started": get_datetime(),
+            "pid": pid
+        })
         class_name = "Vulnerability"
         source = "MITRE"
         i = 0
         c = 0
-        pct = .0001
+        pct = .001
         new_nodes = new_references = 0
         indexes = {}
         for index, row in df.iterrows():
             if i > df.size*pct:
                 i = 0
                 c+=1
-                click.echo('[%s_OSINT_cve] Completed %f percent. %d Vuls, %d Refs, %d Indexes' % (
+                update = ('[%s_OSINT_cve] Completed %f percent. %d Vuls, %d Refs, %d Indexes' % (
                     get_datetime(), (index/df.size)*100, new_nodes, new_references, len(indexes.keys())))
+                click.echo(update)
+                self.client.command('''
+                update Process set summary = '%s' where pid = '%s'
+                ''' % (get_datetime(), pid))
             i+=1
             if 'Comments\n' in row.keys():
                 comments = row['Comments\n']
@@ -1658,6 +1652,9 @@ class OSINT(ODB):
                 pass
 
         click.echo('[%s_OSINT_cve] Complete with graphing CVE' % (get_datetime()))
+        self.client.command('''
+        update Process set ended = '%s' where pid = '%s'
+        ''' % (get_datetime(), pid))
 
     def poisonivy(self):
         source = "%s_poisonivy.json" % get_datetime()[:10]
