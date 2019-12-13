@@ -364,7 +364,7 @@ class ODB:
                             "label": "Data source", "value": rowk
                         })
 
-                    elif k not in no_take_attributes:
+                    elif k not in no_take_attributes and rowk != 0 and rowk != "0":
                         node["attributes"].append(
                             {"label": k, "value": rowk}
                         )
@@ -377,6 +377,7 @@ class ODB:
                                 "title": row["ITM_PROJECT_RESP_NAME"],
                             })
                         if "%s%s%s" %(row["NODE_ATTR_GUID"], row["ITM_PROJECT_RESP"], "RESPFOR") not in r["index"]:
+                            r["index"].append("%s%s%s" % (row["NODE_ATTR_GUID"], row["ITM_PROJECT_RESP"], "RESPFOR"))
                             r["lines"].append({
                                 "to": row["NODE_ATTR_GUID"],
                                 "from": row["ITM_PROJECT_RESP"],
