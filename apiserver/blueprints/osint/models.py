@@ -1577,15 +1577,13 @@ class OSINT(ODB):
                 i+=1
         click.echo('[%s_OSINT_cve] Complete with raw data cleaning. Starting Extraction' % (get_datetime()))
         df = pd.DataFrame.from_dict(df)
-        self.graph_cve(df=df)
-        '''
+        #self.graph_cve(df=df)
         t = threading.Thread(
             target=self.graph_cve,
             kwargs={
                 "df": df,
             })
         t.start()
-        '''
 
     def graph_cve(self, df=pd.DataFrame()):
         """
@@ -1600,7 +1598,6 @@ class OSINT(ODB):
         pct = .0001
         new_nodes = new_references = 0
         indexes = {}
-        rel_index = []
         for index, row in df.iterrows():
             if i > df.size*pct:
                 i = 0
@@ -1638,12 +1635,10 @@ class OSINT(ODB):
                         "source": "MITRE"
                     })["data"]
                     new_references+=1
-                if "%sTO%s" % (ref_node["key"], cve_node["key"])not in rel_index:
                     self.create_edge(
                         fromNode=ref_node["key"], fromClass="Object", edgeType="References",
                         toNode=cve_node["key"], toClass="Vulnerability"
                     )
-                    rel_index.append("%sTO%s" % (ref_node["key"], cve_node["key"]))
             except Exception as e:
                 click.echo('[%s_OSINT_cve] Error %s' % (get_datetime(), str(e)))
                 pass
