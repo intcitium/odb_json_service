@@ -957,6 +957,10 @@ class ODB:
                     node = self.get_node(val=kwargs['Name'], var="Name", class_name="Case")
                     return {"data" :{"key": node['key']}}
             message = '[%s_%s_create_node] ERROR %s\n%s' % (get_datetime(), self.db_name, str(e), sql)
+            '''
+            If it is a key error or duplication then need to return the formatted_node of the record that exists,
+            preventing the creation
+            '''
             click.echo(message)
             return message
 
@@ -1059,7 +1063,7 @@ class ODB:
                 if k != 'class':
                     sql = sql+"create property %s.%s %s;\n" % (m, k, self.models[m][k])
                     # Custom rules for establishing indexing
-                    if (str(k)).lower() in ["key", "id", "uid", "userid"] \
+                    if (str(k)).lower() in ["key", "id", "uid", "userid", "hashkey"] \
                             or (self.db_name == "Users" and str(k).lower == "username")\
                             or (m == "Case" and k == "Name"):
                         sql = sql + "create index %s_%s on %s (%s) UNIQUE ;\n" % (m, k, m, k)
