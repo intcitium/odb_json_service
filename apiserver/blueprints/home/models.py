@@ -956,6 +956,10 @@ class ODB:
                 if kwargs['class_name'] == "Case":
                     node = self.get_node(val=kwargs['Name'], var="Name", class_name="Case")
                     return {"data" :{"key": node['key']}}
+                elif "hashkey" in str(e):
+                    node = self.get_node(val=hash_key, var="hashkey")
+                    return {"data": self.format_node(**node), "message": "duplicate blocked"}
+
             message = '[%s_%s_create_node] ERROR %s\n%s' % (get_datetime(), self.db_name, str(e), sql)
             '''
             If it is a key error or duplication then need to return the formatted_node of the record that exists,
@@ -1092,15 +1096,14 @@ class ODB:
         else:
             self.create_db()
 
-    def get_node(self, **kwargs):
-
-        sql = ('''
-        select * from {class_name} where {var} = '{val}'
-        ''').format(class_name=kwargs['class_name'], var=kwargs['var'], val=kwargs['val'])
-        r = self.client.command(sql)
-
-        if len(r) > 0:
-            return r[0].oRecordData
+    def get_node(self, class_name="V", var=None, val=None):
+        if var and val:
+            sql = ('''
+            select * from {class_name} where {var} = '{val}'
+            ''').format(class_name=class_name, var=var, val=val)
+            r = self.client.command(sql)
+            if len(r) > 0:
+                return r[0].oRecordData
         else:
             return None
 
@@ -1208,13 +1211,13 @@ class ODB:
         :param kwargs:
         :return:
         """
-        if not kwargs['icon']:
+        if 'icon' not in kwargs.keys():
             kwargs['icon'] = "sap-icon://add"
         if 'class_name' not in kwargs.keys():
             kwargs['class_name'] = 'No class name'
-        if not kwargs['title']:
+        if 'title' not in kwargs.keys():
             kwargs['title'] = kwargs['class_name']
-        if not kwargs['status']:
+        if 'status' not in kwargs.keys():
             kwargs['status'] = random.choice(['Information', 'Success', 'Error', 'Warning', 'None'])
 
         if "attributes" not in kwargs.keys():
