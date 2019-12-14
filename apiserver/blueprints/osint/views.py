@@ -228,3 +228,19 @@ def get_user_monitor():
             "message": "Failed to process request",
             "data": None
         })
+
+@osint.route('/osint/search', methods=['POST'])
+def search():
+    r = get_request_payload(request)
+    if r and 'search' in r.keys():
+        search = osintserver.search(**r)
+        return jsonify({
+            "status": 200,
+            "message": search
+        })
+    else:
+        return jsonify({
+            "status": 200,
+            "message": "Failed to process request",
+            "data": None
+        })

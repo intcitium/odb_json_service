@@ -190,7 +190,7 @@ class OSINT(ODB):
             else:
                 return
 
-    def get_suggestion_items(self, **kwargs):
+    def get_suggestion_items(self, searchterms=""):
         """
         Using the LUCENE text indexing of the different classes available,
         return a small sample of matching items that can be chosen from a search list.
@@ -207,8 +207,8 @@ class OSINT(ODB):
         for m in self.models.keys():
             sql = sql + '''
             $%s = (SELECT key, title, @class, description FROM %s WHERE [description] LUCENE "%s*" LIMIT 5),\n
-            ''' % (m[0:3].lower(), m, kwargs['searchterms'])
-            union = union + "$%s" % m[0:3].lower()
+            ''' % (m[0:4].lower(), m, searchterms)
+            union = union + "$%s" % m[0:4].lower()
             if i != len(self.models.keys())-1:
                 union = union + ", "
             else:
