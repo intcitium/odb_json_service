@@ -1601,15 +1601,15 @@ class OSINT(ODB):
         source = "MITRE"
         i = 0
         c = 0
-        pct = .001
+        pct = .1
         new_nodes = new_references = 0
         indexes = {}
         for index, row in df.iterrows():
-            if i > df.size*pct:
+            if i > df.shape[0]*pct:
                 i = 0
                 c+=1
                 update = ('[%s_OSINT_cve] Completed %f percent. %d Vuls, %d Refs, %d Indexes' % (
-                    get_datetime(), (index/df.size)*100, new_nodes, new_references, len(indexes.keys())))
+                    get_datetime(), (index/df.shape[0])*100, new_nodes, new_references, len(indexes.keys())))
                 click.echo(update)
                 self.client.command('''
                 update Process set summary = '%s' where pid = '%s'
