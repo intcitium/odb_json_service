@@ -1392,6 +1392,23 @@ class ODB:
 
         return class_name
 
+    def search(self, class_name="V", characters=""):
+        """
+        Use the LUCENE text index to find entities based on their description which has been set up for many classes
+        :param class_name:
+        :param characters:
+        :return:
+        """
+        r = self.client.command('''
+        select from *s where decription LUCENE "%s" LIMIT 5
+        ''' % (class_name, characters))
+        search_items = []
+        for o in r:
+            o = o.oRecordData
+            search_items.append(self.format_node(**o))
+
+        return search_items
+
     def save(self, **kwargs):
         """
         Expects a request with graphCase containing the graph from the user's canvas and assumes that all nodes have an
