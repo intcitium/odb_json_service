@@ -1372,21 +1372,23 @@ class OSINT(ODB):
         Refresh all the indexes based on the DB type
         :return:
         """
-
-        for osi in self.OSINT_index:
-            click.echo('[%s_OSINT_refresh_indexes] Filling %s' % (get_datetime(), osi))
-            sql = '''
-            select %s from %s where %s != ""
-             ''' % (
-                self.OSINT_index[osi]["index_att"],
-                self.OSINT_index[osi]["class"],
-                self.OSINT_index[osi]["filter_att"]
-            )
-            r = self.client.command(sql)
-            for i in r:
-                self.OSINT_index[osi]["keys"].append(
-                    str(i.oRecordData[self.OSINT_index[osi]["index_att"]]))
-        click.echo('[%s_OSINT_refresh_indexes] Indexes complete' % (get_datetime()))
+        try:
+            for osi in self.OSINT_index:
+                click.echo('[%s_OSINT_refresh_indexes] Filling %s' % (get_datetime(), osi))
+                sql = '''
+                select %s from %s where %s != ""
+                 ''' % (
+                    self.OSINT_index[osi]["index_att"],
+                    self.OSINT_index[osi]["class"],
+                    self.OSINT_index[osi]["filter_att"]
+                )
+                r = self.client.command(sql)
+                for i in r:
+                    self.OSINT_index[osi]["keys"].append(
+                        str(i.oRecordData[self.OSINT_index[osi]["index_att"]]))
+            click.echo('[%s_OSINT_refresh_indexes] Indexes complete' % (get_datetime()))
+        except Exception as e:
+            click.echo('[%s_OSINT_refresh_indexes] Error setting up indexes. %s' % (get_datetime(), str(e)))
 
     def responseHandler(self, response, searchterm):
 
@@ -1630,8 +1632,10 @@ class OSINT(ODB):
                     "votes": row["Votes"],
                     "status": row["Status"],
                     "phase": row["Phase"]
-                })["data"]
-                new_nodes+=1
+                })
+                if cve_node["message"] != "duplicate blocked":
+                    new_nodes+=1
+                cve_node = cve_node["data"]
                 references = [r.strip() for r in row["References"].split("|")]
                 for r in references:
                 # Check if in the index
@@ -1641,8 +1645,10 @@ class OSINT(ODB):
                         "Category": "Vulnerability Reference",
                         "Ext_key": r,
                         "source": "MITRE"
-                    })["data"]
-                    new_references+=1
+                    })
+                    if ref_node["message"] != "duplicate blocked":
+                        new_references+=1
+                    ref_node = ref_node["data"]
                     self.create_edge(
                         fromNode=ref_node["key"], fromClass="Object", edgeType="References",
                         toNode=cve_node["key"], toClass="Vulnerability"
