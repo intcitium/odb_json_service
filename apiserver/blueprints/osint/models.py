@@ -1657,10 +1657,11 @@ class OSINT(ODB):
                 click.echo('[%s_OSINT_cve] Error %s' % (get_datetime(), str(e)))
                 pass
 
-        click.echo('[%s_OSINT_cve] Complete with graphing CVE' % (get_datetime()))
+        msg = '[%s_OSINT_cve] Complete with graphing CVE at index %d' % (get_datetime(), index)
+        click.echo(msg)
         self.client.command('''
-        update Process set ended = '%s' where pid = '%s'
-        ''' % (get_datetime(), pid))
+        update Process set ended = '%s', description = '%s' where pid = '%s'
+        ''' % (get_datetime(), msg, pid))
 
     def poisonivy(self):
         source = "%s_poisonivy.json" % get_datetime()[:10]
