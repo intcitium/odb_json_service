@@ -203,11 +203,19 @@ class OSINT(ODB):
         LET 
         '''
         union = "$models = UNIONALL("
+        i = 1
+        lucene_q = ""
+        for q in searchterms.split(" "):
+            q = q.strip().lower()
+            if i == len(searchterms.split(" ")):
+                lucene_q = "+%s" % q
+            else:
+                lucene_q = "+%s " % q
         i = 0
         for m in self.models.keys():
             sql = sql + '''
-            $%s = (SELECT key, title, @class, description FROM %s WHERE [description] LUCENE "%s*" LIMIT 5),\n
-            ''' % (m[0:4].lower(), m, searchterms)
+            $%s = (SELECT key, title, @class, Ext_key FROM %s WHERE [description] LUCENE "(%s)" LIMIT 5),\n
+            ''' % (m[0:4].lower(), m, lucene_q)
             union = union + "$%s" % m[0:4].lower()
             if i != len(self.models.keys())-1:
                 union = union + ", "
@@ -216,7 +224,11 @@ class OSINT(ODB):
             i+=1
 
         sql = sql + union
-        r = self.client.command(sql)
+        try:
+            r = self.client.command(sql)
+        except Exception as e:
+            click.echo('[%s_OSINTserver_check_base_book] Error making call: %s\n%s' % (get_datetime(), str(e), sql))
+            r = []
         suggestionItems = []
         for i in r:
             try:
@@ -230,7 +242,7 @@ class OSINT(ODB):
                     suggestionItems.append({
                         "NODE_KEY": i.oRecordData["key"],
                         "NODE_TYPE": i.oRecordData["class"],
-                        "NODE_NAME": i.oRecordData["description"]
+                        "NODE_NAME": i.oRecordData["Ext_key"]
                     })
                 else:
                     suggestionItems.append({
