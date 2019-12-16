@@ -133,6 +133,19 @@ def get_neighbors():
         "data": r["data"]
     })
 
+@osint.route('/osint/get_neighbors_index', methods=['POST'])
+def get_neighbors_index():
+    '''
+    Base route for merging nodes
+    :return:
+    '''
+    r = get_request_payload(request)
+    r = osintserver.get_neighbors_index(**r)
+    return jsonify({
+        "status": 200,
+        "message": r["message"],
+        "data": r["data"]
+    })
 
 @osint.route('/osint/cve', methods=['GET'])
 def get_cve():
