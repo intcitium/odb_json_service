@@ -316,6 +316,12 @@ class OSINT(ODB):
                         node["in"].append(i.get_hash())
                 except:
                     pass
+            for i in r['out']:
+                try:
+                    if i.get_hash() not in node["out"]:
+                        node["out"].append(i.get_hash())
+                except:
+                    pass
             # Set up the graph to fill with the IN and OUT sqls for the neighbor nodes data
             graph = {"nodes": [], "lines": []}
             if len(node["in"]) > 0:
