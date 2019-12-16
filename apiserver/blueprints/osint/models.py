@@ -207,14 +207,16 @@ class OSINT(ODB):
         lucene_q = ""
         for q in searchterms.split(" "):
             q = q.strip().lower()
-            if i == len(searchterms.split(" ")):
-                lucene_q = "+%s" % q
-            else:
-                lucene_q = "+%s " % q
+            if len(q) > 1:
+                if i == len(searchterms.split(" ")):
+                    lucene_q = "+%s*" % q
+                else:
+                    lucene_q = "+%s* " % q
+            i+=1
         i = 0
         for m in self.models.keys():
             sql = sql + '''
-            $%s = (SELECT key, title, @class, Ext_key FROM %s WHERE [description] LUCENE "(%s)" LIMIT 5),\n
+            $%s = (SELECT key, title, @class, Ext_key FROM %s WHERE [description] LUCENE "(%s)" LIMIT 10),\n
             ''' % (m[0:4].lower(), m, lucene_q)
             union = union + "$%s" % m[0:4].lower()
             if i != len(self.models.keys())-1:
@@ -226,8 +228,9 @@ class OSINT(ODB):
         sql = sql + union
         try:
             r = self.client.command(sql)
+            click.echo('[%s_OSINTserver_get_suggestion_items] Getting suggestions on sql: %s' % (get_datetime(), sql))
         except Exception as e:
-            click.echo('[%s_OSINTserver_check_base_book] Error making call: %s\n%s' % (get_datetime(), str(e), sql))
+            click.echo('[%s_OSINTserver_get_suggestion_items] Error making call: %s\n%s' % (get_datetime(), str(e), sql))
             r = []
         suggestionItems = []
         for i in r:
