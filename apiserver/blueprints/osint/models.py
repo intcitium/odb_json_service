@@ -332,6 +332,7 @@ class OSINT(ODB):
                         sql = sql + "%s]" % i
                     else:
                         sql = sql + "%s, " % i
+                    c+=1
                 # Run the third sql to get the full attributes of the IN neighbors
                 r = self.client.command(sql)
                 for i in r:
@@ -353,6 +354,7 @@ class OSINT(ODB):
                         sql = sql + "%s]" % i
                     else:
                         sql = sql + "%s, " % i
+                    c += 1
                 r = self.client.command(sql)
                 for i in r:
                     o_node = {}
