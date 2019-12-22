@@ -49,15 +49,7 @@ class OSINT(ODB):
         self.cve = ["AttackPattern", "Campaign", "CourseOfAction", "Identity",
                     "Indicator", "IntrusionSet", "Malware", "ObservedData",
                     "Report", "Sighting", "ThreatActor", "Tool", "Vulnerability"]
-        self.OSINT_index = {
-            "Objects": {
-                "keys": []
-            },"Events": {
-                "keys": []
-            },"Locations": {
-                "keys": []
-            }
-        }
+        self.OSINT_index = { "Object": {"key": "Profile"}, "Event": {"key": "Post"}, "Location": {"key": ""}}
 
     @staticmethod
     def ucdp_conflict_type(row):
@@ -1292,8 +1284,7 @@ class OSINT(ODB):
                 # Check if the tweet is in the OSINT index. If not add the record
                 twt_id = "TWT_%s" % t['id']
                 hash_tags_str = ""
-                if twt_id not in self.OSINT_index["Events"]["keys"]:
-                    self.OSINT_index["Events"]["keys"].append(twt_id)
+                if twt_id not in self.OSINT_index["Event"].keys():
                     node = {
                         "class_name": "Event",
                         "title": "Tweet from " + t['user']['name'],
@@ -1316,6 +1307,7 @@ class OSINT(ODB):
                         ]
                     }
                     twt_node = self.create_node(**node)["data"]
+                    self.OSINT_index["Event"][twt_id] = twt_node
                     graph['nodes'].append(twt_node)
 
                     ht_count = 0
@@ -1332,6 +1324,7 @@ class OSINT(ODB):
                             node = {
                                 "key": ht_id,
                                 "class_name": "Object",
+                                "Category": "Hashtag",
                                 "title": "#%s" % ht['text'],
                                 "icon": self.ICON_HASHTAG,
                                 "group": 4,
@@ -1347,15 +1340,12 @@ class OSINT(ODB):
                         graph['lines'].append(
                             {"to": ht_node["key"], "from": twt_node["key"], "description": "Included"}
                         )
-                    else:
-                        print("Get the Hashtag")
                     # Process Locations
                     if "place" in t.keys():
                         if t['place']:
                             if len(t['place']['bounding_box']['coordinates'][0]) > 0:
                                 loc_id = "%s" % t['place']['id']
-                                if loc_id not in self.OSINT_index["Locations"]["keys"]:
-                                    self.OSINT_index["Locations"]["keys"].append(loc_id)
+                                if loc_id not in self.OSINT_index["Location"].keys():
                                     loc_node = {
                                         "class_name": "Location",
                                         "title": t['place']['name'],
@@ -1378,6 +1368,7 @@ class OSINT(ODB):
                                         ]
                                     }
                                     loc_node = self.create_node(**loc_node)["data"]
+                                    self.OSINT_index["Location"][loc_id] = loc_node
                                     graph['nodes'].append(loc_node)
                                     self.create_edge(toClass=node["class_name"], fromClass="Event",
                                                      edgeType="TweetedFrom",
@@ -1398,8 +1389,7 @@ class OSINT(ODB):
 
                     # Process the User by creating an entity. Then create a line from the User to the Tweet
                     user_id = "TWT_%s" % t['user']['id']
-                    if user_id not in self.OSINT_index["Objects"]["keys"]:
-                        self.OSINT_index["Objects"]["keys"].append(user_id)
+                    if user_id not in self.OSINT_index["Object"].keys():
                         usr_node = {
                             "class_name": "Object",
                             "title": t['user']['name'],
@@ -1408,6 +1398,7 @@ class OSINT(ODB):
                             "icon": self.ICON_TWITTER_USER,
                             "attributes": [
                                 {"label": "Screen_name", "value": t['user']['screen_name']},
+                                {"label": "Category", "value": "Profile"},
                                 {"label": "Created", "value": t['user']['created_at']},
                                 {"label": "description", "value": t['user']['description']},
                                 {"label": "Favorite", "value": t['user']['favourites_count']},
@@ -1425,6 +1416,7 @@ class OSINT(ODB):
                             ]
                         }
                         usr_node = self.create_node(**usr_node)["data"]
+                        self.OSINT_index["Object"][user_id] = usr_node
                         graph['nodes'].append(node)
                         # Check if there is a location
                         Location = None
@@ -1436,10 +1428,6 @@ class OSINT(ODB):
                                 )
                                 if Location["key"] not in index:
                                     index.append(Location["key"])
-                        self.create_edge(toClass="Event", fromClass="Object",
-                                         edgeType="Tweeted",
-                                         toNode=twt_node["key"],
-                                         fromNode=usr_node["key"])
                         if Location:
                             self.create_edge(
                                 fromClass="Object", fromNode=usr_node["key"], edgeType="LocatedAt",
@@ -1447,17 +1435,19 @@ class OSINT(ODB):
                             )
                     # Else get the user_node
                     else:
-                        usr_node = self.get_node(class_name="Object", var="Ext_key", val=user_id)
-                        usr_node = self.format_node(**usr_node)
+                        usr_node = self.OSINT_index["Object"][user_id]
                         twt_node = self.format_node(**twt_node)
+                    self.create_edge(toClass="Event", fromClass="Object",
+                                     edgeType="Tweeted",
+                                     toNode=twt_node["key"],
+                                     fromNode=usr_node["key"])
                     graph['lines'].append(
                         {"from": usr_node["key"], "to": twt_node["key"], "description": "Tweeted"}
                     )
 
         elif "user" in kwargs.keys():
             user_id = "TWT_%s" % kwargs['user']['id']
-            if user_id not in self.OSINT_index["Objects"]["keys"]:
-                self.OSINT_index["Objects"]["keys"].append(user_id)
+            if user_id not in self.OSINT_index["Object"].keys():
                 node = ({
                     "class_name": "Object",
                     "title": kwargs['user']['name'],
@@ -1465,6 +1455,7 @@ class OSINT(ODB):
                     "group": "Profiles",
                     "icon": self.ICON_TWITTER_USER,
                     "attributes": [
+                        {"label": "Category", "value": "Profile"},
                         {"label": "Screen_name", "value": kwargs['user']['screen_name']},
                         {"label": "Created", "value": kwargs['user']['created_at']},
                         {"label": "description", "value": kwargs['user']['description']},
@@ -1483,6 +1474,7 @@ class OSINT(ODB):
                     ]
                 })
                 node = self.create_node(**node)["data"]
+                self.OSINT_index["Object"][user_id] = node
 
             return node
         data = {
@@ -1505,12 +1497,11 @@ class OSINT(ODB):
             for osi in self.OSINT_index:
                 click.echo('[%s_OSINT_refresh_indexes] Filling %s' % (get_datetime(), osi))
                 sql = '''
-                select %s from %s where %s != ""
-                 ''' % (
-                )
+                select @rid, Ext_key from %s where Ext_key != "" and Category = "%s"
+                 ''' % (osi, self.OSINT_index[osi]['key'])
                 r = self.client.command(sql)
                 for i in r:
-                    self.OSINT_index[osi]["keys"].append(i)
+                    self.OSINT_index[osi][i.oRecordData["Ext_key"]] = i.oRecordData['rid']
             click.echo('[%s_OSINT_refresh_indexes] Indexes complete' % (get_datetime()))
         except Exception as e:
             click.echo('[%s_OSINT_refresh_indexes] Error setting up indexes. %s' % (get_datetime(), str(e)))
@@ -1651,7 +1642,7 @@ class OSINT(ODB):
                 # Get EntityNode will create the user via the processTweets function.
                 for user_id in associate_list:
                     user_idA = "TWT_%s" % user_id
-                    if user_idA not in self.OSINT_index["Users"]["keys"] and user_id not in user_ids:
+                    if user_idA not in self.OSINT_index["Object"].keys() and user_id not in user_ids:
                         user_ids.append(user_id)
                         if len(user_ids) == 100:
                             print("[*] 100 %s limit for entity. Request to Twitter." % r)

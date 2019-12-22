@@ -6,7 +6,7 @@ from flask_cors import CORS
 osint = Blueprint('osint', __name__)
 osintserver = OSINT()
 osintserver.open_db()
-#osintserver.refresh_indexes()
+osintserver.refresh_indexes()
 #osintserver.check_base_book()
 #osintserver.fill_db()
 CORS(osint)
