@@ -7,10 +7,12 @@ import numpy as np
 import os
 import time
 import operator
+import copy
 import hashlib
 from apiserver.utils import get_datetime, HOST_IP, change_if_number, clean,\
     clean_concat, change_if_date, date_to_standard_string
 
+OSINT = "OSINT"
 
 class ODB:
 
@@ -876,13 +878,15 @@ class ODB:
         '''
         icon = title = status = None
         mtoka = 0
+        node_prep = copy.deepcopy(kwargs)
+
         if "Ext_key" not in kwargs.keys():
             for key_attribute in kwargs.keys():
                 if key_attribute in ["key", "GUID", "guid", "uid", "Key"]:
                     if mtoka == 0:
-                        kwargs["Ext_key"] = kwargs[key_attribute]
+                        node_prep["Ext_key"] = kwargs[key_attribute]
                     else:
-                        kwargs["Ext_key_%d" % mtoka] = kwargs[key_attribute]
+                        node_prep["Ext_key_%d" % mtoka] = kwargs[key_attribute]
                     mtoka+=1
                 elif key_attribute in ["icon", "title", "status"]:
                     if key_attribute == "icon":
@@ -891,6 +895,11 @@ class ODB:
                         title = kwargs[key_attribute]
                     if key_attribute == "status":
                         status = kwargs[key_attribute]
+            if "key" in kwargs.keys():
+                node_prep.pop("key")
+            if "Key" in kwargs.keys():
+                node_prep.pop("Key")
+            node_prep["Ext_key"] = None
 
         # start the SQL insert statement with the key based on whether or not it was there before
         labels = "(key"
@@ -900,7 +909,7 @@ class ODB:
         if check:
             formatted_node = self.format_node(
                 key=hash_key,
-                class_name=kwargs['class_name'],
+                class_name=node_prep['class_name'],
                 title=title,
                 status=status,
                 icon=icon,
@@ -910,39 +919,60 @@ class ODB:
             return {"message": message, "data": formatted_node}
         labels = labels + ", hashkey"
         values = values + ", '%s'" % hash_key
-        for k in kwargs.keys():
-            if list(kwargs.keys())[-1] == k:
+        for k in node_prep.keys():
+            if list(node_prep.keys())[-1] == k:
                 # Close the labels and values with a ')'
                 labels = labels + ", %s)" % k.replace(" ", "")
-                if change_if_number(kwargs[k]):
-                    values = values + ", {value})".format(value=kwargs[k])
+                # Check if there is an Ext Key. If there is not the sequencer is needed
+                if k == "Ext_key":
+                    if node_prep[k] == None:
+                        values = values + ", sequence('idseq').next())".format(value=node_prep[k])
+                    else:
+                        if change_if_number(node_prep[k]):
+                            values = values + ", {value})".format(value=node_prep[k])
+                        else:
+                            values = values + ", '{value}')".format(value=clean(node_prep[k]))
+
                 else:
-                    values = values + ", '{value}')".format(value=clean(kwargs[k]))
+                    if change_if_number(node_prep[k]):
+                        values = values + ", {value})".format(value=node_prep[k])
+                    else:
+                        values = values + ", '{value}')".format(value=clean(node_prep[k]))
             else:
                 labels = labels + ", %s" % k.replace(" ", "")
-                if change_if_number(kwargs[k]):
-                    values = values + ", {value}".format(value=kwargs[k])
+                # Check if there is an Ext Key. If there is not the sequencer is needed
+                if k == "Ext_key":
+                    if node_prep[k] == None:
+                        values = values + ", sequence('idseq').next()".format(value=node_prep[k])
+                    else:
+                        if change_if_number(node_prep[k]):
+                            values = values + ", {value}".format(value=node_prep[k])
+                        else:
+                            values = values + ", '{value}'".format(value=clean(node_prep[k]))
                 else:
-                    values = values + ", '{value}'".format(value=clean(kwargs[k]))
+                    if change_if_number(node_prep[k]):
+                        values = values + ", {value}".format(value=node_prep[k])
+                    else:
+                        values = values + ", '{value}'".format(value=clean(kwargs[k]))
 
             if k == 'icon':
-                icon = kwargs[k]
-            if k == 'title':
-                title = kwargs[k]
+                icon = node_prep[k]
+            if k == 'node_prep':
+                title = node_prep[k]
             if k == 'status':
-                status = kwargs[k]
+                status = node_prep[k]
             if k != 'passWord':
-                attributes.append({"label": k, "value": kwargs[k]})
+                attributes.append({"label": k, "value": node_prep[k]})
         sql = '''
         insert into {class_name} {labels} values {values} return @this.key
-        '''.format(class_name=kwargs['class_name'], labels=labels, values=values)
+        '''.format(class_name=node_prep['class_name'], labels=labels, values=values)
         try:
             key = self.client.command(sql)[0].oRecordData['result']
             # Update the index with the hash_key identified before and the key created by the DB
             self.index['nodes'][hash_key] = key
             formatted_node = self.format_node(
                 key=key,
-                class_name=kwargs['class_name'],
+                class_name=node_prep['class_name'],
                 title=title,
                 status=status,
                 icon=icon,
@@ -953,11 +983,14 @@ class ODB:
 
         except Exception as e:
             if str(type(e)) == str(type(e)) == "<class 'pyorient.exceptions.PyOrientORecordDuplicatedException'>":
-                if kwargs['class_name'] == "Case":
-                    node = self.get_node(val=kwargs['Name'], var="Name", class_name="Case")
+                if node_prep['class_name'] == "Case":
+                    node = self.get_node(val=node_prep['Name'], var="Name", class_name="Case")
                     return {"data" :{"key": node['key']}}
                 elif "hashkey" in str(e):
-                    node = self.get_node(val=hash_key, var="hashkey")
+                    dup = "previously assigned to the record"
+                    rec = str(e)[str(e).find(dup):str(e).find(dup) + len(dup) + 15]
+                    node_hash = rec[rec.find("#"):rec.find("\r")]
+                    node = self.get_node(val=node_hash, var="record")
                     return {"data": self.format_node(**node), "message": "duplicate blocked"}
 
             message = '[%s_%s_create_node] ERROR %s\n%s' % (get_datetime(), self.db_name, str(e), sql)
@@ -1067,11 +1100,12 @@ class ODB:
                 if k != 'class':
                     sql = sql+"create property %s.%s %s;\n" % (m, k, self.models[m][k])
                     # Custom rules for establishing indexing
-                    if (str(k)).lower() in ["key", "id", "uid", "userid", "hashkey"] \
+                    if (str(k)).lower() in ["key", "id", "uid", "userid", "hashkey", "ext_key"] \
                             or (self.db_name == "Users" and str(k).lower == "username")\
                             or (m == "Case" and k == "Name"):
-                        sql = sql + "create index %s_%s on %s (%s) UNIQUE ;\n" % (m, k, m, k)
-
+                        sql = sql + "create index %s_%s on %s (%s) UNIQUE_HASH_INDEX ;\n" % (m, k, m, k)
+        if self.db_name == "OSINT":
+            print(9)
         sql = sql + "create sequence idseq type ordered;"
         click.echo('[%s_%s_create_db]'
                    ' Initializing db with following batch statement'
@@ -1098,9 +1132,12 @@ class ODB:
 
     def get_node(self, class_name="V", var=None, val=None):
         if var and val:
-            sql = ('''
-            select * from {class_name} where {var} = '{val}'
-            ''').format(class_name=class_name, var=var, val=val)
+            if var == "record":
+                sql = '''select * from %s''' % val
+            else:
+                sql = ('''
+                select * from {class_name} where {var} = '{val}'
+                ''').format(class_name=class_name, var=var, val=val)
             r = self.client.command(sql)
             if len(r) > 0:
                 return r[0].oRecordData
@@ -1504,7 +1541,10 @@ class ODB:
                 current_nodes.append(k.oRecordData['e_key'])
         # SAVE CASE if it was not found
         else:
-            fGraph = json.loads(fGraph["graphCase"])
+            try:
+                fGraph = json.loads(fGraph["graphCase"])
+            except:
+                fGraph = json.dumps(fGraph)
             message = "Saved %s" % kwargs['graphName']
             case = self.create_node(
                 class_name="Case",
@@ -1524,9 +1564,11 @@ class ODB:
         graph['nodes'].append(case)
         # ATTACHMENTS of Nodes and Edges from the Request.
         newNodes = newLines = 0
+        # TODO CHANGE OVER SAVING GRAPH USING FORM
         if "nodes" in fGraph.keys() and "lines" in fGraph.keys():
             for n in fGraph['nodes']:
                 # If the new Case node is not in the keys from the collection create a node
+
                 if n['key'] not in current_nodes:
                     newNodes += 1
                     # To add the Node with a new key, need to pop this node's key out and then replace in the lines
@@ -1640,7 +1682,7 @@ class ODB:
         '''
         Create text indexes on the model entities with description attributes
         '''
-        click.echo('[%s_OSINTserver_create_text_indexes] Creating indexes' % (get_datetime()))
+        click.echo('[%s_home_server_create_text_indexes] Creating indexes' % (get_datetime()))
         for m in self.models:
             for k in self.models[m].keys():
                 if str(k) == "description":
@@ -1655,5 +1697,5 @@ class ODB:
                               }
                     ''' % (m, m)
                     self.client.command(sql)
-        click.echo('[%s_OSINTserver_create_indexes] Indexes complete' % (get_datetime()))
+        click.echo('[%s_home_server_create_text_indexes] Indexes complete' % (get_datetime()))
 
