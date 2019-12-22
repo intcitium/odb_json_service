@@ -50,15 +50,11 @@ class OSINT(ODB):
                     "Indicator", "IntrusionSet", "Malware", "ObservedData",
                     "Report", "Sighting", "ThreatActor", "Tool", "Vulnerability"]
         self.OSINT_index = {
-            "Users": {
-                "index_att": "Ext_key",
-                "class": "Object",
-                "filter_att": "Screen_name",
+            "Objects": {
                 "keys": []
-            },"Posts": {
-                "index_att": "Ext_key",
-                "class": "Event",
-                "filter_att": "Screen_name",
+            },"Events": {
+                "keys": []
+            },"Locations": {
                 "keys": []
             }
         }
@@ -1219,8 +1215,16 @@ class OSINT(ODB):
         :param r:
         :return:
         """
+        for k in ["Members", "Owners", "groups"]:
+            if k not in kwargs.keys():
+                kwargs[k] = []
+        for k in ["graphName", "Classification"]:
+            if k not in kwargs.keys():
+                kwargs[k] = randomString(6)
+
         if "nodes" in kwargs.keys():
             fGraph = {"nodes": kwargs['nodes'], "lines": kwargs['lines'], "groups": kwargs['groups']}
+
         else:
             fGraph = {}
             for k in kwargs.keys():
@@ -1288,8 +1292,8 @@ class OSINT(ODB):
                 # Check if the tweet is in the OSINT index. If not add the record
                 twt_id = "TWT_%s" % t['id']
                 hash_tags_str = ""
-                if twt_id not in self.OSINT_index["Posts"]["keys"]:
-                    self.OSINT_index["Posts"]["keys"].append(twt_id)
+                if twt_id not in self.OSINT_index["Events"]["keys"]:
+                    self.OSINT_index["Events"]["keys"].append(twt_id)
                     node = {
                         "class_name": "Event",
                         "title": "Tweet from " + t['user']['name'],
@@ -1298,6 +1302,7 @@ class OSINT(ODB):
                         "group": "Posts",
                         "attributes": [
                             {"label": "Created", "value": t['created_at']},
+                            {"label": "Category", "value": "Post"},
                             {"label": "Text", "value": t['text']},
                             {"label": "description", "value": "%s tweeted %s" % (t['user']['name'], t['text'])},
                             {"label": "Language", "value": t['lang']},
@@ -1352,7 +1357,7 @@ class OSINT(ODB):
                                 if loc_id not in self.OSINT_index["Locations"]["keys"]:
                                     self.OSINT_index["Locations"]["keys"].append(loc_id)
                                     loc_node = {
-                                        "class_name": "Locations",
+                                        "class_name": "Location",
                                         "title": t['place']['name'],
                                         "status": random.choice(self.ICON_STATUSES),
                                         "icon": self.ICON_LOCATION,
@@ -1393,8 +1398,8 @@ class OSINT(ODB):
 
                     # Process the User by creating an entity. Then create a line from the User to the Tweet
                     user_id = "TWT_%s" % t['user']['id']
-                    if user_id not in self.OSINT_index["Users"]["keys"]:
-                        self.OSINT_index["Users"]["keys"].append(user_id)
+                    if user_id not in self.OSINT_index["Objects"]["keys"]:
+                        self.OSINT_index["Objects"]["keys"].append(user_id)
                         usr_node = {
                             "class_name": "Object",
                             "title": t['user']['name'],
@@ -1451,8 +1456,8 @@ class OSINT(ODB):
 
         elif "user" in kwargs.keys():
             user_id = "TWT_%s" % kwargs['user']['id']
-            if user_id not in self.OSINT_index["Users"]["keys"]:
-                self.OSINT_index["Users"]["keys"].append(user_id)
+            if user_id not in self.OSINT_index["Objects"]["keys"]:
+                self.OSINT_index["Objects"]["keys"].append(user_id)
                 node = ({
                     "class_name": "Object",
                     "title": kwargs['user']['name'],
@@ -1493,7 +1498,7 @@ class OSINT(ODB):
 
     def refresh_indexes(self):
         """
-        Refresh all the indexes based on the DB type
+        Get the Ext Keys of Posts, Users, and Locations to prevent unecessary lookups
         :return:
         """
         try:
@@ -1502,14 +1507,10 @@ class OSINT(ODB):
                 sql = '''
                 select %s from %s where %s != ""
                  ''' % (
-                    self.OSINT_index[osi]["index_att"],
-                    self.OSINT_index[osi]["class"],
-                    self.OSINT_index[osi]["filter_att"]
                 )
                 r = self.client.command(sql)
                 for i in r:
-                    self.OSINT_index[osi]["keys"].append(
-                        str(i.oRecordData[self.OSINT_index[osi]["index_att"]]))
+                    self.OSINT_index[osi]["keys"].append(i)
             click.echo('[%s_OSINT_refresh_indexes] Indexes complete' % (get_datetime()))
         except Exception as e:
             click.echo('[%s_OSINT_refresh_indexes] Error setting up indexes. %s' % (get_datetime(), str(e)))
