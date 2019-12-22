@@ -49,7 +49,7 @@ class OSINT(ODB):
         self.cve = ["AttackPattern", "Campaign", "CourseOfAction", "Identity",
                     "Indicator", "IntrusionSet", "Malware", "ObservedData",
                     "Report", "Sighting", "ThreatActor", "Tool", "Vulnerability"]
-        self.OSINT_index = { "Object": {"key": "Profile"}, "Event": {"key": "Post"}, "Location": {"key": ""}}
+        self.OSINT_index = { "Profile": {}, "Post": {}, "Location": {}, "Tag": {}}
 
     @staticmethod
     def ucdp_conflict_type(row):
@@ -1284,9 +1284,9 @@ class OSINT(ODB):
                 # Check if the tweet is in the OSINT index. If not add the record
                 twt_id = "TWT_%s" % t['id']
                 hash_tags_str = ""
-                if twt_id not in self.OSINT_index["Event"].keys():
+                if twt_id not in self.OSINT_index["Post"].keys():
                     node = {
-                        "class_name": "Event",
+                        "class_name": "Post",
                         "title": "Tweet from " + t['user']['name'],
                         "status": random.choice(self.ICON_STATUSES),
                         "icon": self.ICON_TWEET,
@@ -1304,6 +1304,7 @@ class OSINT(ODB):
                             {"label": "Hashtags", "value": hash_tags_str},
                             {"label": "Screen_name", "value": t['user']['screen_name']},
                             {"label": "Ext_key", "value": twt_id},
+                            {"label": "Source", "value": "Twitter"}
                         ]
                     }
                     twt_node = self.create_node(**node)["data"]
@@ -1323,14 +1324,15 @@ class OSINT(ODB):
                             index.append(ht_id)
                             node = {
                                 "key": ht_id,
-                                "class_name": "Object",
+                                "class_name": "Tag",
                                 "Category": "Hashtag",
                                 "title": "#%s" % ht['text'],
                                 "icon": self.ICON_HASHTAG,
                                 "group": 4,
                                 "attributes": [
                                     {"label": "Text", "value": ht['text']},
-                                    {"label": "description", "value": "Hashtag %s" % ht['text']}
+                                    {"label": "description", "value": "Hashtag %s" % ht['text']},
+                                    {"label": "Source", "value": "Twitter"}
                                 ]
                             }
                             ht_node = self.create_node(**node)["data"]
@@ -1359,6 +1361,7 @@ class OSINT(ODB):
                                             {"label": "Longitude", "value": t['place']['bounding_box']['coordinates'][0][0][0]},
                                             {"label": "Latitude", "value": t['place']['bounding_box']['coordinates'][0][0][1]},
                                             {"label": "Type", "value": t['place']['place_type']},
+                                            {"label": "Source", "value": "Twitter"},
                                             {"label": "description", "value": "%s %s %s,%s" % (
                                                 t['place']['country'],
                                                 t['place']['place_type'],
@@ -1389,9 +1392,9 @@ class OSINT(ODB):
 
                     # Process the User by creating an entity. Then create a line from the User to the Tweet
                     user_id = "TWT_%s" % t['user']['id']
-                    if user_id not in self.OSINT_index["Object"].keys():
+                    if user_id not in self.OSINT_index["Profile"].keys():
                         usr_node = {
-                            "class_name": "Object",
+                            "class_name": "Profile",
                             "title": t['user']['name'],
                             "status": "Alert",
                             "group": "Profiles",
@@ -1497,8 +1500,8 @@ class OSINT(ODB):
             for osi in self.OSINT_index:
                 click.echo('[%s_OSINT_refresh_indexes] Filling %s' % (get_datetime(), osi))
                 sql = '''
-                select @rid, Ext_key from %s where Ext_key != "" and Category = "%s"
-                 ''' % (osi, self.OSINT_index[osi]['key'])
+                select @rid, Ext_key from %s where Ext_key != ""
+                 ''' % (osi)
                 r = self.client.command(sql)
                 for i in r:
                     self.OSINT_index[osi][i.oRecordData["Ext_key"]] = i.oRecordData['rid']
