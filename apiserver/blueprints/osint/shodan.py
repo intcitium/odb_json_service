@@ -14,6 +14,8 @@ class Shodan(ODB):
 
     def __init__(self, db_name="OSINT"):
         ODB.__init__(self, db_name, models=Models)
+        self.db_name = db_name
+        self.models = Models
 
     def search(self, searchterm):
         """
