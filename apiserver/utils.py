@@ -6,7 +6,7 @@ from werkzeug.utils import secure_filename
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from apiserver.config import HOST_IP, SECRET_KEY, MAIL_PASSWORD,\
-    MAIL_USERNAME, COPILOT_URL, COPILOT_AUTH, COPILOT_DEV_TOKEN, HTTPS, TWITTER_AUTH
+    MAIL_USERNAME, COPILOT_URL, COPILOT_AUTH, COPILOT_DEV_TOKEN, HTTPS, TWITTER_AUTH, SHODAN
 
 HOST_IP = HOST_IP
 HTTPS = HTTPS
@@ -39,6 +39,7 @@ MAIL_DEFAULT_SENDER = 'from@example.com'
 
 # osint API tokens
 TWITTER_AUTH = TWITTER_AUTH
+SHODAN = SHODAN
 
 def send_mail(**kwargs):
 
@@ -124,12 +125,19 @@ def clean(content):
 def change_if_number(number_string):
 
     try:
+        if "_" in number_string:
+            return None
         if "." in str(number_string):
-            return float(number_string)
+            return float(str(number_string))
         else:
             return int(number_string)
-    except:
-        return None
+    except Exception as e:
+        if str(e) == "argument of type 'float' is not iterable":
+            return number_string
+        elif str(e) == "argument of type 'int' is not iterable":
+            return number_string
+        else:
+            return None
 
 def date_to_standard_string(date):
     try:

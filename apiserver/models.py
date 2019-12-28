@@ -5,7 +5,6 @@ TODO surface for UI configuration
 """
 OSINTModel = {
             "Person": {
-                "key": "integer",
                 "DateOfBirth": "datetime",
                 "PlaceOfBirth": "string",
                 "FirstName": "string",
@@ -19,7 +18,6 @@ OSINTModel = {
                 "hashkey": "string"
             },
             "Object": {
-                "key": "integer",
                 "class": "V",
                 "Category": "string",
                 "description": "string",
@@ -31,7 +29,6 @@ OSINTModel = {
 
             },
             "Organization": {
-                "key": "integer",
                 "class": "V",
                 "Category": "string",
                 "description": "string",
@@ -49,7 +46,6 @@ OSINTModel = {
                 "hashkey": "string"
             },
             "Profile": {
-                "key": "integer",
                 "class": "V",
                 "Category": "string",
                 "description": "string",
@@ -62,13 +58,13 @@ OSINTModel = {
                 "DateCreated": "datetime",
                 "url": "string",
                 "Source": "string",
+                "Screen_name": "string",
                 "icon": "string",
                 "title": "string",
                 "Ext_key": "string",
                 "hashkey": "string"
             },
             "Post": {
-                "key": "integer",
                 "class": "V",
                 "Category": "string",
                 "description": "string",
@@ -85,7 +81,6 @@ OSINTModel = {
                 "hashkey": "string"
             },
             "Tag": {
-                "key": "integer",
                 "class": "V",
                 "Category": "string",
                 "description": "string",
@@ -96,7 +91,6 @@ OSINTModel = {
                 "hashkey": "string"
             },
             "Location": {
-                "key": "integer",
                 "class": "V",
                 "hash": "string",
                 "Category": "string",
@@ -115,7 +109,6 @@ OSINTModel = {
                 "hashkey": "string"
             },
             "Event": {
-                "key": "integer",
                 "class": "V",
                 "hash": "string",
                 "Category": "string",
@@ -135,7 +128,6 @@ OSINTModel = {
                 "hashkey": "string"
             },
             "Case": {
-                "key": "string",
                 "class": "V",
                 "hash": "string",
                 "Name": "string",
@@ -154,7 +146,6 @@ OSINTModel = {
                 "created_by_ref": "string",
                 "description": "string",
                 "external_references": "string",
-                "key": "string",
                 "kill_chain_phases": "string",
                 "labels": "string",
                 "modified": "string",
@@ -170,7 +161,6 @@ OSINTModel = {
                 "created_by_ref": "string",
                 "description": "string",
                 "first_seen": "datetime",
-                "key": "string",
                 "labels": "string",
                 "last_seen": "datetime",
                 "modified": "string",
@@ -187,7 +177,6 @@ OSINTModel = {
                 "action": "string",
                 "created_by_ref": "string",
                 "description": "string",
-                "key": "string",
                 "labels": "string",
                 "modified": "datetime",
                 "name": "string",
@@ -203,7 +192,6 @@ OSINTModel = {
                 "created_by_ref": "string",
                 "description": "string",
                 "identity_class": "string",
-                "key": "string",
                 "labels": "string",
                 "modified": "string",
                 "name": "string",
@@ -218,7 +206,6 @@ OSINTModel = {
                 "class": "V",
                 "created_by_ref": "string",
                 "description": "string",
-                "key": "string",
                 "kill_chain_phases": "string",
                 "labels": "string",
                 "modified": "string",
@@ -238,7 +225,6 @@ OSINTModel = {
                 "created_by_ref": "string",
                 "description": "string",
                 "first_seen": "datetime",
-                "key": "string",
                 "goals": "string",
                 "labels": "string",
                 "last_seen": "datetime",
@@ -257,7 +243,6 @@ OSINTModel = {
                 "class": "V",
                 "created_by_ref": "string",
                 "description": "string",
-                "key": "string",
                 "kill_chain_phases": "string",
                 "labels": "string",
                 "modified": "string",
@@ -273,7 +258,6 @@ OSINTModel = {
                 "created_by_ref": "string",
                 "description": "string",
                 "first_observed": "datetime",
-                "key": "string",
                 "labels": "string",
                 "last_observed": "datetime",
                 "modified": "string",
@@ -289,7 +273,6 @@ OSINTModel = {
                 "class": "V",
                 "created_by_ref": "string",
                 "description": "string",
-                "key": "string",
                 "labels": "string",
                 "modified": "string",
                 "name": "string",
@@ -307,7 +290,6 @@ OSINTModel = {
                 "created_by_ref": "string",
                 "description": "string",
                 "first_seen": "datetime",
-                "key": "string",
                 "labels": "string",
                 "last_seen": "datetime",
                 "modified": "string",
@@ -327,7 +309,6 @@ OSINTModel = {
                 "created_by_ref": "string",
                 "description": "string",
                 "goals": "string",
-                "key": "string",
                 "labels": "string",
                 "modified": "string",
                 "name": "string",
@@ -347,7 +328,6 @@ OSINTModel = {
                 "class": "V",
                 "created_by_ref": "string",
                 "description": "string",
-                "key": "string",
                 "kill_chain_phases": "string",
                 "labels": "string",
                 "modified": "string",
@@ -363,7 +343,6 @@ OSINTModel = {
                 "class": "V",
                 "created_by_ref": "string",
                 "description": "string",
-                "key": "string",
                 "labels": "string",
                 "modified": "string",
                 "name": "string",
@@ -385,7 +364,6 @@ OSINTModel = {
                 "hashkey": "string"
             },
             "Monitor": {
-                "key": "integer",
                 "user": "string",
                 "name": "string",
                 "type": "string",
@@ -396,7 +374,6 @@ OSINTModel = {
                 "hashkey": "string"
             },
             "User": {
-                "key": "integer",
                 "userName": "string",
                 "hashkey": "string",
                 "description": "string",
