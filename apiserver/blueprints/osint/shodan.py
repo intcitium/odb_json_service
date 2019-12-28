@@ -22,6 +22,9 @@ class Shodan(ODB):
         The provided string is used to search the database of banners in Shodan, with the additional option to provide
         filters inside the search query using a "filter:value" format. For example, the following search query would
         find Apache webservers located in Germany: "apache country:DE".
+        With a search term, the Shodan Crawl is extracted and related to each DEVICE which is then related to it's
+        VULNERABILITIES, each of which are related to VUL REFERENCES. Lastly, the Device is related to the LOCATION
+        it was found.
         :param searchterm:
         :return:
         """
