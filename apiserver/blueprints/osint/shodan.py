@@ -79,17 +79,17 @@ class Shodan(ODB):
                                             source="Shodan",
 
                                         )["data"]["key"]
+                                    else:
+                                        try:
+                                            v_node = cve[0].oRecordData["rid"].get_hash()
+                                        except Exception as e:
+                                            click.echo('[%s_Shodan_search] Error with vulnerability node %s: %s' % (
+                                                get_datetime(), str(e), v))
+                                            v_ok = False
                                 except Exception as e:
                                     click.echo('[%s_Shodan_search] Error with vulnerability node %s: %s' % (
                                     get_datetime(), str(e), v))
                                     v_ok = False
-                                else:
-                                    try:
-                                        v_node = cve[0].oRecordData["rid"].get_hash()
-                                    except:
-                                        click.echo('[%s_Shodan_search] Error with vulnerability node %s: %s' % (
-                                        get_datetime(), str(e), v))
-                                        v_ok = False
                                 if v_ok:
                                     self.create_edge_new(
                                         edgeType="Has",
