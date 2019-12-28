@@ -1328,7 +1328,7 @@ class OSINT(ODB):
                                 if Location["key"] not in index:
                                     index.append(Location["key"])
                         if Location:
-                            self.create_edge_new(edgeType="LocatedAt", fromNode=twt_node, toNode=Location
+                            self.create_edge_new(edgeType="LocatedAt", fromNode=twt_node, toNode=Location["key"]
                             )
                     # Else get the user_node
                     else:
