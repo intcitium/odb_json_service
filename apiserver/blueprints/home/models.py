@@ -40,7 +40,6 @@ class ODB:
         self.ICON_TWEET = "sap-icon://jam"
         self.ICON_TWITTER_USER = "sap-icon://customer-view"
         self.ICON_HASHTAG = "sap-icon://number-sign"
-        self.index = {"nodes": {}, "edges": []}
         # Keeping the nodeKeys in this order assures that matches will be checked in the same consistent string
         self.nodeKeys = ['class_name', 'title', 'FirstName', 'LastName', 'Gender', 'DateOfBirth', 'PlaceOfBirth',
                     'Name', 'Owner', 'Classification', 'Category', 'Latitude', 'Longitude', 'description',
@@ -787,6 +786,23 @@ class ODB:
             }
         return check
 
+    def create_edge_new(self, edgeType="Related", fromNode=None, toNode=None):
+        """
+        Create an edge based on the Record ID
+        :param edgeType:
+        :param fromNode:
+        :param toNode:
+        :return:
+        """
+
+        if fromNode and toNode:
+            sql = '''
+            create edge {edgeType} from {fromNode} to {toNode}
+            '''.format(edgeType=edgeType, fromNode=fromNode, toNode=toNode)
+            self.client.command(sql)
+        else:
+            click.echo('[%s_%s_create_edge] Did not receive expected arguments' % (get_datetime(), self.db_name))
+
     def create_edge(self, **kwargs):
         if self.check_index_edges("%sTo%sFrom%s" % (kwargs['edgeType'], kwargs['fromNode'], kwargs['toNode'])):
             return
@@ -882,7 +898,7 @@ class ODB:
 
         if "Ext_key" not in kwargs.keys():
             for key_attribute in kwargs.keys():
-                if key_attribute in ["key", "GUID", "guid", "uid", "Key"]:
+                if key_attribute in ["key", "GUID", "guid", "uid", "Key", "id"]:
                     if mtoka == 0:
                         node_prep["Ext_key"] = kwargs[key_attribute]
                     else:
@@ -901,10 +917,7 @@ class ODB:
                 node_prep.pop("Key")
             node_prep["Ext_key"] = None
 
-        # start the SQL insert statement with the key based on whether or not it was there before
-        labels = "(key"
-        values = "(sequence('idseq').next()"
-        # Check the index
+        # Check the index based in the hashkey and class_name
         hash_key, check = self.check_index_nodes(**kwargs)
         if check:
             formatted_node = self.format_node(
@@ -917,43 +930,27 @@ class ODB:
             )
             message = '[%s_%s_create_node] Node exists' % (get_datetime(), self.db_name)
             return {"message": message, "data": formatted_node}
-        labels = labels + ", hashkey"
-        values = values + ", '%s'" % hash_key
+        # Start the SQL based on the hashkey
+        labels = "(hashkey"
+        values = "('%s'" % hash_key
         for k in node_prep.keys():
             if list(node_prep.keys())[-1] == k:
                 # Close the labels and values with a ')'
-                labels = labels + ", %s)" % k.replace(" ", "")
-                # Check if there is an Ext Key. If there is not the sequencer is needed
-                if k == "Ext_key":
-                    if node_prep[k] == None:
-                        values = values + ", sequence('idseq').next())".format(value=node_prep[k])
-                    else:
-                        if change_if_number(node_prep[k]):
-                            values = values + ", {value})".format(value=node_prep[k])
-                        else:
-                            values = values + ", '{value}')".format(value=clean(node_prep[k]))
-
-                else:
-                    if change_if_number(node_prep[k]):
-                        values = values + ", {value})".format(value=node_prep[k])
-                    else:
-                        values = values + ", '{value}')".format(value=clean(node_prep[k]))
+                close = ")"
             else:
-                labels = labels + ", %s" % k.replace(" ", "")
-                # Check if there is an Ext Key. If there is not the sequencer is needed
-                if k == "Ext_key":
-                    if node_prep[k] == None:
-                        values = values + ", sequence('idseq').next()".format(value=node_prep[k])
-                    else:
-                        if change_if_number(node_prep[k]):
-                            values = values + ", {value}".format(value=node_prep[k])
-                        else:
-                            values = values + ", '{value}'".format(value=clean(node_prep[k]))
+                close = ""
+            labels = labels + ", %s%s" % (k.replace(" ", ""), close)
+            # Check if there is an Ext Key. If there is not the sequencer is needed
+            if k == "Ext_key":
+                if node_prep[k] == None:
+                    values = values + ", sequence('idseq').next()%s" % close
                 else:
-                    if change_if_number(node_prep[k]):
-                        values = values + ", {value}".format(value=node_prep[k])
-                    else:
-                        values = values + ", '{value}'".format(value=clean(kwargs[k]))
+                    values = values + ", '%s'%s" % (clean(node_prep[k]), close)
+            else:
+                if change_if_number(node_prep[k]):
+                    values = values + ", %s%s" % (node_prep[k], close)
+                else:
+                    values = values + ", '%s'%s" % (clean(node_prep[k]), close)
 
             if k == 'icon':
                 icon = node_prep[k]
@@ -964,21 +961,19 @@ class ODB:
             if k != 'passWord':
                 attributes.append({"label": k, "value": node_prep[k]})
         sql = '''
-        insert into {class_name} {labels} values {values} return @this.key
+        insert into {class_name} {labels} values {values} return @rid
         '''.format(class_name=node_prep['class_name'], labels=labels, values=values)
         try:
-            key = self.client.command(sql)[0].oRecordData['result']
-            # Update the index with the hash_key identified before and the key created by the DB
-            self.index['nodes'][hash_key] = key
+            r = self.client.command(sql)[0].get()
             formatted_node = self.format_node(
-                key=key,
+                key=r,
                 class_name=node_prep['class_name'],
                 title=title,
                 status=status,
                 icon=icon,
                 attributes=attributes
             )
-            message = '[%s_%s_create_node] Create node %s' % (get_datetime(), self.db_name, key)
+            message = '[%s_%s_create_node] Create node %s' % (get_datetime(), self.db_name, r)
             return {"message": message, "data": formatted_node}
 
         except Exception as e:
@@ -1008,6 +1003,7 @@ class ODB:
         self.nodeKeys = ['class_name', 'title', 'FirstName', 'LastName', 'Gender', 'DateOfBirth', 'PlaceOfBirth',
             'Name', 'Owner', 'Classification', 'Category', 'Latitude', 'Longitude', 'description',
             'EndDate', 'StartDate', 'DateCreated', 'Ext_key', 'searchValue']
+        Return the key of the
         :param kwargs:
         :return:
         """
@@ -1020,10 +1016,15 @@ class ODB:
                     hash_str = clean_concat(hash_str).replace(",", "")
         # Change the str to a hash string value TODO: evaluate method for robustness in terms of unique values produced
         hash_str = hashlib.md5(str(hash_str).encode()).hexdigest()
-        if hash_str in self.index['nodes'].keys():
-            return self.index['nodes'][hash_str], True
-        else:
-            return hash_str, False
+        if "class_name" in kwargs.keys():
+            index_str = "%s_hashkey" % kwargs['class_name']
+            r = self.client.command('''
+            select from index:%s where key = '%s'
+            ''' % (index_str, hash_str))
+            if len(r) < 1:
+                return hash_str, False
+            else:
+                return r[0].oRecordData["rid"].get_hash(), True
 
     def check_index_edges(self, edge):
         """
@@ -1089,6 +1090,9 @@ class ODB:
         Build the schema in OrientDB using the models established in __init__
         1) Cycle through the model configuration
         2) Use custom rules as part of the model to trigger an index
+        Index documentation can be found at https://orientdb.com/docs/2.0/orientdb.wiki/Indexes.html
+        HASH UNIQUE is used for ensuring no duplication of nodes with external keys and ids otherwise
+        HASH NOT UNIQUE is used for looking up Category types
         :return:
         """
         self.client.db_create(self.db_name, pyorient.DB_TYPE_GRAPH)
@@ -1100,12 +1104,12 @@ class ODB:
                 if k != 'class':
                     sql = sql+"create property %s.%s %s;\n" % (m, k, self.models[m][k])
                     # Custom rules for establishing indexing
-                    if (str(k)).lower() in ["key", "id", "uid", "userid", "hashkey", "ext_key"] \
+                    if (str(k)).lower() in ["key", "id", "uid", "userid", "hashkey", "ext_key", "screen_name"] \
                             or (self.db_name == "Users" and str(k).lower == "username")\
                             or (m == "Case" and k == "Name"):
                         sql = sql + "create index %s_%s on %s (%s) UNIQUE_HASH_INDEX ;\n" % (m, k, m, k)
-        if self.db_name == "OSINT":
-            print(9)
+                    elif (str(k)).lower() in ["category"]:
+                        sql = sql + "create index %s_%s on %s (%s) NOTUNIQUE_HASH_INDEX ;\n" % (m, k, m, k)
         sql = sql + "create sequence idseq type ordered;"
         click.echo('[%s_%s_create_db]'
                    ' Initializing db with following batch statement'
@@ -1131,16 +1135,34 @@ class ODB:
             self.create_db()
 
     def get_node(self, class_name="V", var=None, val=None):
+        """
+        Return a node based on the class_name, variable of the class and value of the variable.
+        TODO base only on index searches
+        :param class_name:
+        :param var:
+        :param val:
+        :return:
+        """
         if var and val:
             if var == "record":
                 sql = '''select * from %s''' % val
             else:
                 sql = ('''
-                select * from {class_name} where {var} = '{val}'
+                select *, @rid from {class_name} where {var} = '{val}'
                 ''').format(class_name=class_name, var=var, val=val)
             r = self.client.command(sql)
             if len(r) > 0:
-                return r[0].oRecordData
+                raw = r[0].oRecordData
+                if "key" not in raw.keys():
+                    raw["key"] = r[0]._rid
+                try:
+                    node = self.format_node(raw)
+                except Exception as e:
+                    try:
+                        node = self.format_node(**raw)
+                    except Exception as e:
+                        print(str(e))
+                return node
         else:
             return None
 
@@ -1244,7 +1266,7 @@ class ODB:
 
     def format_node(self, **kwargs):
         """
-        Create a SAPUI5 formatted node
+        Create a formatted node where title, status and icons are used
         :param kwargs:
         :return:
         """
