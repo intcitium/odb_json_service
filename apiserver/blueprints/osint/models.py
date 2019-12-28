@@ -13,11 +13,6 @@ from requests_oauthlib import OAuth1
 import urllib3
 urllib3.disable_warnings()
 
-"""
-TODO Create a combined GEO view from ACLED and UCDP that can animate organizations in time
-PoC of just any Location - Event based rel to create the view
-"""
-
 
 class OSINT(ODB):
 
@@ -149,34 +144,6 @@ class OSINT(ODB):
                 i=0
 
         return graph
-
-    def create_CTI_node(self, **kwargs):
-
-        attributes = kwargs['attributes']
-        if attributes:
-            att_sql = ""
-            for a in attributes:
-                try:
-                    att_sql = att_sql + ", %s = '%s'" % (a['label'], a['value'])
-                except Exception as e:
-                    print(str(e))
-
-            sql = ('''
-            create vertex %s set key = '%s', title = '%s' %s
-            ''' % (kwargs['class_name'], kwargs['key'], kwargs['title'], att_sql))
-        else:
-            sql = ('''
-            create vertex %s set key = '%s', title = '%s'
-            ''' % (kwargs['class_name'], kwargs['key'], kwargs['title']))
-        try:
-            self.client.command(sql)
-        except Exception as e:
-            if str(e) == "":
-                return
-            elif str(type(e)) == "<class 'pyorient.exceptions.PyOrientORecordDuplicatedException'>":
-                return
-            else:
-                return
 
     def get_suggestion_items(self, searchterms=""):
         """
@@ -1052,9 +1019,10 @@ class OSINT(ODB):
     def get_twitter(self, **kwargs):
         """
         Optional uses of the Twitter API as configured in the settings. Process the tweets into a graph and then a thread
-        to process them in the back end. Query for existing keys to Nodes
+        to process them in the back end.
         1) statuses/user_timeline: get all the tweets by username
-        2)
+        2) hashtags with options for lat long based hashtags
+        3) locations with only lat long
         :param kwargs:
         :return:
         """
@@ -1071,7 +1039,6 @@ class OSINT(ODB):
         token = self.TWITTER_AUTH['token']
         token_secret = self.TWITTER_AUTH['token_secret']
         oauth  = OAuth1(client_key, client_secret, token, token_secret)
-        graphs = []
         locationsChecked = False
         message = "Retrieved twitter API: "
 
@@ -1080,7 +1047,7 @@ class OSINT(ODB):
                 api_url  = "%s/statuses/user_timeline.json?" % self.base_twitter_url
                 api_url += "screen_name=%s&" % kwargs['username']
                 api_url += "count=%d" % kwargs['number_of_tweets']
-
+                click.echo('[%s_OSINT_get_twitter] Getting username with url: %s' % (get_datetime(), api_url))
                 if kwargs['max_id'] is not None:
                     api_url += "&max_id=%d" % kwargs['max_id']
                 # send request to Twitter
@@ -1088,20 +1055,9 @@ class OSINT(ODB):
                 kwargs['request']+=1
                 tweets = self.responseHandler(response, kwargs['username'])
                 if response.status_code != 401:
-                    tweets = self.processTweets(tweets=tweets)
-                    graphs.append(tweets)
-                    message+= " %s tweets" % kwargs['username']
+                    message = self.graph_twitter(tweets=tweets)
                 else:
-                    message+= " %s protects tweets" % kwargs['username']
-                    graphs.append({
-                        "nodes": [],
-                        "lines": [],
-                        "groups": [
-                            {"key": "Profiles", "title": "Profiles"},
-                            {"key": "Posts", "title": "Posts"},
-                            {"key": "Locations", "title": "Locations"},
-                            {"key": "Hashtags", "title": "Hashtags"}
-                    ]})
+                    message = " %s protects tweets" % kwargs['username']
 
         if "hashtag" in kwargs.keys():
             if kwargs['hashtag'] != "":
@@ -1114,11 +1070,10 @@ class OSINT(ODB):
                     else:
                         api_url += ",5km&count=%s" % kwargs['number_of_tweets']
                     locationsChecked = True
+                click.echo('[%s_OSINT_get_twitter] Getting hashtag: %s' % (get_datetime(), api_url))
                 response = requests.get(api_url, auth=oauth, verify=False)
                 tweets = self.responseHandler(response, kwargs['hashtag'])
-                tweets = self.processTweets(tweets=tweets['statuses'])
-                graphs.append(tweets)
-                message+= " %s resulted in %d records" % (kwargs['hashtag'], len(tweets['graph']['nodes']))
+                message = self.graph_twitter(tweets=tweets['statuses'])
 
         if "latitude" in kwargs.keys() and "longitude" in kwargs.keys()and not locationsChecked:
             if kwargs['latitude'] != "" and kwargs['longitude'] != "":
@@ -1129,22 +1084,12 @@ class OSINT(ODB):
                         api_url += ",%dkm&count=%s" % (int(kwargs['radius']), kwargs['number_of_tweets'])
                     else:
                         api_url += ",5km&count=%s" % kwargs['number_of_tweets']
+                click.echo('[%s_OSINT_get_twitter] Getting location with url: %s' % (get_datetime(), api_url))
                 response = requests.get(api_url, auth=oauth, verify=False)
                 tweets = self.responseHandler(response, "%s, %s" % (kwargs['latitude'], kwargs['longitude']))
-                #graphs.append(tweets['statuses'])
-                tweets = self.processTweets(tweets=tweets['statuses'])
-                graphs.append(tweets)
-                message += " %s resulted in %s, %d records" % (kwargs['latitude'], kwargs['latitude'], len(tweets['graph']['nodes']))
-
-        # TODO implement crawlers to get loads that don't break the API quota rules
-        if "popular" in kwargs.keys():
-            api_url = "https://api.twitter.com/1.1/trends/place.json?id=1&count=100"
-            response = requests.get(api_url, auth=oauth, verify=False)
-            tweets = self.responseHandler(response, "Popular, %s" % get_datetime())
-            tweets = self.processTweets(tweets=tweets)
-            graphs.append(tweets)
-
-        return graphs, message
+                message = self.graph_twitter(tweets=tweets['statuses'])
+        click.echo('[%s_OSINT_get_twitter] Complete with request' % (get_datetime()))
+        return message
 
     def geo_spatial_view(self, **kwargs):
         """
@@ -1241,50 +1186,23 @@ class OSINT(ODB):
 
         return graphs, message
 
-    def processTweets(self, **kwargs):
+    def graph_twitter(self, **kwargs):
         """
         Using the basic structure below, create a relationship between a user and all the tweets. Extract Hashtags
         from tweets where applicable. Extract Locations where applicable.
-            "Users": {
-                "index_att": "Ext_key",
-                "class": "Object",
-                "filter_att": "Screen_name",
-                "keys": []
-            }
-            "Posts": {
-                "index_att": "Ext_key",
-                "class": "Event",
-                "filter_att": "Screen_name",
-                "keys": []
-            },
-            "Locations": {
-                "index_att": "Ext_key",
-                "class": "Location",
-                "filter_att": "Latitude",
-                "keys": []
-            }
-
         :param kwargs:
         :return:
         """
-        graph = {
-            "nodes": [],
-            "lines": [],
-            "groups": [
-                {"key": "Profiles", "title": "Profiles"},
-                {"key": "Posts", "title": "Posts"},
-                {"key": "Locations", "title": "Locations"},
-                {"key": "Hashtags", "title": "Hashtags"}
-            ]
-        }
-        geo = []
+        new_tweets = new_users = 0
         index = []
         if "tweets" in kwargs.keys():
+            click.echo('[%s_OSINT_graph_twitter] Graphing %s tweets' % (get_datetime(), len(kwargs["tweets"])))
             for t in kwargs['tweets']:
                 # Check if the tweet is in the OSINT index. If not add the record
                 twt_id = "TWT_%s" % t['id']
                 hash_tags_str = ""
                 if twt_id not in self.OSINT_index["Post"].keys():
+                    new_tweets+=1
                     node = {
                         "class_name": "Post",
                         "title": "Tweet from " + t['user']['name'],
@@ -1302,14 +1220,13 @@ class OSINT(ODB):
                             {"label": "URL", "value": t['source']},
                             {"label": "Geo", "value": t['coordinates']},
                             {"label": "Hashtags", "value": hash_tags_str},
-                            {"label": "Screen_name", "value": t['user']['screen_name']},
+                            {"label": "Screen_name", "value": t['user']['screen_name'].lower()},
                             {"label": "Ext_key", "value": twt_id},
                             {"label": "Source", "value": "Twitter"}
                         ]
                     }
-                    twt_node = self.create_node(**node)["data"]
-                    self.OSINT_index["Event"][twt_id] = twt_node
-                    graph['nodes'].append(twt_node)
+                    twt_node = self.create_node(**node)["data"]["key"]
+                    self.OSINT_index["Post"][twt_id] = twt_node
 
                     ht_count = 0
                     # Process Hashtags by creating a string and an entity. Then create a line to the HT from the Tweet
@@ -1335,13 +1252,8 @@ class OSINT(ODB):
                                     {"label": "Source", "value": "Twitter"}
                                 ]
                             }
-                            ht_node = self.create_node(**node)["data"]
-                            graph['nodes'].append(ht_node)
-                            self.create_edge(toClass=node["class_name"], fromClass="Event", edgeType="Included",
-                                             toNode=ht_node["key"], fromNode=twt_node["key"])
-                        graph['lines'].append(
-                            {"to": ht_node["key"], "from": twt_node["key"], "description": "Included"}
-                        )
+                            ht_node = self.create_node(**node)["data"]["key"]
+                            self.create_edge_new(edgeType="Included", toNode=ht_node, fromNode=twt_node)
                     # Process Locations
                     if "place" in t.keys():
                         if t['place']:
@@ -1370,22 +1282,9 @@ class OSINT(ODB):
                                             )}
                                         ]
                                     }
-                                    loc_node = self.create_node(**loc_node)["data"]
+                                    loc_node = self.create_node(**loc_node)["data"]["key"]
                                     self.OSINT_index["Location"][loc_id] = loc_node
-                                    graph['nodes'].append(loc_node)
-                                    self.create_edge(toClass=node["class_name"], fromClass="Event",
-                                                     edgeType="TweetedFrom",
-                                                     toNode=loc_node["key"],
-                                                     fromNode=twt_node["key"])
-                                    geo.append({
-                                        "pos": "%f;%f:0" % (
-                                            t['place']['bounding_box']['coordinates'][0][0][0],
-                                            t['place']['bounding_box']['coordinates'][0][0][1]),
-                                        "type": random.choice(self.ICON_STATUSES),
-                                        "tooltip": t['place']['name']
-                                    })
-                                    graph['lines'].append({
-                                        "from": twt_node["key"], "to": loc_node["key"], "description": "TweetedFrom"})
+                                    self.create_edge_new(edgeType="TweetedFrom", toNode=loc_node, fromNode=twt_node)
 
                                 else:
                                     print("Need to get that Ext_key and return the node formatted for graph")
@@ -1393,6 +1292,7 @@ class OSINT(ODB):
                     # Process the User by creating an entity. Then create a line from the User to the Tweet
                     user_id = "TWT_%s" % t['user']['id']
                     if user_id not in self.OSINT_index["Profile"].keys():
+                        new_users+=1
                         usr_node = {
                             "class_name": "Profile",
                             "title": t['user']['name'],
@@ -1400,7 +1300,7 @@ class OSINT(ODB):
                             "group": "Profiles",
                             "icon": self.ICON_TWITTER_USER,
                             "attributes": [
-                                {"label": "Screen_name", "value": t['user']['screen_name']},
+                                {"label": "Screen_name", "value": t['user']['screen_name'].lower()},
                                 {"label": "Category", "value": "Profile"},
                                 {"label": "Created", "value": t['user']['created_at']},
                                 {"label": "description", "value": t['user']['description']},
@@ -1418,48 +1318,36 @@ class OSINT(ODB):
                                 {"label": "Source", "value": "Twitter"}
                             ]
                         }
-                        usr_node = self.create_node(**usr_node)["data"]
-                        self.OSINT_index["Object"][user_id] = usr_node
-                        graph['nodes'].append(node)
+                        usr_node = self.create_node(**usr_node)["data"]["key"]
+                        self.OSINT_index["Profile"][user_id] = usr_node
                         # Check if there is a location
                         Location = None
                         if t["user"]["location"] != "":
                             Location = get_location(t["user"]["location"], self)
                             if Location:
-                                graph['lines'].append(
-                                    {"from": usr_node["key"], "to": Location["key"], "description": "LocatedAt"}
-                                )
                                 if Location["key"] not in index:
                                     index.append(Location["key"])
                         if Location:
-                            self.create_edge(
-                                fromClass="Object", fromNode=usr_node["key"], edgeType="LocatedAt",
-                                toClass="Location", toNode=Location["key"]
+                            self.create_edge_new(edgeType="LocatedAt", fromNode=twt_node, toNode=Location
                             )
                     # Else get the user_node
                     else:
-                        usr_node = self.OSINT_index["Object"][user_id]
-                        twt_node = self.format_node(**twt_node)
-                    self.create_edge(toClass="Event", fromClass="Object",
-                                     edgeType="Tweeted",
-                                     toNode=twt_node["key"],
-                                     fromNode=usr_node["key"])
-                    graph['lines'].append(
-                        {"from": usr_node["key"], "to": twt_node["key"], "description": "Tweeted"}
-                    )
+                        usr_node = self.OSINT_index["Profile"][user_id]
+                    self.create_edge_new(edgeType="Tweeted", toNode=twt_node, fromNode=usr_node)
 
         elif "user" in kwargs.keys():
             user_id = "TWT_%s" % kwargs['user']['id']
-            if user_id not in self.OSINT_index["Object"].keys():
+            if user_id not in self.OSINT_index["Profile"].keys():
+                new_users+=1
                 node = ({
-                    "class_name": "Object",
+                    "class_name": "Profile",
                     "title": kwargs['user']['name'],
                     "status": "Alert",
                     "group": "Profiles",
                     "icon": self.ICON_TWITTER_USER,
                     "attributes": [
                         {"label": "Category", "value": "Profile"},
-                        {"label": "Screen_name", "value": kwargs['user']['screen_name']},
+                        {"label": "Screen_name", "value": kwargs['user']['screen_name'].lower()},
                         {"label": "Created", "value": kwargs['user']['created_at']},
                         {"label": "description", "value": kwargs['user']['description']},
                         {"label": "Favorite", "value": kwargs['user']['favourites_count']},
@@ -1476,20 +1364,12 @@ class OSINT(ODB):
                         {"label": "Source", "value": "Twitter"}
                     ]
                 })
-                node = self.create_node(**node)["data"]
-                self.OSINT_index["Object"][user_id] = node
-
-            return node
-        data = {
-            "graph": graph,
-            "geo": {
-                "Spots": {
-                    "items": geo
-                }
-            }
-        }
-
-        return data
+                node = self.create_node(**node)["data"]["key"]
+                self.OSINT_index["Profile"][user_id] = node
+        message = '[%s_OSINT_graph_twitter] Complete with %s new users and %s new tweets' % (
+            get_datetime(), new_users, new_tweets)
+        click.echo(message)
+        return message
 
     def refresh_indexes(self):
         """
@@ -1504,7 +1384,7 @@ class OSINT(ODB):
                  ''' % (osi)
                 r = self.client.command(sql)
                 for i in r:
-                    self.OSINT_index[osi][i.oRecordData["Ext_key"]] = i.oRecordData['rid']
+                    self.OSINT_index[osi][i.oRecordData["Ext_key"]] = i.oRecordData['rid'].get_hash()
             click.echo('[%s_OSINT_refresh_indexes] Indexes complete' % (get_datetime()))
         except Exception as e:
             click.echo('[%s_OSINT_refresh_indexes] Error setting up indexes. %s' % (get_datetime(), str(e)))
@@ -1554,7 +1434,7 @@ class OSINT(ODB):
             self.create_edge(edgeType=n["description"], fromNode=entityKeyMap[n["from"]]["key"],
                              toNode=entityKeyMap[n["to"]]["key"], fromClass=fromClass, toClass=toClass)
 
-    def get_entity_data(self, user_ids, sourceID, reltype, username, graph):
+    def get_bulk_users(self, user_ids, sourceID, reltype, username):
         """
         Call the
         :param user_ids:
@@ -1582,16 +1462,11 @@ class OSINT(ODB):
             return
 
         for user in users:
-            graph["nodes"].append(self.processTweets(user=user))
             # Create the node in the database
-            graph["lines"].append({
-                "to": graph["nodes"][len(graph["nodes"])-1]["key"],
-                "from": sourceID,
-                "description": reltype
-            })
-            #self.create_edge(fromClass="Object", toClass="Object", fromNode=sourceID, toNode=O_GUID, edgeType=reltype)
-
-        return graph
+            self.graph_twitter(user=user)
+            # Create the edge based on the newly indexed node from the graph process
+            self.create_edge_new(
+                fromNode=sourceID, toNode=self.OSINT_index["Profile"]["TWT_%s" % user["id"]], edgeType=reltype)
 
     def sendRequest(self, username, reltype, next_cursor=None):
 
@@ -1609,25 +1484,29 @@ class OSINT(ODB):
 
     def get_associates(self, username=None):
         """
-        Get the friends and followers of a username
-        Store the two types of relationships as associates' IDS which can then be looked up in bulk of 100
+        Get the friends of a twitter user given a username. Followers results in too many users for value so friends
+        are the preferred meaningful detailed requirement while followers can be used on just the number. If followers
+        are required they can be easily added into the options.
+        Store the relationships as associates' IDS which can then be looked up in bulk of 100
         User 2 internal functions to process the URL instead of 2 steps each time
 
         :param username:
         :return:
         """
         # Set up the API call
-        graph = {
-            "nodes": [],
-            "lines": []
-        }
-
         associate_list = []
         if username:
-            userKey = self.client.command('''select key from Object where Screen_name = '%s' '''
-                                          % username)[0].oRecordData["key"]
+            # Get the userID from the index
+            r = self.client.command("select from index:Profile_Screen_name where key = '%s' " % username.lower())
+            if len(r) < 1:
+                # If there is no userID get the user through the normal timeline request
+                self.get_twitter(username=username)
+            else:
+                userKey = r[0].oRecordData["rid"]
 
+            # Can add followers but often results in millions of users
             for r in ["friends"]:
+                click.echo('[%s_OSINT_get_associates] Getting %s of %s' % (get_datetime(), r, username))
                 associates = self.sendRequest(username, r, None)
                 if associates is not None:
                     associate_list.extend(associates["ids"])
@@ -1640,33 +1519,40 @@ class OSINT(ODB):
                             break
                 # Break down the associate list into groups of 100 to submit to UserInfo
                 i = 0
+                new_users = existing_users = 0
                 user_ids = []
                 # Use the OSINT index to check if there have been any additions and not to get those users who are already in the index
-                # Get EntityNode will create the user via the processTweets function.
+                # Get EntityNode will create the user via the graph_twitter function.
                 for user_id in associate_list:
                     user_idA = "TWT_%s" % user_id
-                    if user_idA not in self.OSINT_index["Object"].keys() and user_id not in user_ids:
+                    if user_idA not in self.OSINT_index["Profile"].keys() and user_id not in user_ids:
+                        new_users+=1
+                        # Add the original ID to create a bulk request
                         user_ids.append(user_id)
                         if len(user_ids) == 100:
-                            print("[*] 100 %s limit for entity. Request to Twitter." % r)
-                            graph = self.get_entity_data(user_ids, userKey, r, username, graph)
+                            click.echo('[%s_OSINT_get_associates] 100 %s limit for entity. Sending bulk request to Twitter' % (
+                                get_datetime(), r))
+                            self.get_bulk_users(user_ids, userKey, r, username)
                             i = 0
                             del user_ids[:]
                         if i == len(associate_list) - 1:
                             print("[*] %d %s for entity info. Request to Twitter." % (len(user_ids), r))
-                            graph = self.get_entity_data(user_ids, userKey, r, username, graph)
+                            self.get_bulk_users(user_ids, userKey, r, username)
                         i += 1
                     else:
-                        usr_node = self.get_node(class_name="Object", var="Ext_key", val=user_idA)
-                        usr_node = self.format_node(**usr_node)
-                        graph["nodes"].append(usr_node)
-
-        return {"data": graph, "message": "Retrieved %d associates" % len(graph["nodes"])}
+                        existing_users+=1
+                        self.create_edge_new(fromNode=userKey, toNode=self.OSINT_index["Profile"][user_idA], edgeType=r)
+        message = '[%s_OSINT_get_associates] Graphed %s new and %s exisiting users with edges to %s' % (
+            get_datetime(), new_users, existing_users, username)
+        click.echo(message)
+        return message
 
     def get_cve(self):
         """
-        TODO Data quality. charmap breaks on for loop and miss half the rest of the data
-        Data is master data only. Is there transaction data that create links and dynamic stuff
+        Get the full bulk from MITRE for vulnerability data. Use a timestamp based on the day and save the bulk CSV to
+        the server. The timestamp can be used to check if the daily bulk was already downloaded earlier.
+        Once the CSV is downloaded, change the results into a Pandas dataframe and start a thread that extracts the the
+        data into a graph. Use Vulnerability references which are separated by "|" pipes.
         :return:
         """
         path = os.path.join(self.datapath, "%s_cve.csv" % get_datetime()[:10])
@@ -1768,9 +1654,8 @@ class OSINT(ODB):
                     if ref_node["message"] != "duplicate blocked":
                         new_references+=1
                     ref_node = ref_node["data"]
-                    self.create_edge(
-                        fromNode=ref_node["key"], fromClass="Object", edgeType="References",
-                        toNode=cve_node["key"], toClass="Vulnerability"
+                    self.create_edge_new(
+                        fromNode=ref_node["key"], edgeType="References", toNode=cve_node["key"]
                     )
             except Exception as e:
                 click.echo('[%s_OSINT_cve] Error %s' % (get_datetime(), str(e)))
@@ -1782,12 +1667,34 @@ class OSINT(ODB):
         update Process set ended = '%s', description = '%s' where pid = '%s'
         ''' % (get_datetime(), msg, pid))
 
-    def poisonivy(self):
+    def get_poisonivy(self):
+        """
+        Get the latest dump from the CTI url. The current URL is set to oasis github which delivers a small sample
+        using the STIX model. The expected JSON from the URL is in a format of nodes with STIX 12 entity types and
+        edges including relationships and sightings. The function calls graph_poisonivy to extract the JSON into a
+        graph form and returns a message prior to starting that thread.
+        nodes:
+            "type": "campaign",
+            "id": "campaign--8e2e2d2b-17d4-4cbf-938f-98ee46b3cd3f",
+            "created": "2016-04-06T20:03:00.000Z",
+            "name": "Green Group Attacks Against Finance",
+            "description": "Campaign by Green Group against targets in the financial services sector."
+        edges:
+
+            "type": "sighting",
+            "id": "sighting--ee20065d-2555-424f-ad9e-0f8428623c75",
+            "created_by_ref": "identity--f431f809-377b-45e0-aa1c-6a4751cae5ff",
+            "created": "2016-04-06T20:08:31.000Z",
+            "modified": "2016-04-06T20:08:31.000Z",
+            "sighting_of_ref": "indicator--8e2e2d2b-17d4-4cbf-938f-98ee46b3cd3f"
+
+        :return:
+        """
         source = "%s_poisonivy.json" % get_datetime()[:10]
         path = os.path.join(self.datapath, source)
         url = 'https://oasis-open.github.io/cti-documentation/examples/example_json/poisonivy.json'
+        click.echo('[%s_OSINT_get_poisonivy] Getting %s' % (get_datetime(), url))
         data = self.get_url(url, path)
-        rels = []
         if data:
             data = json.loads(data.content)
             with open(path, 'w') as fp:
@@ -1795,135 +1702,123 @@ class OSINT(ODB):
         else:
             with open(path) as fp:
                 data = json.load(fp)
-        ctr = 0
-        tm = 1
+
+        message = '[%s_OSINT_get_poisonivy] Getting %s' % (get_datetime(), url)
+        click.echo(message)
+        t = threading.Thread(
+            target=self.graph_poisonivy,
+            kwargs={
+                "data": data
+            })
+        t.start()
+        return message
+
+    def graph_poisonivy(self, data):
+        """
+        Extract the expected format of CTI data documented at https://oasis-open.github.io/cti-documentation/stix/intro
+        :param data:
+        :return:
+        """
+        click.echo('[%s_OSINT_graph_poisonivy] Starting graph for poisonivy extract of %s' % (
+            get_datetime(), len(data["objects"])))
+        graph = {
+            "nodes": [],
+            "lines": [],
+            "index": {}
+        }
         for i in data['objects']:
-            ctr+=1
-            if ctr == 100:
-                ctr = 0
-                print("%s %d, %d" % (get_datetime(), tm, tm*ctr))
-                tm+=1
-            if i['type'] == 'attack-pattern':
-                attributes = self.get_attributes(i, source)
-                self.create_CTI_node(
-                    class_name="AttackPattern",
-                    key=i['id'],
-                    title=i['name'],
-                    CTI=True,
-                    attributes = attributes
-                )
-            elif i['type'] == 'campaign':
-                attributes = self.get_attributes(i, source)
-                self.create_CTI_node(
-                    class_name="Campaign",
-                    key=i['id'],
-                    title=i['name'],
-                    CTI=True,
-                    attributes = attributes
-                )
-            elif i['type'] == 'course-of-action':
-                attributes = self.get_attributes(i, source)
-                self.create_CTI_node(
-                    class_name="CourseOfAction",
-                    key=i['id'],
-                    title=i['name'],
-                    CTI=True,
-                    attributes=attributes
-                )
-            elif i['type'] == 'identity':
-                attributes = self.get_attributes(i, source)
-                self.create_CTI_node(
-                    class_name="Identity",
-                    key=i['id'],
-                    title=i['name'],
-                    CTI=True,
-                    attributes=attributes
-                )
-            elif i['type'] == 'indicator':
-                attributes = self.get_attributes(i, source)
-                self.create_CTI_node(
-                    class_name="Indicator",
-                    key=i['id'],
-                    title=i['name'],
-                    CTI=True,
-                    attributes=attributes
-                )
-            elif i['type'] == 'intrusion-set':
-                attributes = self.get_attributes(i, source)
-                self.create_CTI_node(
-                    class_name="IntrusionSet",
-                    key=i['id'],
-                    title=i['name'],
-                    CTI=True,
-                    attributes=attributes
-                )
-            elif i['type'] == 'malware':
-                attributes = self.get_attributes(i, source)
-                self.create_CTI_node(
-                    class_name="Malware",
-                    key=i['id'],
-                    title=i['name'],
-                    CTI=True,
-                    attributes=attributes
-                )
-            elif i['type'] == 'observed-data':
-                attributes = self.get_attributes(i, source)
-                self.create_CTI_node(
-                    class_name="ObservedData",
-                    key=i['id'],
-                    title="Observed data",
-                    CTI=True,
-                    attributes=attributes
-                )
-            elif i['type'] == 'report':
-                attributes = self.get_attributes(i, source)
-                self.create_CTI_node(
-                    class_name="ObservedData",
-                    key=i['id'],
-                    title=i['name'],
-                    CTI=True,
-                    attributes=attributes
-                )
-            elif i['type'] == 'threat-actor':
-                attributes = self.get_attributes(i, source)
-                self.create_CTI_node(
-                    class_name="ThreatActor",
-                    key=i['id'],
-                    title=i['name'],
-                    CTI=True,
-                    attributes=attributes
-                )
-            elif i['type'] == 'tool':
-                attributes = self.get_attributes(i, source)
-                self.create_CTI_node(
-                    class_name="Tool",
-                    key=i['id'],
-                    title=i['name'],
-                    CTI=True,
-                    attributes=attributes
-                )
-            elif i['type'] == 'vulnerability':
-                attributes = self.get_attributes(i, source)
-                self.create_CTI_node(
-                    class_name="Vulnerability",
-                    key=i['id'],
-                    title=i['name'],
-                    CTI=True,
-                    attributes=attributes
-                )
-            elif i['type'] == 'relationship':
-                rels.append(i)
+            if i['type'] not in ["relationship", "sighting"]:
+                node_prep = {
+                    "class_name": i['type'].capitalize()
+                }
+                if node_prep["class_name"].lower() == "attack-pattern":
+                    node_prep["class_name"] = "AttackPattern"
+                elif node_prep["class_name"].lower() == "course-of-action":
+                    node_prep["class_name"] = "CourseOfAction"
+                for k in i.keys():
+                    if k not in ["type"]:
+                        if k in ["object_marking_refs", "labels", "sectors"]:
+                            val = ', '.join(i[k])
+                        elif k in ["kill_chain_phases"]:
+                            for kcp in i["kill_chain_phases"]:
+                                kcp_node = {
+                                    "name": kcp["kill_chain_name"],
+                                    "phase": kcp["phase_name"]
+                                }
+                                graph["nodes"].append(kcp_node)
+                                graph["lines"].append({
+                                    "to": node_prep, "from": kcp_node["name"]
+                                })
 
+                        elif k in ["first_seen", "modified", "created"]:
+                            val = change_if_date(i[k])
+                        else:
+                            val = i[k]
+                        node_prep[k] = val
 
-            print("%s_Cleaning raw data %s" % (get_datetime(), i))
+            elif i['type'] == "relationship":
+                graph["lines"].append(i)
+            if node_prep["class_name"].lower() not in ["marking-definition"]:
+                n = self.create_node(**node_prep)
+                graph["nodes"].append(n["data"])
+                graph["index"][i["id"]] = n["data"]["key"]
+            else:
+                graph["nodes"].append(node_prep)
+        click.echo('[%s_OSINT_graph_poisonivy] Complete with %s entities. Starting %s edges.' % (
+            get_datetime(), len(graph["nodes"]), len(graph["lines"])))
+        for r in graph["lines"]:
+            if "to" in r.keys():
+                if type(r["to"]) == dict:
+                    toNode = graph["index"][r["to"]["id"]]
+                else:
+                    if r["to"] in graph["index"].keys():
+                        toNode = graph["index"][r["to"]]
+                    else:
+                        toNode = self.create_node(
+                            class_name="Object", Ext_key=r["to"], description="CTI %s" % r["to"])["data"]["key"]
+                if type(r["from"]) == dict:
+                    fromNode = graph["index"][r["from"]["id"]]
+                else:
+                    if r["from"] in graph["index"].keys():
+                        fromNode = graph["index"][r["from"]]
+                    else:
+                        fromNode = self.create_node(
+                            class_name="Object", Ext_key=r["from"],
+                            description="CTI %s" % r["from"])["data"]["key"]
+                self.create_edge_new(fromNode=fromNode, toNode=toNode)
+            else:
+                if "source_ref" in r.keys():
+                    self.create_edge_new(
+                        fromNode=graph["index"][r["source_ref"]],
+                        toNode=graph["index"][r["target_ref"]],
+                        edgeType=r["relationship_type"]
+                    )
+                elif "sighting_of_ref" in r.keys():
+                    if r["id"] in graph["index"].keys():
+                        sNode = graph["index"][r["id"]]
+                    else:
+                        sNode = self.create_node(
+                            class_name="Sighting", Ext_key=r["id"], createDate=r["created"], updateDate=r["modified"],
+                            description="CTI Sighting of %s on %s" % (r["sighting_of_ref"], r["created"])
+                        )["data"]["key"]
+                    if r["created_by_ref"] in graph["index"].keys():
+                        cNode = graph["index"][r["created_by_ref"]]
+                    else:
+                        cNode = self.create_node(
+                            class_name="Identity", Ext_key=r["created_by_ref"],
+                            description="CTI Identity %s" % r["created_by_ref"],
+                        )["data"]["key"]
+                    self.create_edge_new(fromNode=cNode, toNode=sNode, edgeType="Created")
+                    if r["sighting_of_ref"] in graph["index"].keys():
+                        oNode = graph["index"][r["sighting_of_ref"]]
+                    else:
+                        oNode = self.create_node(
+                            class_name="Object", Ext_key=r["sighting_of_ref"],
+                            description="CTI Sighting of %s on %s" % (r["sighting_of_ref"], r["created"])
+                        )["data"]["key"]
+                    self.create_edge_new(fromNode=sNode, toNode=oNode, edgeType="SightingOf")
 
-        for r in rels:
-            sql = '''
-            create edge %s from 
-            (select from V where key = '%s') to 
-            (select from V where key = '%s')
-            ''' % (r['relationship_type'], r['source_ref'], r['target_ref'])
-            self.client.command(sql)
+        click.echo('[%s_OSINT_graph_poisonivy] Complete with extraction.')
 
     def get_url(self, url, path):
         if not os.path.exists(path):
@@ -1931,7 +1826,7 @@ class OSINT(ODB):
             data = requests.get(url)
             return data
         else:
-            print("%s_Latest data exists. No need to download" % get_datetime())
+            click.echo("[%s_OSINT_get_url]Latest data exists. No need to download" % get_datetime())
         return
 
     def get_attributes(self, record, source):

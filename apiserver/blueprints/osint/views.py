@@ -2,8 +2,11 @@ from flask import jsonify, Blueprint, request
 from apiserver.blueprints.osint.models import OSINT
 from apiserver.utils import get_request_payload
 from flask_cors import CORS
+from apiserver.blueprints.osint.shodan import Shodan
 
 osint = Blueprint('osint', __name__)
+shodanserver = Shodan()
+shodanserver.open_db()
 osintserver = OSINT()
 osintserver.open_db()
 osintserver.refresh_indexes()
@@ -32,6 +35,17 @@ def acled():
     })
 
 
+@osint.route('/osint/shodan', methods=['GET'])
+def shodan():
+
+    results, message = shodanserver.search(**(get_request_payload(request)))
+    return jsonify({
+        "status": 200,
+        "message": message,
+        "data": results
+    })
+
+
 @osint.route('/osint/ucdp', methods=['GET'])
 def ucdp():
 
@@ -45,11 +59,10 @@ def ucdp():
 @osint.route('/osint/twitter', methods=['GET'])
 def twitter():
 
-    results, message = osintserver.get_twitter(**(get_request_payload(request)))
+    message = osintserver.get_twitter(**(get_request_payload(request)))
     return jsonify({
         "status": 200,
-        "message": message,
-        "data": results
+        "message": message
     })
 
 @osint.route('/osint/twitter/associates', methods=['GET'])
@@ -58,8 +71,7 @@ def get_associates():
     results = osintserver.get_associates(**(get_request_payload(request)))
     return jsonify({
         "status": 200,
-        "message": results["message"],
-        "data": results["data"]
+        "message": results
     })
 
 
@@ -162,14 +174,31 @@ def get_cve():
 
 @osint.route('/osint/poisonivy', methods=['GET'])
 def poisonivy():
-    '''
-    Base route for merging nodes
+    """
+    Get the latest dump from the CTI url. The current URL is set to oasis github which delivers a small sample
+    using the STIX model. The expected JSON from the URL is in a format of nodes with STIX 12 entity types and
+    edges including relationships and sightings. The function calls graph_poisonivy to extract the JSON into a
+    graph form and returns a message prior to starting that thread.
+    nodes:
+        "type": "campaign",
+        "id": "campaign--8e2e2d2b-17d4-4cbf-938f-98ee46b3cd3f",
+        "created": "2016-04-06T20:03:00.000Z",
+        "name": "Green Group Attacks Against Finance",
+        "description": "Campaign by Green Group against targets in the financial services sector."
+    edges:
+
+        "type": "sighting",
+        "id": "sighting--ee20065d-2555-424f-ad9e-0f8428623c75",
+        "created_by_ref": "identity--f431f809-377b-45e0-aa1c-6a4751cae5ff",
+        "created": "2016-04-06T20:08:31.000Z",
+        "modified": "2016-04-06T20:08:31.000Z",
+        "sighting_of_ref": "indicator--8e2e2d2b-17d4-4cbf-938f-98ee46b3cd3f"
+
     :return:
-    '''
+    """
     return jsonify({
         "status": 200,
-        "message": "Database updated with latest CVE",
-        "data": osintserver.poisonivy()
+        "message": osintserver.get_poisonivy(),
     })
 
 @osint.route('/osint/get_latest_cti', methods=['GET'])
