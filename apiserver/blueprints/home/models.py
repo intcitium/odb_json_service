@@ -170,7 +170,7 @@ class ODB:
                     "ftype": check,
                     "message": message
             }
-        elif check["score"] == 0:
+        elif "eppm" in check["source"]:
             data = self.graph_eppm_lines(file)
             #data = self.graph_hier(file)
             return data
