@@ -1,17 +1,23 @@
-from flask import jsonify, Blueprint, request
+from flask import jsonify, Blueprint, request, render_template
 from apiserver.utils import get_request_payload
 from apiserver.blueprints.users.views import odbserver
 from apiserver.blueprints.situations.models import SituationsDB, FirstName, LastName, DateOfBirth, PlaceOfBirth
 import json
 
 
-situations = Blueprint('situations', __name__)
+situations = Blueprint('situations', __name__, template_folder='templates/')
 SDB = SituationsDB()
-SDB.open_db()
+try:
+    SDB.open_db()
+except:
+    pass
 
 
-@situations.route('/situations', methods=['GET'])
+@situations.route('/situations', methods=['GET', 'POST'])
 def index():
+
+    if request.method == 'GET':
+        return render_template("index.html")
 
     return jsonify({
         "status": 200,
