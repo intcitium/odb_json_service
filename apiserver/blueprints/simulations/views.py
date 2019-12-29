@@ -5,7 +5,10 @@ import click
 
 simulations = Blueprint('simulations', __name__)
 simserver = Pole()
-simserver.open_db()
+try:
+    simserver.open_db()
+except:
+    pass
 
 
 @simulations.route('/simulations', methods=['GET'])
