@@ -2,7 +2,12 @@
 Provides API within an HTTPS environment using OrientDB 2.2 and Pyorient with OAuth, email confirmation and tokenized/timed sessions to control user access.
 
 ## OrientDB Service Setup
-Install Orientdb 2.2 on the system. Detailed instructions at the link or follow the 2 steps below.
+Install Orientdb 2.2 on the system.
+Using Docker:
+```javascript
+sudo docker run -d --name orientdb -v /opt/orientdb/config -v /opt/orientdb/databases -v /opt/orientdb/backup -p 2424:2424 -p 2480:2480 -e ORIENTDB_ROOT_PASSWORD=<your password> orientdb:2.2.37 
+```
+Detailed instructions at the link or follow the 2 steps below.
 https://orientdb.com/docs/last/Unix-Service.html
 ### Create a service file
 ```python
