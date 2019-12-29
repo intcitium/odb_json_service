@@ -1122,7 +1122,7 @@ class ODB:
             self.create_text_indexes()
             created = True
         except Exception as e:
-            click.echo('[%s_create_db_%s] ERROR: %s' % (self.db_name, get_datetime(), str(e)))
+            click.echo('[%s_create_db_%s] ERROR: %s' % (get_datetime(), self.db_name, str(e)))
             created = False
 
         return created
@@ -1725,6 +1725,7 @@ class ODB:
                                 "allowLeadingWildcard": true
                               }
                     ''' % (m, m)
+                    click.echo('[%s_home_server_create_text_indexes]:\n%s' % (get_datetime(), sql))
                     self.client.command(sql)
         click.echo('[%s_home_server_create_text_indexes] Indexes complete' % (get_datetime()))
 
