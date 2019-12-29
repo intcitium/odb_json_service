@@ -390,7 +390,8 @@ UserModel = {
                 "email": "string",
                 "icon": "string",
                 "confirmed": "boolean",
-                "class": "V"
+                "class": "V",
+                "hashkey": "string"
             },
             "Message": {
                 "key": "integer",
@@ -401,7 +402,8 @@ UserModel = {
                 "sender": "string",
                 "receiver": "string",
                 "icon": "string",
-                "createDate": "datetime"
+                "createDate": "datetime",
+                "hashkey": "string"
             },
             "Session": {
                 "key": "integer",
@@ -411,7 +413,8 @@ UserModel = {
                 "ipAddress": "string",
                 "token": "string",
                 "icon": "string",
-                "class": "V"
+                "class": "V",
+                "hashkey": "string"
             },
             "Blacklist": {
                 "key": "integer",
@@ -420,14 +423,14 @@ UserModel = {
                 "session": "string",
                 "createDate": "string",
                 "icon": "string",
-                "class": "V"
+                "class": "V",
+                "hashkey": "string"
             }
         }
 
 POLEModel = {
             "Person": {
                 "key": "integer",
-                "hash": "string",
                 "DateOfBirth": "datetime",
                 "PlaceOfBirth": "string",
                 "FirstName": "string",
@@ -435,20 +438,20 @@ POLEModel = {
                 "MidName": "string",
                 "icon": "string",
                 "Gender": "string",
-                "class": "V"
+                "class": "V",
+                "hashkey": "string"
             },
             "Object": {
                 "key": "integer",
                 "class": "V",
-                "hash": "string",
                 "Category": "string",
                 "description": "string",
-                "Tags": "string"
+                "Tags": "string",
+                "hashkey": "string"
             },
             "Location": {
                 "key": "integer",
                 "class": "V",
-                "hash": "string",
                 "Category": "string",
                 "description": "string",
                 "Tags": "string",
@@ -458,36 +461,37 @@ POLEModel = {
                 "pop": "integer",
                 "country": "string",
                 "iso3": "string",
-                "province": "string"
+                "province": "string",
+                "hashkey": "string"
             },
             "Event": {
                 "key": "integer",
                 "class": "V",
-                "hash": "string",
                 "Category": "string",
                 "description": "string",
                 "Tags": "string",
                 "StartDate": "datetime",
-                "EndDate": "datetime"
+                "EndDate": "datetime",
+                "hashkey": "string"
             },
             "BaseNames": {
                 "key": "integer",
                 "class": "V",
-                "hash": "string",
                 "Name": "string",
                 "NameType" : "string",
-                "NameOrigin": "string"
+                "NameOrigin": "string",
+                "hashkey": "string"
             },
             "Case": {
                 "key": "string",
                 "class": "V",
                 "Name": "string",
-                "hash": "string",
                 "Owners": "string",
                 "Classification": "string",
                 "StartDate": "datetime",
                 "LastUpdate": "datetime",
                 "CreatedBy": "string",
-                "Members": "string"
+                "Members": "string",
+                "hashkey": "string"
             }
         }
