@@ -3,12 +3,32 @@ from apiserver.blueprints.users.models import userDB
 from apiserver.blueprints.home.models import get_datetime
 from apiserver.utils import get_request_payload
 import click
+
 # Application Route specific object instantiation
 users = Blueprint('users', __name__)
+# Case where no DB has been established from which the message returned should let the user know to run the setup API
+
 odbserver = userDB()
-odbserver.open_db()
-odbserver.check_standard_users()
-click.echo('[%s_UserServer_init] Complete' % (get_datetime()))
+init_required = odbserver.open_db()
+if init_required:
+    click.echo("[%s_User_init] Setup required" % get_datetime())
+else:
+    odbserver.open_db()
+    odbserver.check_standard_users()
+    click.echo('[%s_UserServer_init] Complete' % (get_datetime()))
+
+
+@users.route('/users/db_init', methods=['GET'])
+def db_init():
+    """
+    API endpoint used when the DB has not been created
+    :return:
+    """
+    result = odbserver.create_db()
+    return jsonify({
+        "status": 200,
+        "message": result
+    })
 
 
 @users.route('/users', methods=['GET'])

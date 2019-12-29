@@ -1,12 +1,31 @@
 import json
 from flask import jsonify, Blueprint, send_file, request
 from apiserver.blueprints.home.models import ODB
-from apiserver.utils import get_request_payload, allowed_file, check_for_file
+from apiserver.utils import get_request_payload, allowed_file, check_for_file, get_datetime
+import click
 from werkzeug.utils import secure_filename
+
 # Application Route specific object instantiation
 home = Blueprint('home', __name__)
+# Case where no DB has been established from which the message returned should let the user know to run the setup API
+
 odbserver = ODB()
-odbserver.open_db()
+init_required = odbserver.open_db()
+if init_required:
+    click.echo("[%s_Home_init] Setup required" % get_datetime())
+
+
+@home.route('/home/db_init', methods=['GET'])
+def db_init():
+    """
+    API endpoint used when the DB has not been created
+    :return:
+    """
+    result = odbserver.create_db()
+    return jsonify({
+        "status": 200,
+        "message": result
+    })
 
 
 @home.route('/', methods=['GET'])

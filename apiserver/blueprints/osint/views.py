@@ -1,18 +1,37 @@
 from flask import jsonify, Blueprint, request
 from apiserver.blueprints.osint.models import OSINT
-from apiserver.utils import get_request_payload
+from apiserver.utils import get_request_payload, get_datetime
 from flask_cors import CORS
 from apiserver.blueprints.osint.shodan import Shodan
+import click
 
+# Create the blueprint and ensure CORS enabled for the webapp calls
 osint = Blueprint('osint', __name__)
-shodanserver = Shodan()
-shodanserver.open_db()
-osintserver = OSINT()
-osintserver.open_db()
-osintserver.refresh_indexes()
-#osintserver.check_base_book()
-#osintserver.fill_db()
 CORS(osint)
+shodanserver = Shodan()
+osintserver = OSINT()
+# Case where no DB has been established from which the message returned should let the user know to run the setup API
+init_required = osintserver.open_db()
+if init_required:
+    click.echo("[%s_OSINT_view_init] Setup required" % get_datetime())
+else:
+    osintserver.refresh_indexes()
+    shodanserver.open_db()
+    #osintserver.check_base_book()
+    #osintserver.fill_db()
+
+
+@osint.route('/osint/db_init', methods=['GET'])
+def db_init():
+    """
+    API endpoint used when the DB has not been created
+    :return:
+    """
+    result = osintserver.create_db()
+    return jsonify({
+        "status": 200,
+        "message": result
+    })
 
 
 @osint.route('/osint', methods=['GET'])

@@ -31,7 +31,6 @@ class OSINT(ODB):
                    'ucdp_sources': {},
                    'ucdp_events': {}
                    }
-        click.echo('[%s_OSINT_init] Complete' % (get_datetime()))
         self.ACLED_Base_URL = "https://api.acleddata.com/acled/read?terms=accept"
         self.UCDP_Page_Size = 200
         self.UCDP_Base_URL = "https://ucdpapi.pcr.uu.se/api/gedevents/19.1?pagesize=%s" % self.UCDP_Page_Size

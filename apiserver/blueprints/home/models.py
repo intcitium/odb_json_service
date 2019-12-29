@@ -62,9 +62,6 @@ class ODB:
                                  'ORole', 'OSchedule', 'OSequence', 'OTriggered',
                                  'OUser', '_studio' ]
 
-
-        #self.create_index()
-
     def get_maps(self):
         """
         Called by the init function to load the models stored to the file system into
@@ -1095,26 +1092,29 @@ class ODB:
         HASH NOT UNIQUE is used for looking up Category types
         :return:
         """
-        self.client.db_create(self.db_name, pyorient.DB_TYPE_GRAPH)
-        click.echo('[%s_%s_create_db] Starting process...' % (get_datetime(), self.db_name))
-        sql = ""
-        for m in self.models:
-            sql = sql+"create class %s extends %s;\n" % (m, self.models[m]['class'])
-            for k in self.models[m].keys():
-                if k != 'class':
-                    sql = sql+"create property %s.%s %s;\n" % (m, k, self.models[m][k])
-                    # Custom rules for establishing indexing
-                    if (str(k)).lower() in ["key", "id", "uid", "userid", "hashkey", "ext_key", "screen_name"] \
-                            or (self.db_name == "Users" and str(k).lower == "username")\
-                            or (m == "Case" and k == "Name"):
-                        sql = sql + "create index %s_%s on %s (%s) UNIQUE_HASH_INDEX ;\n" % (m, k, m, k)
-                    elif (str(k)).lower() in ["category"]:
-                        sql = sql + "create index %s_%s on %s (%s) NOTUNIQUE_HASH_INDEX ;\n" % (m, k, m, k)
-        sql = sql + "create sequence idseq type ordered;"
-        click.echo('[%s_%s_create_db]'
-                   ' Initializing db with following batch statement'
-                   '\n***************   SQL   ***************\n'
-                   '%s\n***************   SQL   ***************\n' % (get_datetime(), self.db_name, sql))
+        try:
+            self.client.db_create(self.db_name, pyorient.DB_TYPE_GRAPH)
+            click.echo('[%s_%s_create_db] Starting process...' % (get_datetime(), self.db_name))
+            sql = ""
+            for m in self.models:
+                sql = sql+"create class %s extends %s;\n" % (m, self.models[m]['class'])
+                for k in self.models[m].keys():
+                    if k != 'class':
+                        sql = sql+"create property %s.%s %s;\n" % (m, k, self.models[m][k])
+                        # Custom rules for establishing indexing
+                        if (str(k)).lower() in ["key", "id", "uid", "userid", "hashkey", "ext_key", "screen_name"] \
+                                or (self.db_name == "Users" and str(k).lower == "username")\
+                                or (m == "Case" and k == "Name"):
+                            sql = sql + "create index %s_%s on %s (%s) UNIQUE_HASH_INDEX ;\n" % (m, k, m, k)
+                        elif (str(k)).lower() in ["category"]:
+                            sql = sql + "create index %s_%s on %s (%s) NOTUNIQUE_HASH_INDEX ;\n" % (m, k, m, k)
+            sql = sql + "create sequence idseq type ordered;"
+            click.echo('[%s_%s_create_db]'
+                       ' Initializing db with following batch statement'
+                       '\n***************   SQL   ***************\n'
+                       '%s\n***************   SQL   ***************\n' % (get_datetime(), self.db_name, sql))
+        except Exception as e:
+            return str(e)
 
         try:
             self.client.batch(sql)
@@ -1128,11 +1128,18 @@ class ODB:
         return created
 
     def open_db(self):
+        """
+        Open the Database for use by establishing the client session based on the user and password. If it doesn't exist
+        return a message that let's the user to know
+        TODO create system user that is saved to the configuration file
+        :return:
+        """
         self.client.connect(self.user, self.pswd)
         if self.client.db_exists(self.db_name):
             self.client.db_open(self.db_name, self.user, self.pswd)
+            return False
         else:
-            self.create_db()
+            return "%s doesn't exist. Please initialize through the API."
 
     def get_node(self, class_name="V", var=None, val=None):
         """
