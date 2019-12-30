@@ -383,7 +383,6 @@ OSINTModel = {
 
 UserModel = {
             "User": {
-                "key": "integer",
                 "createDate": "datetime",
                 "userName": "string",
                 "passWord": "string",
@@ -394,7 +393,6 @@ UserModel = {
                 "hashkey": "string"
             },
             "Message": {
-                "key": "integer",
                 "class": "V",
                 "text": "string",
                 "title": "string",
@@ -406,7 +404,6 @@ UserModel = {
                 "hashkey": "string"
             },
             "Session": {
-                "key": "integer",
                 "user": "string",
                 "startDate": "datetime",
                 "endDate": "datetime",
@@ -417,7 +414,6 @@ UserModel = {
                 "hashkey": "string"
             },
             "Blacklist": {
-                "key": "integer",
                 "token": "string",
                 "user": "string",
                 "session": "string",
@@ -465,7 +461,6 @@ POLEModel = {
                 "hashkey": "string"
             },
             "Event": {
-                "key": "integer",
                 "class": "V",
                 "Category": "string",
                 "description": "string",
@@ -475,7 +470,6 @@ POLEModel = {
                 "hashkey": "string"
             },
             "BaseNames": {
-                "key": "integer",
                 "class": "V",
                 "Name": "string",
                 "NameType" : "string",
@@ -483,7 +477,6 @@ POLEModel = {
                 "hashkey": "string"
             },
             "Case": {
-                "key": "string",
                 "class": "V",
                 "Name": "string",
                 "Owners": "string",
