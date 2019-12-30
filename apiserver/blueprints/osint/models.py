@@ -265,7 +265,7 @@ class OSINT(ODB):
             # Run the third sql to get the full attributes of the IN neighbors
             r = self.client.command(sql)
             for i in r:
-                o_node = {"key": i._rid}
+                o_node = {"key": i._rid, "id": i._rid, "NODE_KEY": i._rid}
                 i = i.oRecordData
                 for a in i:
                     if "pyorient." not in str(type(i[a])):
@@ -286,7 +286,8 @@ class OSINT(ODB):
                 c += 1
             r = self.client.command(sql)
             for i in r:
-                o_node = {"key": i._rid}
+                # Formatted for cases of different node key names
+                o_node = {"key": i._rid, "id": i._rid, "NODE_KEY": i._rid}
                 i = i.oRecordData
                 for a in i:
                     if "pyorient." not in str(type(i[a])):
