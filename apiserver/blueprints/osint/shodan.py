@@ -29,8 +29,15 @@ class Shodan(ODB):
         :return:
         """
         click.echo('[%s_Shodan_search] Starting search for %s' % (get_datetime(), searchterm))
-        results = api.search(searchterm)
-        click.echo('[%s_Shodan_search] Complete with %d items' % (get_datetime(), results["total"]))
+        try:
+            results = api.search(searchterm)
+            message = '[%s_Shodan_search] Complete with %d items' % (get_datetime(), results["total"])
+            click.echo(message)
+        except Exception as e:
+            message = '[%s_Shodan_search] %s' % (get_datetime(), str(e))
+            click.echo(message)
+            return [], message
+
         for r in results["matches"]:
             # Set up the Shodan Crawler node from the row
             if '_shodan' in r.keys():
@@ -133,7 +140,7 @@ class Shodan(ODB):
                                     fromNode=d_node["data"]["key"],
                                     toNode=l_node
                                 )
-        return results
+        return results, message
 
     def get_host(self, ip_address):
         try:

@@ -231,104 +231,77 @@ class OSINT(ODB):
         :return:
         """
         click.echo('[%s_OSINT_get_neighbors] Getting full node details for %s with sql:' % (get_datetime(), nodekey))
-        # Create the sql by looking at all classes for the indexed key
-        sql = '''
-        SELECT EXPAND( $models )
-        LET 
-        '''
-        union = "$models = UNIONALL("
-        i = 0 # Iterator to check if the models are complete and to close the parentheses
-        for m in self.models.keys():
-            if m != "Process":
-                sql = sql + '''
-                $%s = (SELECT rid from index:%s_key where key = %s LIMIT 1),
-                ''' % (m[0:4].lower(), m, nodekey)
-                union = union + "$%s" % m[0:4].lower()
-                if i != len(self.models.keys())-1:
-                    union = union + ", "
-                else:
-                    union = union + ")"
-            i+=1
-        sql = sql + union
-        try:
-            # Run the first sql to get the record
-            r = self.client.command(sql)
-            sql = "select *, in(), out() from %s" % r[0].oRecordData['rid'].get_hash()
-            click.echo('[%s_OSINT_get_neighbors] Getting the full entity' % (get_datetime()))
-            # Run the second sql to get the full entity with neighbors
-            r = self.client.command(sql)[0].oRecordData
-            node = {"in": [], "out": []}
-            for i in r:
-                if "pyorient." not in str(type(r[i])) and i != 'in' and i != 'out':
-                    if i == "key":
-                        node[i] = int(r[i])
-                    else:
-                        node[i] = r[i]
-            for i in r['in']:
-                try:
-                    if i.get_hash() not in node["in"]:
-                        node["in"].append(i.get_hash())
-                except:
-                    pass
-            for i in r['out']:
-                try:
-                    if i.get_hash() not in node["out"]:
-                        node["out"].append(i.get_hash())
-                except:
-                    pass
-            # Set up the graph to fill with the IN and OUT sqls for the neighbor nodes data
-            graph = {"nodes": [], "lines": []}
-            if len(node["in"]) > 0:
-                sql = "select * from ["
-                c = 1
-                for i in node["in"]:
-                    if c == len(node["in"]):
-                        sql = sql + "%s]" % i
-                    else:
-                        sql = sql + "%s, " % i
-                    c+=1
-                # Run the third sql to get the full attributes of the IN neighbors
-                r = self.client.command(sql)
-                for i in r:
-                    o_node = {}
-                    i = i.oRecordData
-                    for a in i:
-                        if "pyorient." not in str(type(i[a])) and a != 'in' and a != 'out':
-                            if a == "key":
-                                o_node[a] = int(i[a])
-                            else:
-                                o_node[a] = i[a]
-                    graph["nodes"].append(o_node)
-                    graph["lines"].append({"to": node["key"], "from": o_node["key"]})
-            if len(node["out"]) > 0:
-                sql = "select * from ["
-                c = 1
-                for i in node["out"]:
-                    if c == len(node["out"]):
-                        sql = sql + "%s]" % i
-                    else:
-                        sql = sql + "%s, " % i
-                    c += 1
-                r = self.client.command(sql)
-                for i in r:
-                    o_node = {}
-                    i = i.oRecordData
-                    for a in i:
-                        if "pyorient." not in str(type(i[a])) and a != 'in' and a != 'out':
-                            if a == "key":
-                                o_node[a] = int(i[a])
-                            else:
-                                o_node[a] = i[a]
-                    graph["nodes"].append(o_node)
-                    graph["lines"].append({"from": node["key"], "to": o_node["key"]})
-            # Create the graph to return
-            node.pop("in")
-            node.pop("out")
-            graph["nodes"].append(node)
-            return {"message": "Got neighbors", "data": graph}
 
-        except Exception as e:
-            click.echo('[%s_OSINT_get_neighbors] Error. Last sql:\n %s' % (get_datetime(), sql))
+        # Run the first sql to get the record
+        sql = "select *, in(), out() from %s" % nodekey
+        click.echo('[%s_OSINT_get_neighbors] Getting the full entity' % (get_datetime()))
+        # Run the second sql to get the full entity with neighbors
+        r = self.client.command(sql)[0].oRecordData
+        node = {"in": [], "out": []}
+        for i in r:
+            if "pyorient." not in str(type(r[i])) and i != 'in' and i != 'out':
+                if i == "key":
+                    node[i] = int(r[i])
+                else:
+                    node[i] = r[i]
+        for i in r['in']:
+            if i.get_hash() not in node["in"]:
+                node["in"].append(i.get_hash())
+        for i in r['out']:
+            if i.get_hash() not in node["out"]:
+                node["out"].append(i.get_hash())
+
+        # Set up the graph to fill with the IN and OUT sqls for the neighbor nodes data
+        graph = {"nodes": [], "lines": []}
+        if len(node["in"]) > 0:
+            sql = "select * from ["
+            c = 1
+            for i in node["in"]:
+                if c == len(node["in"]):
+                    sql = sql + "%s]" % i
+                else:
+                    sql = sql + "%s, " % i
+                c+=1
+            # Run the third sql to get the full attributes of the IN neighbors
+            r = self.client.command(sql)
+            for i in r:
+                o_node = {"key": i._rid}
+                i = i.oRecordData
+                for a in i:
+                    if "pyorient." not in str(type(i[a])):
+                        if a in ['key', 'out_References', 'in_References']:
+                            pass
+                        else:
+                            o_node[a] = i[a]
+                graph["nodes"].append(o_node)
+                graph["lines"].append({"to": nodekey, "from": o_node["key"]})
+        if len(node["out"]) > 0:
+            sql = "select * from ["
+            c = 1
+            for i in node["out"]:
+                if c == len(node["out"]):
+                    sql = sql + "%s]" % i
+                else:
+                    sql = sql + "%s, " % i
+                c += 1
+            r = self.client.command(sql)
+            for i in r:
+                o_node = {"key": i._rid}
+                i = i.oRecordData
+                for a in i:
+                    if "pyorient." not in str(type(i[a])):
+                        if a in ['key', 'out_References', 'in_References']:
+                            pass
+                        else:
+                            o_node[a] = i[a]
+                graph["nodes"].append(o_node)
+                graph["lines"].append({"from": nodekey, "to": o_node["key"]})
+        # Create the graph to return
+        node.pop("in")
+        node.pop("out")
+        graph["nodes"].append(node)
+        return {"message": "Got neighbors", "data": graph}
+
 
 
     def get_neighbors(self, **kwargs):
