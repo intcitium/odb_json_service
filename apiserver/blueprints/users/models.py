@@ -34,23 +34,25 @@ class userDB(ODB):
         select userName from User 
         '''):
             users.append(r.oRecordData['userName'])
-        message = "created with auto users "
+        message = "created with auto users and passwords: "
         i = 1
         for au in self.auto_users:
             if au not in users:
-                if i == len(self.auto_users):
-                    message += au
-                else:
-                    message += au + ", "
                 click.echo('[%s_UserServer_init] Creating auto user %s' % (get_datetime(), au))
+                password = randomString(16)
                 self.create_user({
                     "userName": au,
                     "email": "NetworkGraph@Support.mail",
-                    "passWord": randomString(16),
+                    "passWord": password,
                     "confirmed": "true",
                     "icon": self.auto_users[au]
                 })
-            i+=1
+                if i == len(self.auto_users):
+                    message += "and USER %d: %s PSWD: %s " % (i, au, password)
+                else:
+                    message += "USER %d: %s PSWD: %s, " % (i, au, password)
+            i += 1
+        message += "Save the passwords for future reference."
         return message
 
     def get_user_monitor(self, userName="SocAnalyst"):
