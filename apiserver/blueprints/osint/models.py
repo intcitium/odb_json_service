@@ -237,7 +237,7 @@ class OSINT(ODB):
         click.echo('[%s_OSINT_get_neighbors] Getting the full entity' % (get_datetime()))
         # Run the second sql to get the full entity with neighbors
         r = self.client.command(sql)[0].oRecordData
-        node = {"in": [], "out": []}
+        node = {"in": [], "out": [], "key": nodekey}
         for i in r:
             if "pyorient." not in str(type(r[i])) and i != 'in' and i != 'out':
                 if i == "key":
