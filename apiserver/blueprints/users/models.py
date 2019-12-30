@@ -17,6 +17,11 @@ class userDB(ODB):
         self.ICON_USER = "sap-icon://customer"
         self.ICON_BLACKLIST = "sap-icon://cancel"
         self.models = Models
+        self.auto_users = {
+            "GeoAnalyst": self.ICON_GEOINT,
+            "SocAnalyst": self.ICON_SOCINT,
+            "HumintAnalyst": self.ICON_HUMINT
+        }
 
     def check_standard_users(self):
         """
@@ -29,36 +34,24 @@ class userDB(ODB):
         select userName from User 
         '''):
             users.append(r.oRecordData['userName'])
-
-        if "GeoAnalyst" not in users:
-            click.echo('[%s_UserServer_init] Creating standard user GeoAnalyst' % (get_datetime()))
-            self.create_user({
-                "userName": "GeoAnalyst",
-                "email": "NetworkGraph@Support.mail",
-                "passWord": randomString(16),
-                "confirmed": "true",
-                "icon": self.ICON_GEOINT
-            })
-
-        if "SocAnalyst" not in users:
-            click.echo('[%s_UserServer_init] Creating standard user SocAnalyst' % (get_datetime()))
-            self.create_user({
-                "userName": "SocAnalyst",
-                "email": "NetworkGraph@Support.mail",
-                "passWord": randomString(16),
-                "confirmed": "true",
-                "icon": self.ICON_SOCINT
-            })
-
-        if "HumintAnalyst" not in users:
-            click.echo('[%s_UserServer_init] Creating standard user HumintAnalyst' % (get_datetime()))
-            self.create_user({
-                "userName": "HumintAnalyst",
-                "email": "NetworkGraph@Support.mail",
-                "passWord": randomString(16),
-                "confirmed": "true",
-                "icon": self.ICON_HUMINT
-            })
+        message = "created with auto users "
+        i = 1
+        for au in self.auto_users:
+            if au not in users:
+                if i == len(self.auto_users):
+                    message += au
+                else:
+                    message += au + ", "
+                click.echo('[%s_UserServer_init] Creating auto user %s' % (get_datetime(), au))
+                self.create_user({
+                    "userName": au,
+                    "email": "NetworkGraph@Support.mail",
+                    "passWord": randomString(16),
+                    "confirmed": "true",
+                    "icon": self.auto_users[au]
+                })
+            i+=1
+        return message
 
     def get_user_monitor(self, userName="SocAnalyst"):
         """
@@ -73,7 +66,6 @@ class userDB(ODB):
         {class:Monitor, as:channel, where: (name = 'Twitter')}
         return s.key, s.description, s.searchValue, s.type
         ''' % userName
-
 
         return
 
@@ -579,13 +571,15 @@ class userDB(ODB):
                 icon=icon,
                 confirmed="False"
             )
-            if userNode:
+            if userNode and form['userName'] not in self.auto_users.keys():
                 self.confirm_user_email(userName=form['userName'], email=form['email'])
                 return {
                     "message": "%s, confirm the registration process by using the link sent to %s" % (
                         form['userName'], form['email']),
                     "data": userNode
                 }
+            elif form['userName'] in self.auto_users.keys():
+                return userNode
 
     def delete_user(self, request):
         u = self.get_user(userName=request.form.to_dict()['userName'])

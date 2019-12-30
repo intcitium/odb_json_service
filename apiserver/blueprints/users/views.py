@@ -25,10 +25,17 @@ def db_init():
     :return:
     """
     result = odbserver.create_db()
-    return jsonify({
-        "status": 200,
-        "message": result
-    })
+    if not result:
+        return jsonify({
+            "status": 200,
+            "message": "Users database already exists"
+        })
+    else:
+        message = odbserver.check_standard_users()
+        return jsonify({
+            "status": 200,
+            "message": "Users database %s" % message
+        })
 
 
 @users.route('/users', methods=['GET'])
