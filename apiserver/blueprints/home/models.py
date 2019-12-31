@@ -1525,6 +1525,10 @@ class ODB:
             # Settings for the update
             updateCaseWorkers = False
             casedata = dict(case[0].oRecordData)
+            if "key" in casedata.keys():
+                pass
+            else:
+                casedata["key"] = case[0]._rid
 
             # CHECK users to see if there are new ones to be added
             for user in kwargs['Owners']:
@@ -1564,8 +1568,8 @@ class ODB:
             ''' % case_key
             click.echo('[%s_%s] Q2: Getting Case nodes:\n\t%s' % (get_datetime(), "home.save", sql))
             Attached = self.client.command(sql)
-            for k in Attached:
-                current_nodes.append(k.oRecordData['key'])
+            for k in Attached[0].oRecordData['OUT']:
+                current_nodes.append(k.get_hash())
         # SAVE CASE if it was not found
         else:
             try:
