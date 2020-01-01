@@ -1562,7 +1562,6 @@ class ODB:
             case_key = str(case['key'])
             message = "Updated %s" % case['title']
             # QUERY 2: Get the node keys related to the case that was found T
-            # TODO don't get just keys but attributes and compare
             sql = '''
             select OUT() from %s
             ''' % case_key
@@ -1590,12 +1589,24 @@ class ODB:
                 EdgeCount=len(fGraph['lines'])
             )['data']
             case_key = str(case['key'])
+            # Relate the members to the case
+            Members = membersString.split(",")
+            for m in Members:
+                r = self.client.command("select @rid from User where userName = '%s'" % m)
+                if len(r) == 0:
+                    user = self.create_node(class_name="User", userName=m)['data']['key']
+                else:
+                    user = r[0].oRecordData['rid']
+                self.create_edge_new(toNode=case_key, fromNode=user, edgeType="MemberOf")
+            user = self.client.command(
+                "select @rid from User where userName = '%s'" % kwargs["CreatedBy"])[0].oRecordData['rid']
+            self.create_edge_new(toNode=case_key, fromNode=user, edgeType="CreatedBy")
             click.echo('[%s_%s_create_db] Created Case:\n\t%s' % (get_datetime(), "home.save", case))
+
         # Attach the Case record to the nodes
         graph['nodes'].append(case)
         # ATTACHMENTS of Nodes and Edges from the Request.
         newNodes = newLines = 0
-        # TODO CHANGE OVER SAVING GRAPH USING FORM
         if "nodes" in fGraph.keys() and "lines" in fGraph.keys():
             for n in fGraph['nodes']:
                 # If the new Case node is not in the keys from the collection create a node
