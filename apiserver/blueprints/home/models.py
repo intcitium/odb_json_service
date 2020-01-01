@@ -1598,8 +1598,12 @@ class ODB:
                 else:
                     user = r[0].oRecordData['rid']
                 self.create_edge_new(toNode=case_key, fromNode=user, edgeType="MemberOf")
-            user = self.client.command(
-                "select @rid from User where userName = '%s'" % kwargs["CreatedBy"])[0].oRecordData['rid']
+            # Relate the createdBy
+            r = self.client.command("select @rid from User where userName = '%s'" % kwargs["CreatedBy"])
+            if len(r) == 0:
+                user = self.create_node(class_name="User", userName=kwargs["CreatedBy"])['data']['key']
+            else:
+                user = r[0].oRecordData['rid']
             self.create_edge_new(toNode=case_key, fromNode=user, edgeType="CreatedBy")
             click.echo('[%s_%s_create_db] Created Case:\n\t%s' % (get_datetime(), "home.save", case))
 
