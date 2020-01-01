@@ -1670,7 +1670,7 @@ class ODB:
             click.echo('[%s_%s] Q3: Compare existing case to new:\n\t%s' % (get_datetime(), "home.save", sql))
             for rel in rels:
                 rel = rel.oRecordData
-                oldRels.append({"from": rel['from_key'], "to": rel['to_key'], "description": rel['description']})
+                oldRels.append({"from": rel['from_key'].get_hash(), "to": rel['to_key'].get_hash(), "description": rel['description']})
             for l in graph['lines']:
                 if {"from": l['from'], "to": l['to'], "description": l['description']} not in oldRels:
                     newLines += 1
