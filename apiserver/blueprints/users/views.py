@@ -195,17 +195,11 @@ def get_user_nodes():
 def get_users():
 
     users = odbserver.get_users()
-    if users["data"]:
-        return jsonify({
-            "status": 200,
-            "message": users['message'],
-            "data": users["data"]
-        })
-    else:
-        return jsonify({
-            "status": 204,
-            "message": "No users found"
-            })
+    return jsonify({
+        "status": 200,
+        "message": "Found %d users" % len(users),
+        "data": users
+    })
 
 @users.route('/users/message', methods=['POST'])
 def message():

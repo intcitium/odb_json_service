@@ -483,7 +483,6 @@ class userDB(ODB):
         users = []
         for u in r:
             users.append(u.oRecordData['userName'])
-        users['message'] = "Found %d users" % len(users)
         return users
 
     def get_user(self, **kwargs):
