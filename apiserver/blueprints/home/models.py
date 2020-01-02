@@ -1635,7 +1635,8 @@ class ODB:
                 {"label": "StartDate", "value": casedata['StartDate']},
                 {"label": "LastUpdate", "value": LastUpdate},
                 {"label": "className", "value": "Case"},
-                {"label": "CreatedBy", "value": casedata['CreatedBy']}
+                {"label": "CreatedBy", "value": casedata['CreatedBy']},
+                {"label": "Description", "value": casedata['description']}
             ]
             # Carry the case_key over to the relationship creation
             case_key = str(case['key'])
@@ -1661,6 +1662,7 @@ class ODB:
                 CreatedBy=clean(kwargs["CreatedBy"]),
                 Owners=ownersString,
                 Members=membersString,
+                description="Case %s" % clean(kwargs["graphName"]),
                 Classification=kwargs["Classification"],
                 StartDate=get_datetime(),
                 LastUpdate=get_datetime(),
