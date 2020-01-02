@@ -126,7 +126,7 @@ def login():
             "message": "User authenticated",
             "token": auth['token'],
             "sessionId": auth['session'],
-            "activity": auth['activity'],
+            "graphs": auth['graphs'],
             "users": auth['users']
         })
     else:

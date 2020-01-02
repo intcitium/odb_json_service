@@ -230,11 +230,10 @@ class userDB(ODB):
 
         return session
 
-    def get_user_cases(self, **kwargs):
+    def get_user_cases(self, userName="SocAnalyst"):
         """
         Check each available database and get the cases that include that user in either Members, Owners, or CreatedBy
         The return should be the complete model for the user to get all related data from in other models. The keys
-        TODO Put a status based on Classification Maybe in create class or keep as a CustomCase code dependent on View
         :param kwargs:
         :return:
         """
@@ -243,125 +242,41 @@ class userDB(ODB):
         osintserver.open_db()
         cases = {"data": [], "Unclassified": 0, "Confidential": 0}
         cOSINT = osintserver.client.command(
-            '''select key, Name, CreatedBy, Owners, Members, Classification, StartDate, LastUpdate from Case
-            ''')
+            '''select @rid, in, out, * from Case where Members containstext('%s') 
+            or CreatedBy containstext('%s') or Owners containstext ('%s')
+            ''' % (userName, userName, userName))
         for c in cOSINT:
-            role = None
             c = c.oRecordData
-            # QUALITY check on records
-            if 'Members' not in c.keys():
-                 c['Members'] = ""
-            if 'Owners' not in c.keys():
-                c['Owners'] = ""
-            if 'CreatedBy' not in c.keys():
-                c['CreatedBy'] = ""
-            # User linkage check
-            if c['Members'] != "" and kwargs['userName'] in c['Members'].split(","):
-                role = "Member"
-            elif c['Owners'] != "" and kwargs['userName'] in c['Owners'].split(","):
-                role = "Owner"
-            elif kwargs['userName'] == c['CreatedBy']:
-                role = "Owner"
             # If linked then add the case with the role
-            if role:
-                caseNode = ({
-                    "key": c['key'],
-                    "Name": c['Name'],
-                    "CreatedBy": c['CreatedBy'],
-                    "Owners": c['Owners'],
-                    "Members": c['Members'],
-                    "Classification": c['Classification'],
-                    "StartDate": c['StartDate'],
-                    "LastUpdate": c['LastUpdate'],
-                    "Role": role
-                })
-                if c['Classification'] == "Unclassified":
-                    cases['Unclassified']+=1
-                elif c['Classification'] == "Confidential":
-                    cases['Confidential']+=1
-            # Get the graph associated with the case
-            else:
-                caseNode = None
-            case_graph = {
-                "case": caseNode,
-                "nodes": [],
-                "lines": [],
-                "groups": [],
-                "index": []
-            }
-            # First query gets relationships and the nodes on the end points of those rels ONLY
-            sql = '''
-            match 
-            {class: Case, as: c, where: (key = %s)}.out("Attached")
-            {class: V, as: o}.outE()
-            {class: E, as: o2n}.inV()
-            {class: V, as: n}
-            return o.key, o.class_name, o.title, o.icon,
-            o2n.@class, n.key, n.class_name, n.title, n.icon
-            ''' % c['key']
-            r = osintserver.client.command(sql)
-            # Fill the graph with the first batch of nodes and their edges
-            for i in r:
-                if i.oRecordData["o_key"] not in case_graph["index"]:
-                    case_graph["index"].append(i.oRecordData["o_key"])
-                    case_graph["nodes"].append({
-                        "key": i.oRecordData["o_key"],
-                        "icon": i.oRecordData["o_icon"],
-                        "title": i.oRecordData["o_title"],
-                        "group": i.oRecordData["o_class_name"]
-                    })
-                if i.oRecordData["n_key"] not in case_graph["index"]:
-                    case_graph["index"].append(i.oRecordData["n_key"])
-                    case_graph["nodes"].append({
-                        "key": i.oRecordData["n_key"],
-                        "icon": i.oRecordData["n_icon"],
-                        "title": i.oRecordData["n_title"],
-                        "group": i.oRecordData["n_class_name"]
-                    })
-                if i.oRecordData["n_class_name"] not in case_graph["index"]:
-                    case_graph["index"].append(i.oRecordData["n_class_name"])
-                    case_graph["groups"].append({
-                        "key": i.oRecordData["n_class_name"],
-                        "title": i.oRecordData["n_class_name"]
-                    })
-                line = "%s%s%s" % (i.oRecordData["n_key"], i.oRecordData["o_key"], i.oRecordData["o2n_@class"])
-                if line not in case_graph["index"]:
-                    case_graph["index"].append(line)
-                    case_graph["lines"].append({
-                        "to": i.oRecordData["n_key"],
-                        "from": i.oRecordData["o_key"],
-                        "description": i.oRecordData["o2n_@class"],
-                    })
-            # Get the rest of the nodes that are attached but don't have relations to others in the case
-            sql = '''
-            match 
-            {class: Case, as: c, where: (key = %s)}.out("Attached")
-            {class: V, as: o}
-            return o.key, o.class_name, o.title, o.icon
-            ''' % c['key']
-            r = osintserver.client.command(sql)
-            for i in r:
-                if i.oRecordData["o_key"] not in case_graph["index"]:
-                    case_graph["index"].append(i.oRecordData["o_key"])
-                    case_graph["nodes"].append({
-                        "key": i.oRecordData["o_key"],
-                        "icon": i.oRecordData["o_icon"],
-                        "title": i.oRecordData["o_title"],
-                        "group": i.oRecordData["o_class_name"]
-                    })
-            cases["data"].append(case_graph)
+            caseNode = ({
+                "key": c['rid'].get_hash(),
+                "Name": c['Name'],
+                "CreatedBy": c['CreatedBy'],
+                "Owners": c['Owners'],
+                "Members": c['Members'],
+                "Classification": c['Classification'],
+                "StartDate": c['StartDate'],
+                "LastUpdate": c['LastUpdate'],
+                "data": {"nodes": [], "lines": []}
+            })
+            if c['Classification'] == "Unclassified":
+                cases['Unclassified']+=1
+            elif c['Classification'] == "Confidential":
+                cases['Confidential']+=1
 
+            cases['data'].append(caseNode)
         if len(cases['data']) == 1:
             c_count = "case"
         else:
             c_count = "cases"
 
-        cases['message'] = "%d %s found for %s" % (len(cases['data']), c_count, kwargs['userName'])
+        cases['message'] = "%d %s found for %s" % (len(cases['data']), c_count, userName)
         return cases
 
     def login(self, request):
         """
         Check the user confirmation status and password based on the supplied userName
+        If authenticated, get user relevant data including other users, cases, and alerts available
         :param form:
         :return: token or none
         """
@@ -374,25 +289,34 @@ class userDB(ODB):
         '''.format(userName=form["userName"]))
         if len(r) == 0:
             response["message"] = "No user exists with name {userName}".format(userName=form["userName"])
-
-        if r[0].oRecordData['confirmed'] == False or str(r[0].oRecordData['confirmed']).lower() == 'false':
-            self.confirm_user_email(userName=form['userName'], email=r[0].oRecordData['email'])
-            response["message"] = ('''
-            Unconfirmed user. A new confirmation message has been
-             sent to the registered email, %s''' % r[0].oRecordData['email'])
         else:
-            password = r[0].oRecordData['passWord']
-            key = r[0].oRecordData['rid'].get_hash()
-            if check_password_hash(password, form['passWord']):
-                token = self.serialize_token(userName=form['userName'])
-                session = self.create_session(form, ip_address, token)
-                self.create_edge_new(fromNode=key, toNode=session['data']['key'], edgeType="UserSession")
-                response["token"] = token
-                response["session"] = session["data"]["key"]
-                response["activity"] = self.get_activity(userName=form['userName'])
-                response["users"] = self.get_users()
+            if r[0].oRecordData['confirmed'] == False or str(r[0].oRecordData['confirmed']).lower() == 'false':
+                self.confirm_user_email(userName=form['userName'], email=r[0].oRecordData['email'])
+                response["message"] = ('''
+                Unconfirmed user. A new confirmation message has been
+                 sent to the registered email, %s''' % r[0].oRecordData['email'])
             else:
-                response["message"] = "Incorrect password"
+                password = r[0].oRecordData['passWord']
+                key = r[0].oRecordData['rid'].get_hash()
+                if check_password_hash(password, form['passWord']):
+                    # The User is authenticated so fill with all necessary data including session tokens for security
+                    token = self.serialize_token(userName=form['userName'])
+                    session = self.create_session(form, ip_address, token)
+                    self.create_edge_new(fromNode=key, toNode=session['data']['key'], edgeType="UserSession")
+                    response["token"] = token
+                    response["session"] = session["data"]["key"]
+                    # Get the graphs the user can implement in the workbench
+                    response["graphs"] = []
+                    response["graphs"].append({
+                        "Name": "Activity",
+                        "key": "Activity",
+                        "data": self.get_activity(userName=form['userName'])["data"]
+                    })
+                    response["graphs"].extend(self.get_user_cases(form['userName'])['data'])
+                    # Get the other users so they can be communicated with and added to graphs/cases for collaboration
+                    response["users"] = self.get_users()
+                else:
+                    response["message"] = "Incorrect password"
 
         return response
 
@@ -530,6 +454,7 @@ class userDB(ODB):
     def create_user(self, form):
         """
         If a user does not exist, encrypt the password for storage and create the user
+        Send an email to the user email provided for confirmation process
 
         :param form:
         :return:
