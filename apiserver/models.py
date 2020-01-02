@@ -485,6 +485,7 @@ POLEModel = {
                 "LastUpdate": "datetime",
                 "CreatedBy": "string",
                 "Members": "string",
-                "hashkey": "string"
+                "hashkey": "string",
+                "description": "string"
             }
         }
