@@ -10,7 +10,7 @@ import operator
 import copy
 import hashlib
 from apiserver.utils import get_datetime, HOST_IP, change_if_number, clean,\
-    clean_concat, change_if_date, date_to_standard_string
+    clean_concat, date_to_standard_string
 
 OSINT = "OSINT"
 
@@ -1140,6 +1140,85 @@ class ODB:
             return False
         else:
             return "%s doesn't exist. Please initialize through the API."
+
+    def get_neighbors_index(self, nodekey=1):
+        """
+        Optimize get_neighborsB with use of indexes
+        :param kwargs:
+        :return:
+        """
+        click.echo('[%s_get_neighbors_index] Getting full node details for %s with sql:' % (get_datetime(), nodekey))
+
+        # Run the first sql to get the record
+        sql = "select *, in(), out() from %s" % nodekey
+        click.echo('[%s_get_neighbors_index] Getting the full entity' % (get_datetime()))
+        # Run the second sql to get the full entity with neighbors
+        r = self.client.command(sql)[0].oRecordData
+        node = {"in": [], "out": [], "key": nodekey}
+        for i in r:
+            if "pyorient." not in str(type(r[i])) and i != 'in' and i != 'out':
+                if i == "key":
+                    node[i] = int(r[i])
+                else:
+                    node[i] = r[i]
+        for i in r['in']:
+            if i.get_hash() not in node["in"]:
+                node["in"].append(i.get_hash())
+        for i in r['out']:
+            if i.get_hash() not in node["out"]:
+                node["out"].append(i.get_hash())
+
+        # Set up the graph to fill with the IN and OUT sqls for the neighbor nodes data
+        graph = {"nodes": [], "lines": []}
+        if len(node["in"]) > 0:
+            sql = "select * from ["
+            c = 1
+            for i in node["in"]:
+                if c == len(node["in"]):
+                    sql = sql + "%s]" % i
+                else:
+                    sql = sql + "%s, " % i
+                c+=1
+            # Run the third sql to get the full attributes of the IN neighbors
+            r = self.client.command(sql)
+            for i in r:
+                o_node = {"key": i._rid, "id": i._rid, "NODE_KEY": i._rid}
+                i = i.oRecordData
+                for a in i:
+                    if "pyorient." not in str(type(i[a])):
+                        if a in ['key', 'out_References', 'in_References']:
+                            pass
+                        else:
+                            o_node[a] = i[a]
+                graph["nodes"].append(o_node)
+                graph["lines"].append({"to": nodekey, "from": o_node["key"]})
+        if len(node["out"]) > 0:
+            sql = "select * from ["
+            c = 1
+            for i in node["out"]:
+                if c == len(node["out"]):
+                    sql = sql + "%s]" % i
+                else:
+                    sql = sql + "%s, " % i
+                c += 1
+            r = self.client.command(sql)
+            for i in r:
+                # Formatted for cases of different node key names
+                o_node = {"key": i._rid, "id": i._rid, "NODE_KEY": i._rid}
+                i = i.oRecordData
+                for a in i:
+                    if "pyorient." not in str(type(i[a])):
+                        if a in ['key', 'out_References', 'in_References']:
+                            pass
+                        else:
+                            o_node[a] = i[a]
+                graph["nodes"].append(o_node)
+                graph["lines"].append({"from": nodekey, "to": o_node["key"]})
+        # Create the graph to return
+        node.pop("in")
+        node.pop("out")
+        graph["nodes"].append(node)
+        return {"message": "Got neighbors", "data": graph}
 
     def get_node(self, class_name="V", var=None, val=None):
         """
