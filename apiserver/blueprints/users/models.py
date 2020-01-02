@@ -480,10 +480,10 @@ class userDB(ODB):
         r = self.client.command('''
         select userName from User 
         ''')
-        users = {"data": []}
+        users = []
         for u in r:
-            users['data'].append(u.oRecordData['userName'])
-        users['message'] = "Found %d users" % len(users['data'])
+            users.append(u.oRecordData['userName'])
+        users['message'] = "Found %d users" % len(users)
         return users
 
     def get_user(self, **kwargs):
