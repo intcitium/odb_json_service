@@ -443,20 +443,20 @@ class userDB(ODB):
         bl = self.get_node(class_name="Blacklist", var="token", val=token)
         return bl
 
-    def get_users(self):
+    def get_users_nodes(self):
         """
         Get all the non-system users and return them in the form of graph nodes for use in the application
         :return:
         """
         r = self.client.command('''
-        select userName, key, email, createDate, icon, confirmed from User 
+        select userName, @rid as key, email, createDate, icon, confirmed from User 
         ''')
         users = {"data": []}
         for u in r:
             u = u.oRecordData
             if u['email'] != "Chatbot@email.com" and u['userName'][:6] != "SYSTEM":
                 users["data"].append(self.format_node(
-                    key=u['key'],
+                    key=u['key'].get_hash(),
                     icon=u['icon'],
                     class_name="User",
                     title="User %s" % u['userName'],
@@ -469,6 +469,20 @@ class userDB(ODB):
                     ]
                 ))
 
+        users['message'] = "Found %d users" % len(users['data'])
+        return users
+
+    def get_users(self):
+        """
+        Get all the non-system users and return them in the form of graph nodes for use in the application
+        :return:
+        """
+        r = self.client.command('''
+        select userName from User 
+        ''')
+        users = {"data": []}
+        for u in r:
+            users['data'].append(u.oRecordData['userName'])
         users['message'] = "Found %d users" % len(users['data'])
         return users
 

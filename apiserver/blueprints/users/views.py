@@ -178,6 +178,22 @@ def get():
 @users.route('/users/get_user_nodes', methods=['GET'])
 def get_user_nodes():
 
+    users = odbserver.get_users_nodes()
+    if users["data"]:
+        return jsonify({
+            "status": 200,
+            "message": users['message'],
+            "data": users["data"]
+        })
+    else:
+        return jsonify({
+            "status": 204,
+            "message": "No users found"
+            })
+
+@users.route('/users/get_users', methods=['GET'])
+def get_users():
+
     users = odbserver.get_users()
     if users["data"]:
         return jsonify({
