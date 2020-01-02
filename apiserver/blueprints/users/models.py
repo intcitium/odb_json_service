@@ -1,10 +1,12 @@
+import click
+import pyorient
 from apiserver.blueprints.home.models import ODB, get_datetime
 from apiserver.models import UserModel as Models
-from apiserver.utils import SECRET_KEY, SIGNATURE_EXPIRED, BLACK_LISTED, DB_ERROR, PROTECTED, change_if_date,\
+from apiserver.utils import SECRET_KEY, SIGNATURE_EXPIRED, BLACK_LISTED, DB_ERROR, HOST_IP, change_if_date,\
     send_mail, HTTPS, randomString
 from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous import TimedJSONWebSignatureSerializer
-import click
+
 
 
 class userDB(ODB):
@@ -12,6 +14,8 @@ class userDB(ODB):
     def __init__(self, db_name="Users"):
         ODB.__init__(self, db_name, models=Models)
         self.db_name = db_name
+        self.osint_client = pyorient.OrientDB(HOST_IP, 2424)
+        self.osint_client.db_open("OSINT", self.user, self.pswd)
         self.ICON_SESSION = "sap-icon://activities"
         self.ICON_POST = "sap-icon://post"
         self.ICON_USER = "sap-icon://customer"
@@ -358,42 +362,37 @@ class userDB(ODB):
     def login(self, request):
         """
         Check the user confirmation status and password based on the supplied userName
-        TODO - Select from Case where Case.Owners.containsText(userKey) to return the cases
         :param form:
         :return: token or none
         """
-        try:
-            response = {"received": str(request), "session": None}
-            ip_address = request.remote_addr
-            form = request.form.to_dict(flat=True)
-            r = self.client.command('''
-            select passWord, key, confirmed, email from User where userName = "{userName}"
-            '''.format(userName=form["userName"]))
-            if len(r) == 0:
-                response["message"] = "No user exists with name {userName}".format(userName=form["userName"])
 
-            if r[0].oRecordData['confirmed'] == False or str(r[0].oRecordData['confirmed']).lower() == 'false':
-                self.confirm_user_email(userName=form['userName'], email=r[0].oRecordData['email'])
-                response["message"] = ('''
-                Unconfirmed user. A new confirmation message has been
-                 sent to the registered email, %s''' % r[0].oRecordData['email'])
+        response = {"received": str(request), "session": None}
+        ip_address = request.remote_addr
+        form = request.form.to_dict(flat=True)
+        r = self.client.command('''
+        select passWord, @rid, confirmed, email from User where userName = "{userName}"
+        '''.format(userName=form["userName"]))
+        if len(r) == 0:
+            response["message"] = "No user exists with name {userName}".format(userName=form["userName"])
+
+        if r[0].oRecordData['confirmed'] == False or str(r[0].oRecordData['confirmed']).lower() == 'false':
+            self.confirm_user_email(userName=form['userName'], email=r[0].oRecordData['email'])
+            response["message"] = ('''
+            Unconfirmed user. A new confirmation message has been
+             sent to the registered email, %s''' % r[0].oRecordData['email'])
+        else:
+            password = r[0].oRecordData['passWord']
+            key = r[0].oRecordData['rid'].get_hash()
+            if check_password_hash(password, form['passWord']):
+                token = self.serialize_token(userName=form['userName'])
+                session = self.create_session(form, ip_address, token)
+                self.create_edge_new(fromNode=key, toNode=session['data']['key'], edgeType="UserSession")
+                response["token"] = token
+                response["session"] = session["data"]["key"]
+                response["data"] = self.get_activity(userName=form['userName'])
+                #response["data"]["cases"] = self.get_user_cases() # make call to OSINT
             else:
-                password = r[0].oRecordData['passWord']
-                key = r[0].oRecordData['key']
-                if check_password_hash(password, form['passWord']):
-                    token = self.serialize_token(userName=form['userName'])
-                    session = self.create_session(form, ip_address, token)
-                    self.create_edge(fromNode=key, fromClass="User", toNode=session['data']['key'],
-                                     toClass="Session", edgeType="UserSession")
-                    response["token"] = token
-                    response["session"] = session["data"]["key"]
-                    response["data"] = self.get_activity(userName=form['userName'])
-                    response["data"]["cases"] = self.get_user_cases()
-                else:
-                    response["message"] = "Incorrect password"
-
-        except Exception as e:
-            response["message"] = "Unknown error %s" % str(e) + "\n%s" % str(request)
+                response["message"] = "Incorrect password"
 
         return response
 
@@ -489,11 +488,11 @@ class userDB(ODB):
 
         if "userName" in kwargs.keys():
             r = self.client.command('''
-            select userName, email, createDate, key from User where userName = "{userName}"
+            select userName, email, createDate, @rid from User where userName = "{userName}"
             '''.format(userName=kwargs["userName"]))
         else:
             r = self.client.command('''
-            select userName, email, createDate, key from User where email = "{email}"
+            select userName, email, createDate, @rid from User where email = "{email}"
             '''.format(email=kwargs["email"]))
 
         if len(r) == 0:
@@ -509,55 +508,20 @@ class userDB(ODB):
             userName = kwargs['userName']
 
         u = self.get_user(userName=userName)
-
         if u:
-            sql = '''
-            match {class: User, as: u, where: (key = %d)}.both(){class: V, as: e} return $elements
-            ''' % (int(u[0].oRecordData['key']))
-            r = self.client.command(sql)
+            # Get everything related to the user from the USER database
+            r = self.get_neighbors_index(u[0].oRecordData['rid'].get_hash())
+            graph = {"nodes": [], "lines": r['data']['lines']}
             if len(r) > 0:
-                nodes = []
-                lines = []
-                for i in r:
-                    # Get the relationship types and each variable into the attributes array for a node
-                    attributes = []
-                    title = icon = status = class_name = None
-                    for k in i.oRecordData.keys():
-                        if str(type(i.oRecordData[k])) != "<class 'pyorient.otypes.OrientBinaryObject'>":
-                            if k.lower() == 'key':
-                                key = i.oRecordData[k]
-                            elif k.lower() == 'icon':
-                                icon = i.oRecordData[k]
-                            elif k.lower() == 'title':
-                                title = i.oRecordData[k]
-                            elif k.lower() == 'status':
-                                status = i.oRecordData[k]
-                            elif k.lower() == 'class_name':
-                                class_name = i.oRecordData[k]
-                            elif k.lower() not in PROTECTED:
-                                attributes.append({"value": i.oRecordData[k], "label": k})
-
-                        else:
-                            if i.oRecordData['key'] != u[0].oRecordData['key']:
-                                if k.lower()[:2] == 'in':
-                                    lines.append({'type': 'in', 'title': k[3:],
-                                                  'to': i.oRecordData['key'],
-                                                  'from': u[0].oRecordData['key']})
-                                else:
-                                    lines.append({'type': 'out', 'title': k[4:],
-                                                  'from': i.oRecordData['key'],
-                                                  'to': u[0].oRecordData['key']})
-
-
-                    nodes.append(
-                        self.format_node(key=key, title=title, class_name=class_name,
-                        icon=icon, attributes=attributes, status=status))
-
-
-                r = {"data": {'nodes': nodes, 'lines': lines}, "message": "%d activities found" % (len(nodes)-1)}
+                for n in r['data']['nodes']:
+                    new_node = {}
+                    for k in n.keys():
+                        if k.lower() not in ['hashkey', 'password', 'ext_key']:
+                            new_node[k] = n[k]
+                    graph['nodes'].append(new_node)
+                r = {"data": graph, "message": "%d activities found" % int(len(graph['nodes'])-1)}
             else:
-                r = {"data": u, "message": "No activity found"}
-
+                r = {"data": graph, "message": "No activity found"}
         else:
             r = {"data": None, "message": "No user named {userName} found".format(
                 userName=self.get_user(userName=userName))}
