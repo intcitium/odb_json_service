@@ -389,8 +389,8 @@ class userDB(ODB):
                 self.create_edge_new(fromNode=key, toNode=session['data']['key'], edgeType="UserSession")
                 response["token"] = token
                 response["session"] = session["data"]["key"]
-                response["data"] = self.get_activity(userName=form['userName'])
-                #response["data"]["cases"] = self.get_user_cases() # make call to OSINT
+                response["activity"] = self.get_activity(userName=form['userName'])
+                response["users"] = self.get_users()
             else:
                 response["message"] = "Incorrect password"
 

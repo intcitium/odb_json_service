@@ -126,7 +126,8 @@ def login():
             "message": "User authenticated",
             "token": auth['token'],
             "sessionId": auth['session'],
-            "activityGraph": auth['data']
+            "activity": auth['activity'],
+            "users": auth['users']
         })
     else:
         return jsonify({
