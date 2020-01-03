@@ -2,6 +2,7 @@ import click
 import pyorient
 from apiserver.blueprints.home.models import ODB, get_datetime
 from apiserver.models import UserModel as Models
+from apiserver.models import OSINTModel
 from apiserver.utils import SECRET_KEY, SIGNATURE_EXPIRED, BLACK_LISTED, DB_ERROR, HOST_IP, change_if_date,\
     send_mail, HTTPS, randomString, MESSAGE_OPENING, MESSAGE_CLOSING
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -315,6 +316,7 @@ class userDB(ODB):
                     response["graphs"].extend(self.get_user_cases(form['userName'])['data'])
                     # Get the other users so they can be communicated with and added to graphs/cases for collaboration
                     response["users"] = self.get_users()
+                    response["models"] = OSINTModel
                 else:
                     response["message"] = "Incorrect password"
 
