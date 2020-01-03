@@ -6,7 +6,8 @@ from werkzeug.utils import secure_filename
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from apiserver.config import HOST_IP, SECRET_KEY, MAIL_PASSWORD,\
-    MAIL_USERNAME, COPILOT_URL, COPILOT_AUTH, COPILOT_DEV_TOKEN, HTTPS, TWITTER_AUTH, SHODAN
+    MAIL_USERNAME, COPILOT_URL, COPILOT_AUTH, COPILOT_DEV_TOKEN, HTTPS, TWITTER_AUTH, SHODAN, MESSAGE_OPENING, \
+    MESSAGE_CLOSING
 
 HOST_IP = HOST_IP
 HTTPS = HTTPS
@@ -17,6 +18,8 @@ BLACK_LISTED = 'Blacklisted token'
 DB_ERROR = "Database error"
 PROTECTED = ["password"]
 ALLOWED_EXTENSIONS = ['txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'csv', 'xlsx']
+MESSAGE_OPENING = MESSAGE_OPENING
+MESSAGE_CLOSING = MESSAGE_CLOSING
 
 
 # mail settingspy
