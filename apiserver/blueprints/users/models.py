@@ -3,7 +3,7 @@ import pyorient
 from apiserver.blueprints.home.models import ODB, get_datetime
 from apiserver.models import UserModel as Models
 from apiserver.utils import SECRET_KEY, SIGNATURE_EXPIRED, BLACK_LISTED, DB_ERROR, HOST_IP, change_if_date,\
-    send_mail, HTTPS, randomString
+    send_mail, HTTPS, randomString, MESSAGE_OPENING, MESSAGE_CLOSING
 from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous import TimedJSONWebSignatureSerializer
 
@@ -588,18 +588,18 @@ class userDB(ODB):
                 session='Email confirmation',
                 icon=self.ICON_BLACKLIST
             )
-            self.create_edge(edgeType="ConfirmedEmail", fromNode=blackListNode['data']['key'], fromClass="Blacklist",
-                             toNode=userName[0].oRecordData['key'], toClass="User")
+            self.create_edge_new(edgeType="ConfirmedEmail", fromNode=blackListNode['data']['key'],
+                             toNode=userName[0].oRecordData['rid'].get_hash())
 
             # Update user data with confirmed
-            self.update(class_name="User", var="confirmed", val=True, key=userName[0].oRecordData['key'])
+            self.update(var="confirmed", val=True, key=userName[0].oRecordData['rid'].get_hash())
 
             # Log user in with a new token
             token = self.serialize_token(userName[0].oRecordData['userName'])
             session = self.create_session({"userName": userName[0].oRecordData['userName']}, 'Email', token)
-            self.create_edge(
-                fromNode=userName[0].oRecordData['key'], fromClass="User",
-                toNode=session['data']['key'], toClass="Session",
+            self.create_edge_new(
+                fromNode=userName[0].oRecordData['rid'].get_hash(),
+                toNode=session['data']['key'],
                 edgeType="UserSession")
 
             return {
@@ -612,7 +612,7 @@ class userDB(ODB):
                     userName[0].oRecordData['email'])
                     }
 
-        elif userName == None:
+        elif not userName:
             return {
                 "status": 204,
                 "token": None,
@@ -639,22 +639,19 @@ class userDB(ODB):
         # Create a standard text format email
         tMessage = '''
         Hello %s,\n
-        This email address (%s) was used to register access to the SAP open net graph service.
-        Please use the link below to activate your account or use the token when you first log in.\n
+        %s %s
         \tLink: %s \n
         \tToken: %s\n\n
-        If you have any questions, feel free to reply back with them.\n\n
-        Sincerely,\n
-        Your case worker app team
-        ''' % (kwargs['userName'], kwargs['email'], confirmLink, confirmToken)
+        %s
+        ''' % (kwargs['userName'], kwargs['email'], MESSAGE_OPENING, confirmLink, confirmToken, MESSAGE_CLOSING)
         # Create an HTML format email
         hMessage = '''
         <html>
           <head></head>
           <body>
             <p>Hello %s,<br>
-               This email address (%s) was used to register access to the SAP open net graph service. Please use the 
-            link below to activate your account or use the token when you first log in.<br>
+            This email was used to %s
+            <br>
             <br>Link: 
             <a href="%s">User Activation email link</a>
             <br>Token:
@@ -664,11 +661,11 @@ class userDB(ODB):
             <br><br>
             Sincerely,
             <br>
-            Your case worker app team
+            %s
             </p>
           </body>
         </html>
-        ''' % (kwargs['userName'], kwargs['email'], confirmLink, confirmToken)
+        ''' % (kwargs['userName'], MESSAGE_OPENING, confirmLink, confirmToken, MESSAGE_CLOSING)
         #TODO map link to the environment variables create a link between the user and the token to look up
 
         # Send the mail
