@@ -14,6 +14,7 @@ from apiserver.utils import get_datetime, HOST_IP, change_if_number, clean,\
 
 OSINT = "OSINT"
 
+
 class ODB:
 
     def __init__(self, db_name="GratefulDeadConcerts", models=None):
@@ -43,7 +44,8 @@ class ODB:
         # Keeping the nodeKeys in this order assures that matches will be checked in the same consistent string
         self.nodeKeys = ['class_name', 'title', 'FirstName', 'LastName', 'Gender', 'DateOfBirth', 'PlaceOfBirth',
                     'Name', 'Owner', 'Classification', 'Category', 'Latitude', 'Longitude', 'description', 'userName',
-                    'EndDate', 'StartDate', 'DateCreated', 'Ext_key', 'category', 'pid', 'name', 'started', 'searchValue']
+                    'EndDate', 'StartDate', 'DateCreated', 'Ext_key', 'category', 'pid', 'name', 'started', 'email',
+                    'searchValue', 'ipAddress', 'token', 'session']
         if not models:
             self.models = {
                 "Vertex": {
@@ -995,11 +997,15 @@ class ODB:
 
     def check_index_nodes(self, **kwargs):
         """
+        TODO: evaluate method for robustness in terms of unique values produced. This can be tested with the edges
+        created between nodes. For example, prior to implementing 'token' and 'session' all users would be associated
+        with the same sessions and tokens.
         Use the nodeKeys to cycle through in sequential order and match the input attributes to build a hash string in
         the same format of previous nodes. If the node exists, return the key. Otherwise return None.
         self.nodeKeys = ['class_name', 'title', 'FirstName', 'LastName', 'Gender', 'DateOfBirth', 'PlaceOfBirth',
-            'Name', 'Owner', 'Classification', 'Category', 'Latitude', 'Longitude', 'description',
-            'EndDate', 'StartDate', 'DateCreated', 'Ext_key', 'searchValue', 'userName']
+                    'Name', 'Owner', 'Classification', 'Category', 'Latitude', 'Longitude', 'description', 'userName',
+                    'EndDate', 'StartDate', 'DateCreated', 'Ext_key', 'category', 'pid', 'name', 'started', 'email',
+                    'searchValue', 'ipAddress', 'token', 'session']
         Return the key of the
         :param kwargs:
         :return:
@@ -1011,7 +1017,7 @@ class ODB:
                     # Remove commas since this will be a str treated as a list
                     hash_str = hash_str + k + str(kwargs[k])
                     hash_str = clean_concat(hash_str).replace(",", "")
-        # Change the str to a hash string value TODO: evaluate method for robustness in terms of unique values produced
+        # Change the str to a hash string value
         hash_str = hashlib.md5(str(hash_str).encode()).hexdigest()
         if "class_name" in kwargs.keys():
             index_str = "%s_hashkey" % kwargs['class_name']
