@@ -1329,8 +1329,8 @@ class ODB:
     def update(self, **kwargs):
 
         sql = ('''
-          update {class_name} set {var} = '{val}' where key = {key}
-          ''').format(class_name=kwargs['class_name'], var=kwargs['var'], val=kwargs['val'], key=kwargs['key'])
+          update {key} set {var}='{val}'
+          ''').format(var=kwargs['var'], val=kwargs['val'], key=kwargs['key'])
         r = self.client.command(sql)
 
         if len(r) > 0:
