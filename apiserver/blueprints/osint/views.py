@@ -84,6 +84,7 @@ def twitter():
         "message": message
     })
 
+
 @osint.route('/osint/twitter/associates', methods=['GET'])
 def get_associates():
 
@@ -103,6 +104,7 @@ def geo_spatial_view():
         "message": message,
         "data": results
     })
+
 
 @osint.route('/osint/save', methods=['POST'])
 def save():
@@ -164,6 +166,7 @@ def get_neighbors():
         "data": r["data"]
     })
 
+
 @osint.route('/osint/get_neighbors_index', methods=['POST'])
 def get_neighbors_index():
     '''
@@ -178,6 +181,7 @@ def get_neighbors_index():
         "data": r["data"]
     })
 
+
 @osint.route('/osint/cve', methods=['GET'])
 def get_cve():
     '''
@@ -189,6 +193,7 @@ def get_cve():
         "message": "Database updated with latest CVE",
         "data": osintserver.get_cve()
     })
+
 
 
 @osint.route('/osint/poisonivy', methods=['GET'])
@@ -220,6 +225,7 @@ def poisonivy():
         "message": osintserver.get_poisonivy(),
     })
 
+
 @osint.route('/osint/get_latest_cti', methods=['GET'])
 def get_latest_cti():
     '''
@@ -232,6 +238,7 @@ def get_latest_cti():
         "data": osintserver.run_otx()
     })
 
+
 @osint.route('/osint/start_twitter_monitor', methods=['GET'])
 def start_twitter_monitor():
     '''
@@ -243,6 +250,7 @@ def start_twitter_monitor():
         "status": 200,
         "message": r["message"]
     })
+
 
 @osint.route('/osint/start_merge_monitor', methods=['GET'])
 def start_merge_monitor():
@@ -273,6 +281,7 @@ def create_monitor():
             "data": None
         })
 
+
 @osint.route('/osint/get_user_monitor', methods=['POST'])
 def get_user_monitor():
     r = get_request_payload(request)
@@ -290,6 +299,7 @@ def get_user_monitor():
             "data": None
         })
 
+
 @osint.route('/osint/search', methods=['POST'])
 def search():
     r = get_request_payload(request)
@@ -298,6 +308,22 @@ def search():
         return jsonify({
             "status": 200,
             "message": search
+        })
+    else:
+        return jsonify({
+            "status": 200,
+            "message": "Failed to process request",
+            "data": None
+        })
+
+@osint.route('/osint/load_graph', methods=['POST'])
+def load_graph():
+    r = get_request_payload(request)
+    if r and 'graphKey' in r.keys():
+        graph = osintserver.load_graph(r["graphKey"])
+        return jsonify({
+            "status": 200,
+            "message": graph
         })
     else:
         return jsonify({
