@@ -1560,6 +1560,37 @@ class ODB:
 
         return search_items
 
+    def load_graph(self, graph_key):
+        """
+        Get a graph which is based on a saved Case and it's neighbors and those neighbors relations to each other
+        For each node in the case, get neighbors. Filter out any neighbor not in the case nodes
+        :param graph_key:
+        :return:
+        """
+        graph = self.get_neighbors_index(graph_key)
+        case_graph = {"nodes": [], "lines": graph["data"]["lines"], "index": []}
+        for n in graph["data"]["nodes"]:
+            case_graph["nodes"].append(n)
+            case_graph["index"].append(n["key"])
+        for n in graph["data"]["lines"]:
+            case_graph["index"].append("%s%s" % (n["to"], n["from"]))
+        # Get the relationships of each case node that relates to another case node
+        for n in graph["data"]["nodes"]:
+            s_graph = self.get_neighbors_index(n["key"])
+            for l in s_graph["data"]["lines"]:
+                if l["to"] == n["key"]:
+                    if l["from"] in case_graph["index"]:
+                        if "%s%s" % (l["to"], l["from"]) not in case_graph["index"]:
+                            case_graph["lines"].append(l)
+                            case_graph["index"].append("%s%s" % (l["to"], l["from"]))
+                if l["from"] == n["key"]:
+                    if l["to"] in case_graph["index"]:
+                        if "%s%s" % (l["to"], l["from"]) not in case_graph["index"]:
+                            case_graph["lines"].append(l)
+                            case_graph["index"].append("%s%s" % (l["to"], l["from"]))
+
+        return case_graph
+
     def save(self, **kwargs):
         """
         Expects a request with graphCase containing the graph from the user's canvas and assumes that all nodes have an
