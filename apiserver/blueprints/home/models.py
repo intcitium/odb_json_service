@@ -251,8 +251,15 @@ class ODB:
                         extractedEntity = {"class_name": entity, "source": etl_source}
                     else:
                         extractedEntity = {"class_name": "Object", "Category": entity, "source": etl_source}
+                    # Check if there is a description, otherwise set it up to auto create a description
+                    if "description" not in model["Entities"][entity]:
+                        extractedEntity['description'] = ""
+                        autoDescribe = True
+                    else:
+                        autoDescribe = False
                     for att in model["Entities"][entity]:
                         # If the attribute is in the row headers then it is to be mapped otherwise it is a custom value
+
                         if model["Entities"][entity][att] in row.keys():
                             val = row[model["Entities"][entity][att]]
                             try:
@@ -262,6 +269,10 @@ class ODB:
                             extractedEntity[att] = clean_val
                         else:
                             extractedEntity[att] = model["Entities"][entity][att]
+                            clean_val = model["Entities"][entity][att]
+                        if autoDescribe:
+                            clean_val = date_to_standard_string(clean_val)
+                            extractedEntity['description'] = extractedEntity['description'] + str(clean_val) + " "
                     # Check if this Entity has already been extracted and get the key.
                     # The function also adds the entity to the graph which will be exported
                     exEntityKey = get_key(**extractedEntity)
