@@ -10,7 +10,7 @@ import operator
 import copy
 import hashlib
 from apiserver.utils import get_datetime, HOST_IP, change_if_number, clean,\
-    clean_concat, date_to_standard_string
+    clean_concat, date_to_standard_string, change_if_date
 
 OSINT = "OSINT"
 
@@ -266,6 +266,11 @@ class ODB:
                                 clean_val = val.to_pydatetime()
                             except:
                                 clean_val = val
+                            
+                            date_val = change_if_date(clean_val)
+                            if date_val:
+                                clean_val = date_val
+
                             extractedEntity[att] = clean_val
                         else:
                             extractedEntity[att] = model["Entities"][entity][att]
