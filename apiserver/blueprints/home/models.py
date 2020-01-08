@@ -227,15 +227,21 @@ class ODB:
             if h_key in node_index.keys():
                 return node_index[h_key]
             else:
-                new_node = self.create_node(**kwargs)["data"]
-                node_index[h_key] = new_node["key"]
-                graph["nodes"].append(new_node)
-                return new_node["key"]
+                try:
+                    new_node = self.create_node(**kwargs)["data"]
+                    node_index[h_key] = new_node["key"]
+                    graph["nodes"].append(new_node)
+                    return new_node["key"]
+                except Exception as e:
+                    print(str(e))
+                    return None
 
         for index, row in data.iterrows():
+
             if index != 0:
                 # Based on the entities in the model, get IDs that can be used to create relationships
                 rowConfig = {}
+                badRow = False
                 for entity in model["Entities"]:
                     # The extracted entity is based on the model and mapped row value to entity attributes
                     # If the class_name is not in the models then it should be created as a Category of an Object class
@@ -259,23 +265,26 @@ class ODB:
                     # Check if this Entity has already been extracted and get the key.
                     # The function also adds the entity to the graph which will be exported
                     exEntityKey = get_key(**extractedEntity)
+                    if not exEntityKey:
+                        badRow = True
                     if exEntityKey in graph["n_index"]:
                         graph["n_index"].append(exEntityKey)
                     # Add the entity key to its spot within the mapping configuration so the lines can be built
                     rowConfig[entity] = exEntityKey
-                # Use the entity names that are saved into the relation to and from to assign the row config entity key
-                for line in model["Relations"]:
-                    if({"to": rowConfig[model["Relations"][line]["to"]], "from": rowConfig[model["Relations"][line]["from"]], "description": line }) not in graph["lines"]:
-                        graph["lines"].append({
-                            "to": rowConfig[model["Relations"][line]["to"]],
-                            "from": rowConfig[model["Relations"][line]["from"]],
-                            "description": line,
-                        })
-                    self.create_edge_new(
-                        fromNode=rowConfig[model["Relations"][line]["from"]],
-                        toNode=rowConfig[model["Relations"][line]["to"]],
-                        edgeType=line
-                    )
+                if not badRow:
+                    # Use the entity names that are saved into the relation to and from to assign the row config entity key
+                    for line in model["Relations"]:
+                        if({"to": rowConfig[model["Relations"][line]["to"]], "from": rowConfig[model["Relations"][line]["from"]], "description": line }) not in graph["lines"]:
+                            graph["lines"].append({
+                                "to": rowConfig[model["Relations"][line]["to"]],
+                                "from": rowConfig[model["Relations"][line]["from"]],
+                                "description": line,
+                            })
+                        self.create_edge_new(
+                            fromNode=rowConfig[model["Relations"][line]["from"]],
+                            toNode=rowConfig[model["Relations"][line]["to"]],
+                            edgeType=line
+                        )
 
         return graph
 
