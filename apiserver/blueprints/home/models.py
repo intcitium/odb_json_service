@@ -45,7 +45,7 @@ class ODB:
         self.nodeKeys = ['class_name', 'title', 'FirstName', 'LastName', 'Gender', 'DateOfBirth', 'PlaceOfBirth',
                     'Name', 'Owner', 'Classification', 'Category', 'Latitude', 'Longitude', 'description', 'userName',
                     'EndDate', 'StartDate', 'DateCreated', 'Ext_key', 'category', 'pid', 'name', 'started', 'email',
-                    'searchValue', 'ipAddress', 'token', 'session']
+                    'searchValue', 'ipAddress', 'token', 'session', 'PhoneNumber', 'source', 'Entity']
         if not models:
             self.models = {
                 "Vertex": {
@@ -197,14 +197,14 @@ class ODB:
 
         Includes a function for etl processing of node
         Includes checking if the model is saved for file_type_check and then calling that model
-        TODO, change EPPM extraction to model based that is called from the server at initiation
 
         :param model:
         :param data:
         :return:
         """
         self.save_model_to_map(model)
-        node_index = []
+        etl_source = model['Name']
+        node_index = {}
         graph = {"nodes": [], "lines": [], "n_index": []}
         # Ensure the data received is changed into a DataFrame if it is not already
         if str(type(data)) != "<class 'pandas.core.frame.DataFrame'>":
@@ -222,22 +222,15 @@ class ODB:
             :param kwargs:
             :return:
             """
-            if "key" in kwargs.keys():
-                if kwargs["key"] in node_index:
-                    return kwargs["key"]
-                else:
-                    node_index.append(kwargs['key'])
-                    graph["nodes"].append(self.create_node(**kwargs)["data"])
-                    return kwargs["key"]
+            # Check if it has been created based on attributes and return the corresponding key or create a new node
+            h_key = self.hash_node(kwargs)
+            if h_key in node_index.keys():
+                return node_index[h_key]
             else:
-                h_key = self.hash_node(kwargs)
-                if h_key in node_index:
-                    return h_key
-                else:
-                    node_index.append(h_key)
-                    kwargs["key"] = h_key
-                    graph["nodes"].append(self.create_node(**kwargs)["data"])
-                    return h_key
+                new_node = self.create_node(**kwargs)["data"]
+                node_index[h_key] = new_node["key"]
+                graph["nodes"].append(new_node)
+                return new_node["key"]
 
         for index, row in data.iterrows():
             if index != 0:
@@ -245,10 +238,22 @@ class ODB:
                 rowConfig = {}
                 for entity in model["Entities"]:
                     # The extracted entity is based on the model and mapped row value to entity attributes
-                    extractedEntity = {"class_name": entity}
+                    # If the class_name is not in the models then it should be created as a Category of an Object class
+                    if "className" in model["Entities"][entity].keys():
+                        extractedEntity = {"class_name": model["Entities"][entity]["className"], "source": etl_source}
+                    elif entity in self.models.keys():
+                        extractedEntity = {"class_name": entity, "source": etl_source}
+                    else:
+                        extractedEntity = {"class_name": "Object", "Category": entity, "source": etl_source}
                     for att in model["Entities"][entity]:
+                        # If the attribute is in the row headers then it is to be mapped otherwise it is a custom value
                         if model["Entities"][entity][att] in row.keys():
-                            extractedEntity[att] = row[model["Entities"][entity][att]]
+                            val = row[model["Entities"][entity][att]]
+                            try:
+                                clean_val = val.to_pydatetime()
+                            except:
+                                clean_val = val
+                            extractedEntity[att] = clean_val
                         else:
                             extractedEntity[att] = model["Entities"][entity][att]
                     # Check if this Entity has already been extracted and get the key.
@@ -266,6 +271,11 @@ class ODB:
                             "from": rowConfig[model["Relations"][line]["from"]],
                             "description": line,
                         })
+                    self.create_edge_new(
+                        fromNode=rowConfig[model["Relations"][line]["from"]],
+                        toNode=rowConfig[model["Relations"][line]["to"]],
+                        edgeType=line
+                    )
 
         return graph
 
@@ -1005,7 +1015,7 @@ class ODB:
         self.nodeKeys = ['class_name', 'title', 'FirstName', 'LastName', 'Gender', 'DateOfBirth', 'PlaceOfBirth',
                     'Name', 'Owner', 'Classification', 'Category', 'Latitude', 'Longitude', 'description', 'userName',
                     'EndDate', 'StartDate', 'DateCreated', 'Ext_key', 'category', 'pid', 'name', 'started', 'email',
-                    'searchValue', 'ipAddress', 'token', 'session']
+                    'searchValue', 'ipAddress', 'token', 'session', 'PhoneNumber', 'source', 'Entity']
         Return the key of the
         :param kwargs:
         :return:

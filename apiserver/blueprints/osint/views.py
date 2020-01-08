@@ -1,9 +1,10 @@
 from flask import jsonify, Blueprint, request
 from apiserver.blueprints.osint.models import OSINT
-from apiserver.utils import get_request_payload, get_datetime
+from apiserver.utils import get_request_payload, get_datetime, check_for_file
 from flask_cors import CORS
 from apiserver.blueprints.osint.shodan import Shodan
 import click
+import json
 
 # Create the blueprint and ensure CORS enabled for the webapp calls
 osint = Blueprint('osint', __name__)
@@ -331,3 +332,27 @@ def load_graph():
             "message": "Failed to process request",
             "data": None
         })
+
+
+@osint.route('/osint/graph_etl_model', methods=['POST'])
+def graph_etl_model():
+    r = get_request_payload(request)
+    file = check_for_file(request, osintserver)
+    if not file["data"]:
+        if "file" in request.form.to_dict().keys():
+            graph = osintserver.graph_etl_model(
+                json.loads(request.form.to_dict()['model']),
+                osintserver.file_to_frame(request.form.to_dict()["file"])["data"])
+        elif "file" in r.keys() and "model" in r.keys():
+            graph = osintserver.graph_etl_model(r["model"], r["file"])
+        else:
+            return jsonify(file)
+    else:
+        graph = osintserver.graph_etl_model(
+            json.loads(request.form.to_dict()['model']),
+            file["data"])
+    return jsonify({
+        "status": 200,
+        "data": graph,
+        "filename": file["data"]
+    })

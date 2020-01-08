@@ -1,7 +1,7 @@
 import json
 from flask import jsonify, Blueprint, send_file, request
 from apiserver.blueprints.home.models import ODB
-from apiserver.utils import get_request_payload, allowed_file, check_for_file, get_datetime
+from apiserver.utils import get_request_payload, check_for_file, get_datetime
 import click
 from werkzeug.utils import secure_filename
 
