@@ -43,7 +43,7 @@ class ODB:
         self.ICON_HASHTAG = "sap-icon://number-sign"
         # Keeping the nodeKeys in this order assures that matches will be checked in the same consistent string
         self.nodeKeys = ['class_name', 'title', 'FirstName', 'LastName', 'Gender', 'DateOfBirth', 'PlaceOfBirth',
-                    'Name', 'Owner', 'Classification', 'Category', 'Latitude', 'Longitude', 'description', 'userName',
+                    'Name', 'Owner', 'Classification', 'Category', 'Latitude', 'Longitude', 'userName',
                     'EndDate', 'StartDate', 'DateCreated', 'Ext_key', 'category', 'pid', 'name', 'started', 'email',
                     'searchValue', 'ipAddress', 'token', 'session', 'PhoneNumber', 'source', 'Entity']
         if not models:
@@ -1034,7 +1034,7 @@ class ODB:
         Use the nodeKeys to cycle through in sequential order and match the input attributes to build a hash string in
         the same format of previous nodes. If the node exists, return the key. Otherwise return None.
         self.nodeKeys = ['class_name', 'title', 'FirstName', 'LastName', 'Gender', 'DateOfBirth', 'PlaceOfBirth',
-                    'Name', 'Owner', 'Classification', 'Category', 'Latitude', 'Longitude', 'description', 'userName',
+                    'Name', 'Owner', 'Classification', 'Category', 'Latitude', 'Longitude', 'userName',
                     'EndDate', 'StartDate', 'DateCreated', 'Ext_key', 'category', 'pid', 'name', 'started', 'email',
                     'searchValue', 'ipAddress', 'token', 'session', 'PhoneNumber', 'source', 'Entity']
         Return the key of the
