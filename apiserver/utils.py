@@ -132,6 +132,8 @@ def change_if_number(number_string):
             return None
         if "." in str(number_string):
             return float(str(number_string))
+        if (str(number_string)[0:2] == "00" or str(number_string)[0] == "0") and len(str(number_string)) > 2:
+            return None
         else:
             return int(number_string)
     except Exception as e:
