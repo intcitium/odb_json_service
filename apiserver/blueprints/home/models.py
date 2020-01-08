@@ -266,10 +266,6 @@ class ODB:
                                 clean_val = val.to_pydatetime()
                             except:
                                 clean_val = val
-                            
-                            date_val = change_if_date(clean_val)
-                            if date_val:
-                                clean_val = date_val
 
                             extractedEntity[att] = clean_val
                         else:
