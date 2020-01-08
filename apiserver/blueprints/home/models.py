@@ -250,7 +250,7 @@ class ODB:
                     elif entity in self.models.keys():
                         extractedEntity = {"class_name": entity, "source": etl_source}
                     else:
-                        extractedEntity = {"class_name": "Object", "Category": entity, "source": etl_source}
+                        extractedEntity = {"class_name": "Object", "entity": entity, "source": etl_source}
                     # Check if there is a description, otherwise set it up to auto create a description
                     if "description" not in model["Entities"][entity]:
                         extractedEntity['description'] = ""
