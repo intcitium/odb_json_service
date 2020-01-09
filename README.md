@@ -49,7 +49,10 @@ COPILOT_URL = 'https://api.cai.tools.sap/auth/v1/owners/YOUR ACCOUNT'
 COPILOT_AUTH = 'YOUR TOKEN'
 COPILOT_DEV_TOKEN = 'Token YOUR TOKEN'
 ```
-Then run
- - sudo docker-compose up -d
+Then start the api server. You should get a message to initialize the databases.
+```javascript
+sudo docker-compose up -d
+ ```
+ Go to the db_init urls to start up the systems. Then reset the api server by stopping the and restarting the docker container.
  
 This will build the application, run it on a Gunicorn exposed on 8000. You can then set your proxy such as Nginx to direct all traffic through an SSL to serve HTTPS. This enables you to connect the JsonData service to your web applications. It returns data in a graph format with nodes, lines and groups that can be used by the SAP UI5 NetworkGraph Library.
