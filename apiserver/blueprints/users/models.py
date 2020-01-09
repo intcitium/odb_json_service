@@ -15,8 +15,6 @@ class userDB(ODB):
     def __init__(self, db_name="Users"):
         ODB.__init__(self, db_name, models=Models)
         self.db_name = db_name
-        self.osint_client = pyorient.OrientDB(HOST_IP, 2424)
-        self.osint_client.db_open("OSINT", self.user, self.pswd)
         self.ICON_SESSION = "sap-icon://activities"
         self.ICON_POST = "sap-icon://post"
         self.ICON_USER = "sap-icon://customer"
