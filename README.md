@@ -49,10 +49,28 @@ COPILOT_URL = 'https://api.cai.tools.sap/auth/v1/owners/YOUR ACCOUNT'
 COPILOT_AUTH = 'YOUR TOKEN'
 COPILOT_DEV_TOKEN = 'Token YOUR TOKEN'
 ```
-Then start the api server. You should get a message to initialize the databases.
+Then start the api server. 
 ```javascript
 sudo docker-compose up -d
  ```
- Go to the db_init urls to start up the systems. Then reset the api server by stopping the and restarting the docker container.
+You should get a message to initialize the databases.
+```javascript
+website_1  | [2020-01-09 09:40:04 +0000] [1] [INFO] Starting gunicorn 19.9.0
+website_1  | [2020-01-09 09:40:04 +0000] [1] [INFO] Listening at: http://0.0.0.0:8000 (1)
+website_1  | [2020-01-09 09:40:04 +0000] [1] [INFO] Using worker: sync
+website_1  | [2020-01-09 09:40:04 +0000] [9] [INFO] Booting worker with pid: 9
+website_1  | [2020-01-09 09:40:04 +0000] [11] [INFO] Booting worker with pid: 11
+website_1  | [2020-01-09 09:40:04 +0000] [13] [INFO] Booting worker with pid: 13
+website_1  | [2020-01-09 09:40:04 +0000] [15] [INFO] Booting worker with pid: 15
+website_1  | [2020-01-09 09:40:05_Home_init] Setup required
+website_1  | [2020-01-09 09:40:05_User_init] Setup required
+website_1  | [2020-01-09 09:40:05_Home_init] Setup required
+website_1  | [2020-01-09 09:40:05_User_init] Setup required
+website_1  | [2020-01-09 09:40:05_Home_init] Setup required
+website_1  | [2020-01-09 09:40:05_Home_init] Setup required
+website_1  | [2020-01-09 09:40:05_User_init] Setup required
+website_1  | [2020-01-09 09:40:05_User_init] Setup required
+ ```
+Go to the db_init urls to start up the systems. Then reset the api server by stopping the and restarting the docker container.
  
 This will build the application, run it on a Gunicorn exposed on 8000. You can then set your proxy such as Nginx to direct all traffic through an SSL to serve HTTPS. This enables you to connect the JsonData service to your web applications. It returns data in a graph format with nodes, lines and groups that can be used by the SAP UI5 NetworkGraph Library.
