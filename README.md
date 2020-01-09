@@ -76,4 +76,7 @@ Go to the db_init urls to start up the systems. Then reset the api server by sto
 ```javascript
     "message": "Users database created with auto users and passwords: USER 1: GeoAnalyst PSWD: 4F1vfMEsX6ZIiCQ0, USER 2: SocAnalyst PSWD: E29D3bdG2ysXBtZQ, and USER 3: HumintAnalyst PSWD: yNF0CuUCD0aEerW5 Save the passwords for future reference.
    ```
+To login as the user, you will need to confirm them with the following sql statement once you've tested the login to the User database:
+update User set confirmed = true
+
 This will build the application, run it on a Gunicorn exposed on 8000. You can then set your proxy such as Nginx to direct all traffic through an SSL to serve HTTPS. This enables you to connect the JsonData service to your web applications. It returns data in a graph format with nodes, lines and groups that can be used by the SAP UI5 NetworkGraph Library.
