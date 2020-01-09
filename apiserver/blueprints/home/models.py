@@ -9,6 +9,7 @@ import time
 import operator
 import copy
 import hashlib
+from apiserver.models import Edges as EdgeModel
 from apiserver.utils import get_datetime, HOST_IP, change_if_number, clean,\
     clean_concat, date_to_standard_string, change_if_date
 
@@ -824,12 +825,17 @@ class ODB:
         :param toNode:
         :return:
         """
-
         if fromNode and toNode:
             sql = '''
             create edge {edgeType} from {fromNode} to {toNode}
             '''.format(edgeType=edgeType, fromNode=fromNode, toNode=toNode)
-            self.client.command(sql)
+            try:
+                self.client.command(sql)
+            except Exception as e:
+                # Edges have an index to prevent the same relationship forming between the same nodes
+                if str(type(e)) != "<class 'pyorient.exceptions.PyOrientORecordDuplicatedException'>":
+                    click.echo('[%s_%s_create_edge] Error creating edge: %s \n%s' % (
+                        get_datetime(), self.db_name, str(e), sql))
         else:
             click.echo('[%s_%s_create_edge] Did not receive expected arguments' % (get_datetime(), self.db_name))
 
@@ -868,11 +874,17 @@ class ODB:
             '''.format(edgeType=kwargs['edgeType'], fromNode=kwargs['fromNode'], toNode=kwargs['toNode'],
                        fromClass=kwargs['fromClass'], toClass=kwargs['toClass'])
 
+
         try:
             self.client.command(sql)
             return True
         except Exception as e:
-            return str(e)
+            # Edges have an index to prevent the same relationship forming between the same nodes
+            if str(type(e)) != "<class 'pyorient.exceptions.PyOrientORecordDuplicatedException'>":
+                click.echo('[%s_%s_create_edge] Error creating edge: %s \n%s' % (
+                    get_datetime(), self.db_name, str(e), sql))
+            else:
+                return True
 
     def create_node(self, **kwargs):
         """
@@ -1129,6 +1141,7 @@ class ODB:
         HASH NOT UNIQUE is used for looking up Category types
         :return:
         """
+        created = True
         try:
             self.client.db_create(self.db_name, pyorient.DB_TYPE_GRAPH)
             click.echo('[%s_%s_create_db] Starting process...' % (get_datetime(), self.db_name))
@@ -1146,21 +1159,35 @@ class ODB:
                         elif (str(k)).lower() in ["category"]:
                             sql = sql + "create index %s_%s on %s (%s) NOTUNIQUE_HASH_INDEX ;\n" % (m, k, m, k)
             sql = sql + "create sequence idseq type ordered;"
-            click.echo('[%s_%s_create_db]'
-                       ' Initializing db with following batch statement'
-                       '\n***************   SQL   ***************\n'
-                       '%s\n***************   SQL   ***************\n' % (get_datetime(), self.db_name, sql))
         except Exception as e:
-            return str(e)
-
-        try:
-            self.client.batch(sql)
-            click.echo('[%s_create_db_%s] Completed process' % (get_datetime(), self.db_name))
-            self.create_text_indexes()
-            created = True
-        except Exception as e:
-            click.echo('[%s_create_db_%s] ERROR: %s' % (get_datetime(), self.db_name, str(e)))
+            click.echo('[%s_create_db_%s] ERROR with statement build: %s' % (get_datetime(), self.db_name, str(e)))
             created = False
+
+        if created:
+            try:
+                self.client.batch(sql)
+                click.echo('[%s_create_db_%s] Completed nodes' % (get_datetime(), self.db_name))
+                self.create_text_indexes()
+                created = True
+            except Exception as e:
+                click.echo('[%s_create_db_%s] ERROR with batch: %s: \n%s' % (get_datetime(), self.db_name, str(e), sql))
+                created = False
+            try:
+                click.echo('[%s_create_db_%s] Creating Edges' % (get_datetime(), self.db_name))
+                sql = ""
+                for m in EdgeModel:
+                    sql = sql + "create class %s extends %s;\n" % (m, EdgeModel[m]['class'])
+                    for k in EdgeModel[m].keys():
+                        if k != 'class':
+                            sql = sql + "create property %s.%s %s;\n" % (m, k, EdgeModel[m][k])
+                    sql = sql + "create index %s.out_in on %s (out, in) UNIQUE;\n" % (m, m)
+            except Exception as e:
+                click.echo('[%s_create_db_%s] ERROR with statement build: %s' % (get_datetime(), self.db_name, str(e)))
+            try:
+                self.client.batch(sql)
+                click.echo('[%s_create_db_%s] Completed Edges' % (get_datetime(), self.db_name))
+            except Exception as e:
+                click.echo('[%s_create_db_%s] ERROR: with batch %s:  \n%s' % (get_datetime(), self.db_name, str(e), sql))
 
         return created
 
@@ -1909,7 +1936,6 @@ class ODB:
                                 "allowLeadingWildcard": true
                               }
                     ''' % (m, m)
-                    click.echo('[%s_home_server_create_text_indexes]:\n%s' % (get_datetime(), sql))
                     self.client.command(sql)
         click.echo('[%s_home_server_create_text_indexes] Indexes complete' % (get_datetime()))
 
