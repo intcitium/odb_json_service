@@ -6,6 +6,8 @@ Install Orientdb 2.2 on the system.
 Using Docker:
 ```javascript
 sudo docker run -d --name orientdb -v /opt/orientdb/config -v /opt/orientdb/databases -v /opt/orientdb/backup -p 2424:2424 -p 2480:2480 -e ORIENTDB_ROOT_PASSWORD=<your password> orientdb:2.2.37 
+
+sudo docker run -d --name orientdb -v config_path:/opt/orientdb/config -v databases_path:/opt/orientdb/databases -v backup_path:/opt/orientdb/backup -p 2424:2424 -p 2480:2480 -e ORIENTDB_ROOT_PASSWORD=<your password> orientdb:2.2.37
 ```
 Detailed instructions at the link or follow the 2 steps below.
 https://orientdb.com/docs/last/Unix-Service.html
