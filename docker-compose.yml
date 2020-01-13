@@ -1,8 +1,20 @@
-version: '2'
+version: '3'
 
 services:
-  website:
-    build: .
+  database:
+    image: orientdb:2.2.37
+    ports:
+      - "2424:2424"
+      - "2480:2480"
+    environment:
+      ORIENTDB_ROOT_PASSWORD: 'admin'
+    volumes:
+      - "/orientdb/config:/opt/orientdb/config"
+      - "/orientdb/databases:/opt/orientdb/databases"
+      - "/orientdb/backup:/opt/orientdb/backup"
+
+  apiserver:
+    build: "./apiserver"
     command: >
       gunicorn -b 0.0.0.0:8000
         --access-logfile -
@@ -13,7 +25,8 @@ services:
     environment:
       PYTHONUNBUFFERED: 'true'
     volumes:
-      - '.:/apiserver'
+      - ".:/apiserver"
     ports:
       - '8000:8000'
-
+    depends_on:
+      - database
