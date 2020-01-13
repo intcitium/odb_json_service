@@ -9,11 +9,21 @@ STRING = "string"
 DATETIME = "datetime"
 INTEGER = "integer"
 FLOAT = "float"
+'''
+The Relationships that make up the graph based model. OUT and IN are defined as the properties that contain entity
+records and allow indexing to prevent duplicate edges between nodes.
+'''
 Edge = {
     "class": "E",
     "out": "Link",
     "in": "Link"
     }
+'''
+The Entities that make up the graph based model. Define basic common properties. The hashkey is created on the fly 
+within the Home.models.py file to hash all properties and values into a single key for comparison of uniqueness. The
+Ext_key is used for any entities that have an id otherwise already. Description is provided to all to allow for text
+search. Icon is provided for UX based rendering and title for any label also required in the UX.
+'''
 Node = {"class": "V",
         "Ext_key": STRING,
         "hashkey": STRING,
@@ -21,11 +31,22 @@ Node = {"class": "V",
         "icon": STRING,
         "title": STRING
         }
-
+'''
+All edges or relationships that will require indexing to prevent duplicate records/connections
+'''
 Edges = {
     "Discovered": Edge, "Has": Edge, "Included": Edge, "Initiated": Edge,
     "LocatedAt": Edge, "Owns": Edge, "Received": Edge, "References": Edge,
     "Tweeted": Edge, "TweetedFrom": Edge}
+'''
+Attributes that should be included to create a hashkey. Since they are created in the variable's order every time, it 
+assures that any entity with the same attributes in a different order are created into a normalized hashkey.
+'''
+nodeKeys = [
+    'class_name', 'title', 'FirstName', 'LastName', 'Gender', 'DateOfBirth', 'PlaceOfBirth',
+    'Name', 'Owner', 'Classification', 'Category', 'Latitude', 'Longitude', 'userName',
+    'EndDate', 'StartDate', 'DateCreated', 'Ext_key', 'category', 'pid', 'name', 'started', 'email',
+    'searchValue', 'ipAddress', 'token', 'session', 'PhoneNumber', 'source', 'Entity']
 
 OSINTModel = {
     "Person": dict(
@@ -318,114 +339,93 @@ OSINTModel = {
     "User": dict(
         Node,
         userName=STRING
-    ),
-}
+    )}
 
 UserModel = {
-            "User": {
-                "createDate": "datetime",
-                "userName": "string",
-                "passWord": "string",
-                "email": "string",
-                "icon": "string",
-                "confirmed": "boolean",
-                "class": "V",
-                "hashkey": "string"
-            },
-            "Message": {
-                "class": "V",
-                "text": "string",
-                "title": "string",
-                "tags": "string",
-                "sender": "string",
-                "receiver": "string",
-                "icon": "string",
-                "createDate": "datetime",
-                "hashkey": "string"
-            },
-            "Session": {
-                "user": "string",
-                "startDate": "datetime",
-                "endDate": "datetime",
-                "ipAddress": "string",
-                "token": "string",
-                "icon": "string",
-                "class": "V",
-                "hashkey": "string"
-            },
-            "Blacklist": {
-                "token": "string",
-                "user": "string",
-                "session": "string",
-                "createDate": "string",
-                "icon": "string",
-                "class": "V",
-                "hashkey": "string"
-            }
-        }
+    "User": dict(
+        Node,
+        userName=STRING,
+        passWord=STRING,
+        email=STRING,
+        MidName=STRING,
+        Gender=STRING
+    ),
+    "Message": dict(
+        Node,
+        text=STRING,
+        tags=STRING,
+        sender=STRING,
+        receiver=STRING,
+        createDate=DATETIME
+    ),
+    "Session": dict(
+        Node,
+        startDate=DATETIME,
+        endDate=DATETIME,
+        user=STRING,
+        ipAddress=STRING,
+        token=STRING
+    ),
+    "Blacklist": dict(
+        Node,
+        createDate=DATETIME,
+        user=STRING,
+        ipAddress=STRING,
+        token=STRING,
+        session=STRING,
+    )
+
+}
 
 POLEModel = {
-            "Person": {
-                "key": "integer",
-                "DateOfBirth": "datetime",
-                "PlaceOfBirth": "string",
-                "FirstName": "string",
-                "LastName": "string",
-                "MidName": "string",
-                "icon": "string",
-                "Gender": "string",
-                "class": "V",
-                "hashkey": "string"
-            },
-            "Object": {
-                "key": "integer",
-                "class": "V",
-                "Category": "string",
-                "description": "string",
-                "Tags": "string",
-                "hashkey": "string"
-            },
-            "Location": {
-                "key": "integer",
-                "class": "V",
-                "Category": "string",
-                "description": "string",
-                "Tags": "string",
-                "Latitude": "float",
-                "Longitude": "float",
-                "city": "string",
-                "pop": "integer",
-                "country": "string",
-                "iso3": "string",
-                "province": "string",
-                "hashkey": "string"
-            },
-            "Event": {
-                "class": "V",
-                "Category": "string",
-                "description": "string",
-                "Tags": "string",
-                "StartDate": "datetime",
-                "EndDate": "datetime",
-                "hashkey": "string"
-            },
-            "BaseNames": {
-                "class": "V",
-                "Name": "string",
-                "NameType" : "string",
-                "NameOrigin": "string",
-                "hashkey": "string"
-            },
-            "Case": {
-                "class": "V",
-                "Name": "string",
-                "Owners": "string",
-                "Classification": "string",
-                "StartDate": "datetime",
-                "LastUpdate": "datetime",
-                "CreatedBy": "string",
-                "Members": "string",
-                "hashkey": "string",
-                "description": "string"
-            }
-        }
+    "Person": dict(
+        Node,
+        DateOfBirth=DATETIME,
+        PlaceOfBirth=STRING,
+        FirstName=STRING,
+        LastName=STRING,
+        MidName=STRING,
+        Gender=STRING
+    ),
+    "Object": dict(
+        Node,
+        Category=STRING,
+        Tags=STRING
+    ),
+    "Location": dict(
+        Node,
+        Category=STRING,
+        Tags=STRING,
+        Latitude=FLOAT,
+        Longitude=FLOAT,
+        city=STRING,
+        pop=INTEGER,
+        country=STRING,
+        iso3=STRING,
+        province=STRING
+    ),
+    "Event": dict(
+        Node,
+        Category=STRING,
+        Tags=STRING,
+        StartDate=DATETIME,
+        EndDate=DATETIME
+    ),
+    "BaseNames": dict(
+        Node,
+        Name=STRING,
+        NameType=STRING,
+        NameOrigin=STRING
+    ),
+    "Case": dict(
+        Node,
+        Name=STRING,
+        Owners=STRING,
+        StartDate=DATETIME,
+        LastUpdate=DATETIME,
+        CreatedBy=STRING,
+        Members=STRING,
+        Classification=STRING
+    )
+}
+
