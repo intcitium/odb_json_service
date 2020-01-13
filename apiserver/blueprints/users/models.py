@@ -1,13 +1,14 @@
+"""
+User database client
+"""
 import click
-import pyorient
 from apiserver.blueprints.home.models import ODB, get_datetime
 from apiserver.models import UserModel as Models
 from apiserver.models import OSINTModel
-from apiserver.utils import SECRET_KEY, SIGNATURE_EXPIRED, BLACK_LISTED, DB_ERROR, HOST_IP, change_if_date,\
+from apiserver.utils import SECRET_KEY, SIGNATURE_EXPIRED, BLACK_LISTED, DB_ERROR, change_if_date,\
     send_mail, HTTPS, randomString, MESSAGE_OPENING, MESSAGE_CLOSING
 from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous import TimedJSONWebSignatureSerializer
-
 
 
 class userDB(ODB):
@@ -15,21 +16,22 @@ class userDB(ODB):
     def __init__(self, db_name="Users"):
         ODB.__init__(self, db_name, models=Models)
         self.db_name = db_name
-        self.ICON_SESSION = "sap-icon://activities"
-        self.ICON_POST = "sap-icon://post"
-        self.ICON_USER = "sap-icon://customer"
-        self.ICON_BLACKLIST = "sap-icon://cancel"
+        self.ICON_SESSION = "TODO"
+        self.ICON_POST = "TODO"
+        self.ICON_USER = "TODO"
+        self.ICON_BLACKLIST = "TODO"
         self.models = Models
         self.auto_users = {
-            "GeoAnalyst": self.ICON_GEOINT,
-            "SocAnalyst": self.ICON_SOCINT,
-            "HumintAnalyst": self.ICON_HUMINT
+            "GeoAnalyst": "TODO",
+            "SocAnalyst": "TODO",
+            "HumintAnalyst": "TODO"
         }
 
     def check_standard_users(self):
         """
         Sets up the initial users as channels to fill Application dependent lists. Users serve standard functions
         that can be used in various automated situations
+        TODO only the first user's password works
         :return:
         """
         users = []
@@ -43,7 +45,7 @@ class userDB(ODB):
             if au not in users:
                 click.echo('[%s_UserServer_init] Creating auto user %s' % (get_datetime(), au))
                 password = randomString(16)
-                self.create_user({
+                r = self.create_user({
                     "userName": au,
                     "email": "NetworkGraph@Support.mail",
                     "passWord": password,
@@ -54,7 +56,18 @@ class userDB(ODB):
                     message += "and USER %d: %s PSWD: %s " % (i, au, password)
                 else:
                     message += "USER %d: %s PSWD: %s, " % (i, au, password)
+            try:
+                # Test logging in with the user and password
+                sql = '''select passWord from %s''' % r['data']['key']
+                password_hash = self.client.command(sql)[0].oRecordData['passWord']
+                r = check_password_hash(password_hash, password)
+                if not r:
+                    click.echo('[%s_UserServer_init] ERROR with user creation %s' % (get_datetime(), str(e)))
+            except Exception as e:
+                click.echo('[%s_UserServer_init] ERROR with user creation %s' % (get_datetime(), str(e)))
             i += 1
+        # Auto confirm the users
+        self.client.command('''update User set confirmed = true''')
         message += "Save the passwords for future reference."
         return message
 

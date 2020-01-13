@@ -2,10 +2,12 @@ from flask import jsonify, Blueprint, request
 from apiserver.blueprints.users.models import userDB
 from apiserver.blueprints.home.models import get_datetime
 from apiserver.utils import get_request_payload
+from flask_cors import CORS
 import click
 
 # Application Route specific object instantiation
 users = Blueprint('users', __name__)
+CORS(users)
 # Case where no DB has been established from which the message returned should let the user know to run the setup API
 
 odbserver = userDB()
@@ -14,7 +16,6 @@ if init_required:
     click.echo("[%s_User_init] Setup required" % get_datetime())
 else:
     odbserver.open_db()
-    odbserver.check_standard_users()
     click.echo('[%s_UserServer_init] Complete' % (get_datetime()))
 
 

@@ -1207,82 +1207,35 @@ class ODB:
 
     def get_neighbors_index(self, nodekey=1):
         """
-        Optimize get_neighborsB with use of indexes
+        Optimize get_neighborsB with use of indexes. Use traverse to get all relations within 2 steps, or direct nodes
+        Produces a graph with nodes and lines
         :param kwargs:
         :return:
         """
-        click.echo('[%s_get_neighbors_index] Getting full node details for %s with sql:' % (get_datetime(), nodekey))
-
-        # Run the first sql to get the record
-        sql = "select *, in(), out() from %s" % nodekey
-        click.echo('[%s_get_neighbors_index] Getting the full entity' % (get_datetime()))
-        # Run the second sql to get the full entity with neighbors
-        r = self.client.command(sql)[0].oRecordData
-        node = {"in": [], "out": [], "key": nodekey}
+        sql = "TRAVERSE * from %s WHILE $depth <= 2" % nodekey
+        click.echo('[%s_get_neighbors_index] Getting the full entity %s' % (get_datetime(), nodekey))
+        # Run the first sql to get the full entity with neighbors
+        r = self.client.command(sql)
+        graph = {"nodes": [], "lines": [], "index": []}
+        # class_name determines if the line is a node or an edge
         for i in r:
-            if "pyorient." not in str(type(r[i])) and i != 'in' and i != 'out':
-                if i == "key":
-                    node[i] = int(r[i])
-                else:
-                    node[i] = r[i]
-        for i in r['in']:
-            if i.get_hash() not in node["in"]:
-                node["in"].append(i.get_hash())
-        for i in r['out']:
-            if i.get_hash() not in node["out"]:
-                node["out"].append(i.get_hash())
+            temp = i.oRecordData
+            if "class_name" in temp.keys(): # It is a node
+                node = {"key": i._rid}
+                if node['key'] not in graph['index']:
+                    for a in temp:
+                        if a[:2] != "_in" and a[:3] != "_out" and "pyorient." not in str(type(temp[a])):
+                            node[a] = temp[a]
+                    graph['nodes'].append(node)
+                    graph['index'].append(node['key'])
+            else:  # It is an edge
+                line_key = "%s%s%s" %(i._class, temp['out'].get_hash(), temp['in'].get_hash())
+                if line_key not in graph['index']:
+                    graph['index'].append(line_key)
+                    graph["lines"].append({"description": i._class, "from": temp['out'].get_hash(), "to": temp['in'].get_hash()})
 
-        # Set up the graph to fill with the IN and OUT sqls for the neighbor nodes data
-        graph = {"nodes": [], "lines": []}
-        if len(node["in"]) > 0:
-            sql = "select * from ["
-            c = 1
-            for i in node["in"]:
-                if c == len(node["in"]):
-                    sql = sql + "%s]" % i
-                else:
-                    sql = sql + "%s, " % i
-                c+=1
-            # Run the third sql to get the full attributes of the IN neighbors
-            r = self.client.command(sql)
-            for i in r:
-                o_node = {"key": i._rid, "id": i._rid, "NODE_KEY": i._rid}
-                i = i.oRecordData
-                for a in i:
-                    if "pyorient." not in str(type(i[a])):
-                        if a in ['key', 'out_References', 'in_References']:
-                            pass
-                        else:
-                            o_node[a] = i[a]
-                graph["nodes"].append(o_node)
-                graph["lines"].append({"to": nodekey, "from": o_node["key"]})
-        if len(node["out"]) > 0:
-            sql = "select * from ["
-            c = 1
-            for i in node["out"]:
-                if c == len(node["out"]):
-                    sql = sql + "%s]" % i
-                else:
-                    sql = sql + "%s, " % i
-                c += 1
-            r = self.client.command(sql)
-            for i in r:
-                # Formatted for cases of different node key names
-                o_node = {"key": i._rid, "id": i._rid, "NODE_KEY": i._rid}
-                i = i.oRecordData
-                for a in i:
-                    if "pyorient." not in str(type(i[a])):
-                        if a in ['key', 'out_References', 'in_References']:
-                            pass
-                        else:
-                            o_node[a] = i[a]
-                graph["nodes"].append(o_node)
-                graph["lines"].append({"from": nodekey, "to": o_node["key"]})
-        # Create the graph to return
-        node.pop("in")
-        node.pop("out")
-        graph["nodes"].append(node)
-        return {"message": "Got neighbors", "data": graph}
+        return {"message": "Retrieved %d neighbors for %s" % (len(graph['nodes'])-1, nodekey),  "data": graph}
+
 
     def get_node(self, class_name="V", var=None, val=None):
         """
