@@ -1,43 +1,9 @@
 # odb_json_service
-Provides API within an HTTPS environment using OrientDB 2.2 and Pyorient with OAuth, email confirmation and tokenized/timed sessions to control user access.
+Provides API within an HTTPS environment using OrientDB 2.2 and Pyorient with OAuth, email confirmation and tokenized/timed sessions to control user access. Comes with an integrated Docker image of OrientDB 2.2.37 which can be further configured with a Dockerfile and edited Docker-compose.yml to point to the multi-stage build.
 
-## OrientDB Service Setup
-Install Orientdb 2.2 on the system.
-Using Docker:
-```javascript
-sudo docker run -d --name orientdb -v /opt/orientdb/config -v /opt/orientdb/databases -v /opt/orientdb/backup -p 2424:2424 -p 2480:2480 -e ORIENTDB_ROOT_PASSWORD=<your password> orientdb:2.2.37 
+To run the service, git clone the repo and run docker-compose build to setup the container then docker-compose up to see the command line output. Otherwise, run docker-compose -d to run as a daemon service.
 
-sudo docker run -d --name orientdb -v config_path:/opt/orientdb/config -v databases_path:/opt/orientdb/databases -v backup_path:/opt/orientdb/backup -p 2424:2424 -p 2480:2480 -e ORIENTDB_ROOT_PASSWORD=<your password> orientdb:2.2.37
-```
-Detailed instructions at the link or follow the 2 steps below.
-https://orientdb.com/docs/last/Unix-Service.html
-### Create a service file
-```python
-# vi /etc/systemd/system/orientdb.service
-
-#
-# Copyright (c) OrientDB LTD (http://http://orientdb.com/)
-#
-
-[Unit]
-Description=OrientDB Server
-After=network.target
-After=syslog.target
-
-[Install]
-WantedBy=multi-user.target
-
-[Service]
-User=ORIENTDB_USER
-Group=ORIENTDB_GROUP
-ExecStart=$ORIENTDB_HOME/bin/server.sh
-```
-### Enable the service
-Then enable the service to startup on system reset
-```python
-# systemctl start orientdb.service
-```
-## API Service Setup
+# API Service Setup
 With an orientDB 2.2 set up behind an HTTPS server, modify the config.py file within the apiserver to your settings:
 ```python
 HOST_IP = "YOUR SERVER IP THAT IS EXPOSED TO THE INTERNET"
@@ -80,3 +46,41 @@ To login as the user, you will need to confirm them with the following sql state
 update User set confirmed = true
 
 This will build the application, run it on a Gunicorn exposed on 8000. You can then set your proxy such as Nginx to direct all traffic through an SSL to serve HTTPS. This enables you to connect the JsonData service to your web applications. It returns data in a graph format with nodes, lines and groups that can be used by the SAP UI5 NetworkGraph Library.
+
+## Optional centralized OrientDB Service Setup
+Install Orientdb 2.2 on the system.
+Using Docker:
+```javascript
+sudo docker run -d --name orientdb -v /opt/orientdb/config -v /opt/orientdb/databases -v /opt/orientdb/backup -p 2424:2424 -p 2480:2480 -e ORIENTDB_ROOT_PASSWORD=<your password> orientdb:2.2.37 
+
+sudo docker run -d --name orientdb -v config_path:/opt/orientdb/config -v databases_path:/opt/orientdb/databases -v backup_path:/opt/orientdb/backup -p 2424:2424 -p 2480:2480 -e ORIENTDB_ROOT_PASSWORD=<your password> orientdb:2.2.37
+```
+Detailed instructions at the link or follow the 2 steps below.
+https://orientdb.com/docs/last/Unix-Service.html
+### Create a service file
+```python
+# vi /etc/systemd/system/orientdb.service
+
+#
+# Copyright (c) OrientDB LTD (http://http://orientdb.com/)
+#
+
+[Unit]
+Description=OrientDB Server
+After=network.target
+After=syslog.target
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+User=ORIENTDB_USER
+Group=ORIENTDB_GROUP
+ExecStart=$ORIENTDB_HOME/bin/server.sh
+```
+### Enable the service
+Then enable the service to startup on system reset
+```python
+# systemctl start orientdb.service
+```
+
