@@ -14,7 +14,7 @@ services:
       - "/orientdb/backup:/opt/orientdb/backup"
 
   apiserver:
-    build: "./apiserver"
+    build: "."
     command: >
       gunicorn -b 0.0.0.0:8000
         --access-logfile -
