@@ -1143,7 +1143,7 @@ class ODB:
                                 or (self.db_name == "Users" and str(k).lower == "username")\
                                 or (m == "Case" and k == "Name"):
                             sql = sql + "create index %s_%s on %s (%s) UNIQUE_HASH_INDEX ;\n" % (m, k, m, k)
-                        elif (str(k)).lower() in ["category"]:
+                        elif (str(k)).lower() in ["category", "screen_name"]:
                             sql = sql + "create index %s_%s on %s (%s) NOTUNIQUE_HASH_INDEX ;\n" % (m, k, m, k)
             sql = sql + "create sequence idseq type ordered;"
         except Exception as e:
