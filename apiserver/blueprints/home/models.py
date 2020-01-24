@@ -130,59 +130,36 @@ class ODB:
             return file
         else:
             file = file["data"]
-        check = self.file_type_check(file.keys())
+        check = self.check_file_type(file.keys())
         check["size"] = str(os.stat(os.path.join(self.datapath, filename)).st_size) + " bytes"
         check["source"] = filename
-        if check["score"] > .9999:
-            click.echo(check["name"])
-            click.echo(self.maps[check["name"]])
-            '''
-            data = self.graph_etl_model({
-                "Name": check["name"],
-                "Entities": self.maps[check["name"]]["model"]["Entities"],
-                "Relations": self.maps[check["name"]]["model"]["Relations"],
-            }, file)
-            '''
-            if check["name"] == 'eppm':
-                data = self.graph_eppm_nodes(file)
-            return {
-                "data": data,
-                "ftype": check,
-                "message": "Uploaded file with file type model %s." % (check["name"])
-            }
-        elif check["score"] > 0:
-            # Can check if the file run against the model works but do so with a try to return the result
+        if check["score"] > 0:
             try:
-                data = self.graph_eppm(file)
-                message = "Uploaded file with model type %s." % (check["name"])
-                return {
+                click.echo(check["name"])
+                click.echo(self.maps[check["name"]])
+                data = self.graph_etl_model(model=check["model"], data=file)
+                result = {
                     "data": data,
                     "ftype": check,
-                    "message": message
+                    "message": "Uploaded file with file type model %s." % (check["name"])
                 }
             except Exception as e:
-                message = "Attempted with %s file type model but file is missing %s" % (
-                    check["name"], str(e)
-                )
-                return {
+                result = {
                     "headers": list(file.columns),
                     "data": file.sample(n=10).fillna(value="null").to_dict(),
                     "ftype": check,
-                    "message": message
-            }
-        elif "eppm" in check["source"]:
-            data = self.graph_eppm_lines(file)
-            #data = self.graph_hier(file)
-            return data
+                    "message": "Attempted with %s file type model but file is missing %s" % (check["name"], str(e))
+                }
         else:
-            return {
+            result = {
                 "data": file.sample(n=10).fillna(value="null").to_dict(),
                 "headers": list(file.columns),
                 "ftype": check,
                 "message": "Could not identify the file type. Prepared %s for configuration." % (filename)
             }
+        return result
 
-    def graph_etl_model(self, model, data):
+    def graph_etl_model(self, model=None, data=None):
         """
         The model should be a dictionary containing all the entities and their attributes. The attributes are mapped
         to headers within the data which is expected to be in a tabular format.
@@ -197,107 +174,110 @@ class ODB:
                 HasColor: {from: Animal, to: Color}
 
         Includes a function for etl processing of node
-        Includes checking if the model is saved for file_type_check and then calling that model
+        Includes checking if the model is saved for check_file_type and then calling that model
 
         :param model:
         :param data:
         :return:
         """
-        self.save_model_to_map(model)
-        etl_source = model['Name']
-        node_index = {}
         graph = {"nodes": [], "lines": [], "n_index": []}
-        # Ensure the data received is changed into a DataFrame if it is not already
-        if str(type(data)) != "<class 'pandas.core.frame.DataFrame'>":
-            file = self.file_to_frame(data)
-            if str(type(file["data"])) != "<class 'pandas.core.frame.DataFrame'>":
-                return file
-            else:
-                data = file["data"]
+        if model:
+            # Save the model which should return a response of False if the model is new in which case there
+            self.save_model_to_map(model)
+            etl_source = model['Name']
+            node_index = {}
 
-        def get_key(**kwargs):
-            """
-            Handles node creation based on the local node_index and the local create_node function.
-            The node expects an icon and class_name (EntityType)
-            expects an Icon with a key but if there is none it will create it
-            :param kwargs:
-            :return:
-            """
-            # Check if it has been created based on attributes and return the corresponding key or create a new node
-            h_key = self.hash_node(kwargs)
-            if h_key in node_index.keys():
-                return node_index[h_key]
-            else:
-                try:
-                    new_node = self.create_node(**kwargs)["data"]
-                    node_index[h_key] = new_node["key"]
-                    graph["nodes"].append(new_node)
-                    return new_node["key"]
-                except Exception as e:
-                    print(str(e))
-                    return None
+            # Ensure the data received is changed into a DataFrame if it is not already
+            if str(type(data)) != "<class 'pandas.core.frame.DataFrame'>":
+                file = self.file_to_frame(data)
+                if str(type(file["data"])) != "<class 'pandas.core.frame.DataFrame'>":
+                    return file
+                else:
+                    data = file["data"]
 
-        for index, row in data.iterrows():
+            def get_key(**kwargs):
+                """
+                Handles node creation based on the local node_index and the local create_node function.
+                The node expects an icon and class_name (EntityType)
+                expects an Icon with a key but if there is none it will create it
+                :param kwargs:
+                :return:
+                """
+                # Check if it has been created based on attributes and return the corresponding key or create a new node
+                h_key = self.hash_node(kwargs)
+                if h_key in node_index.keys():
+                    return node_index[h_key]
+                else:
+                    try:
+                        new_node = self.create_node(**kwargs)["data"]
+                        node_index[h_key] = new_node["key"]
+                        graph["nodes"].append(new_node)
+                        return new_node["key"]
+                    except Exception as e:
+                        print(str(e))
+                        return None
 
-            if index != 0:
-                # Based on the entities in the model, get IDs that can be used to create relationships
-                rowConfig = {}
-                badRow = False
-                for entity in model["Entities"]:
-                    # The extracted entity is based on the model and mapped row value to entity attributes
-                    # If the class_name is not in the models then it should be created as a Category of an Object class
-                    if "className" in model["Entities"][entity].keys():
-                        extractedEntity = {"class_name": model["Entities"][entity]["className"], "source": etl_source}
-                    elif entity in self.models.keys():
-                        extractedEntity = {"class_name": entity, "source": etl_source}
-                    else:
-                        extractedEntity = {"class_name": "Object", "entity": entity, "source": etl_source}
-                    # Check if there is a description, otherwise set it up to auto create a description
-                    if "description" not in model["Entities"][entity]:
-                        extractedEntity['description'] = ""
-                        autoDescribe = True
-                    else:
-                        autoDescribe = False
-                    for att in model["Entities"][entity]:
-                        # If the attribute is in the row headers then it is to be mapped otherwise it is a custom value
+            for index, row in data.iterrows():
 
-                        if model["Entities"][entity][att] in row.keys():
-                            val = row[model["Entities"][entity][att]]
-                            try:
-                                clean_val = val.to_pydatetime()
-                            except:
-                                clean_val = val
-
-                            extractedEntity[att] = clean_val
+                if index != 0:
+                    # Based on the entities in the model, get IDs that can be used to create relationships
+                    rowConfig = {}
+                    badRow = False
+                    for entity in model["Entities"]:
+                        # The extracted entity is based on the model and mapped row value to entity attributes
+                        # If the class_name is not in the models then it should be created as a Category of an Object class
+                        if "className" in model["Entities"][entity].keys():
+                            extractedEntity = {"class_name": model["Entities"][entity]["className"], "source": etl_source}
+                        elif entity in self.models.keys():
+                            extractedEntity = {"class_name": entity, "source": etl_source}
                         else:
-                            extractedEntity[att] = model["Entities"][entity][att]
-                            clean_val = model["Entities"][entity][att]
-                        if autoDescribe:
-                            clean_val = date_to_standard_string(clean_val)
-                            extractedEntity['description'] = extractedEntity['description'] + str(clean_val) + " "
-                    # Check if this Entity has already been extracted and get the key.
-                    # The function also adds the entity to the graph which will be exported
-                    exEntityKey = get_key(**extractedEntity)
-                    if not exEntityKey:
-                        badRow = True
-                    if exEntityKey in graph["n_index"]:
-                        graph["n_index"].append(exEntityKey)
-                    # Add the entity key to its spot within the mapping configuration so the lines can be built
-                    rowConfig[entity] = exEntityKey
-                if not badRow:
-                    # Use the entity names that are saved into the relation to and from to assign the row config entity key
-                    for line in model["Relations"]:
-                        if({"to": rowConfig[model["Relations"][line]["to"]], "from": rowConfig[model["Relations"][line]["from"]], "description": line }) not in graph["lines"]:
-                            graph["lines"].append({
-                                "to": rowConfig[model["Relations"][line]["to"]],
-                                "from": rowConfig[model["Relations"][line]["from"]],
-                                "description": line,
-                            })
-                        self.create_edge_new(
-                            fromNode=rowConfig[model["Relations"][line]["from"]],
-                            toNode=rowConfig[model["Relations"][line]["to"]],
-                            edgeType=line
-                        )
+                            extractedEntity = {"class_name": "Object", "entity": entity, "source": etl_source}
+                        # Check if there is a description, otherwise set it up to auto create a description
+                        if "description" not in model["Entities"][entity]:
+                            extractedEntity['description'] = ""
+                            autoDescribe = True
+                        else:
+                            autoDescribe = False
+                        for att in model["Entities"][entity]:
+                            # If the attribute is in the row headers then it is to be mapped otherwise it is a custom value
+
+                            if model["Entities"][entity][att] in row.keys():
+                                val = row[model["Entities"][entity][att]]
+                                try:
+                                    clean_val = val.to_pydatetime()
+                                except:
+                                    clean_val = val
+
+                                extractedEntity[att] = clean_val
+                            else:
+                                extractedEntity[att] = model["Entities"][entity][att]
+                                clean_val = model["Entities"][entity][att]
+                            if autoDescribe:
+                                clean_val = date_to_standard_string(clean_val)
+                                extractedEntity['description'] = extractedEntity['description'] + str(clean_val) + " "
+                        # Check if this Entity has already been extracted and get the key.
+                        # The function also adds the entity to the graph which will be exported
+                        exEntityKey = get_key(**extractedEntity)
+                        if not exEntityKey:
+                            badRow = True
+                        if exEntityKey in graph["n_index"]:
+                            graph["n_index"].append(exEntityKey)
+                        # Add the entity key to its spot within the mapping configuration so the lines can be built
+                        rowConfig[entity] = exEntityKey
+                    if not badRow:
+                        # Use the entity names that are saved into the relation to and from to assign the row config entity key
+                        for line in model["Relations"]:
+                            if({"to": rowConfig[model["Relations"][line]["to"]], "from": rowConfig[model["Relations"][line]["from"]], "description": line }) not in graph["lines"]:
+                                graph["lines"].append({
+                                    "to": rowConfig[model["Relations"][line]["to"]],
+                                    "from": rowConfig[model["Relations"][line]["from"]],
+                                    "description": line,
+                                })
+                            self.create_edge_new(
+                                fromNode=rowConfig[model["Relations"][line]["from"]],
+                                toNode=rowConfig[model["Relations"][line]["to"]],
+                                edgeType=line
+                            )
 
         return graph
 
@@ -786,34 +766,41 @@ class ODB:
 
         return node_id
 
-    def file_type_check(self, key_list):
+    def check_file_type(self, key_list):
         """
         Expects a set of keys to compare to the known keys.
         Compares the lists to return the file type with the max score
         :param key_list:
         :return:
         """
-        key_list = [x.lower().replace(' ', '') for x in key_list.to_list()]
+        key_list = [x.replace(' ', '') for x in key_list.to_list()]
         score = {}
         for ftype in self.maps:
             score[ftype] = 0
             for k in key_list:
+                # First score for each same key between  map headers and model attributes
                 if k in self.maps[ftype]["headers"]:
                     score[ftype]+=1
+        # Set up a new dictionary for just the final scores
+        final_score = {}
         for ftype in score:
             if score[ftype] > 0:
-                score[ftype] = len(key_list) / len(self.maps[ftype]["headers"])
-        ftype = max(score.items(), key=operator.itemgetter(1))[0]
-        if score[ftype] == 0:
+                # Then score for the file type by length comparison
+                final_score[ftype] = score[ftype] - abs(len(key_list)-len(self.maps[ftype]["headers"]))
+        # Check if there are any final candidates
+        if len(final_score.keys()) > 0:
+            ftype = max(final_score.items(), key=operator.itemgetter(1))
+            check = {
+                "name": ftype[0],
+                "score": abs(ftype[1]),
+                "model": {"Name": ftype[0]}
+            }
+            check["model"].update(self.maps[ftype[0]])
+        else:
+            # There are no candidates
             check = {
                 "name": None,
                 "score": 0
-            }
-        # Divide the length of the key_list with the length of the ftype.keys to return a probability rather than integer
-        else:
-            check = {
-                "name": ftype,
-                "score": score[ftype]
             }
         return check
 
@@ -1152,7 +1139,7 @@ class ODB:
                     if k != 'class':
                         sql = sql+"create property %s.%s %s;\n" % (m, k, self.models[m][k])
                         # Custom rules for establishing indexing
-                        if (str(k)).lower() in ["key", "id", "uid", "userid", "hashkey", "ext_key", "screen_name"] \
+                        if (str(k)).lower() in ["key", "id", "uid", "userid", "hashkey", "ext_key"] \
                                 or (self.db_name == "Users" and str(k).lower == "username")\
                                 or (m == "Case" and k == "Name"):
                             sql = sql + "create index %s_%s on %s (%s) UNIQUE_HASH_INDEX ;\n" % (m, k, m, k)
