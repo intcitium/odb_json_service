@@ -1217,11 +1217,11 @@ class OSINT(ODB):
                         if t["user"]["location"] != "":
                             Location = get_location(t["user"]["location"], self)
                             if Location:
-                                if Location["key"] not in index:
-                                    index.append(Location["key"])
-                        if Location:
-                            self.create_edge_new(edgeType="LocatedAt", fromNode=twt_node, toNode=Location["key"]
-                            )
+                                if "key" in Location.keys():
+                                    if Location["key"] not in index:
+                                        index.append(Location["key"])
+                                    self.create_edge_new(edgeType="LocatedAt", fromNode=twt_node, toNode=Location["key"])
+
                     # Else get the user_node
                     else:
                         usr_node = self.OSINT_index["Profile"][user_id]
