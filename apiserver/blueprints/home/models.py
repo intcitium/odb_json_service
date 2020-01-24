@@ -5,7 +5,7 @@ import click
 import pandas as pd
 import numpy as np
 import os
-import time
+import time, datetime
 import operator
 import copy
 import hashlib
@@ -962,6 +962,30 @@ class ODB:
         # Start the SQL based on the hashkey
         labels = "(hashkey"
         values = "('%s'" % hash_key
+        # Normalize Timeseries data to StartDate and EndDate
+        # Check how many date attributes are in the node if there is no startDate and endDate
+        if "StartDate" not in node_prep.keys() and "EndDate" not in node_prep.keys():
+            date_data = []
+            for k in node_prep:
+                if str(type(node_prep[k])) == "<class 'str'>":
+                    isdate = change_if_date(node_prep[k])
+                    if isdate:
+                        date_data.append(date_to_standard_string(isdate))
+            # Order the dates and set the first one as StartDate if there is no StartDate and last as EndDate if there is no
+            if len(date_data) >= 1:
+                datetimes = []
+                for dt in date_data:
+                    datetimes.append(datetime.datetime.strptime(dt, "%Y-%m-%d %H:%M:%S"))
+                datetimes.sort()
+                if len(datetimes) == 1:
+                    # Then it only has a start time, so add an end time 60 seconds later
+                    node_prep["StartDate"] = datetimes[0].strftime("%Y-%m-%d %H:%M:%S")
+                    node_prep["EndDate"] = (datetimes[0] + datetime.timedelta(0,60)).strftime("%Y-%m-%d %H:%M:%S")
+                else:
+                    #
+                    node_prep["StartDate"] = date_data[0]
+                    node_prep["EndDate"] = date_data[len(date_data)-1]
+
         for k in node_prep.keys():
             if list(node_prep.keys())[-1] == k:
                 # Close the labels and values with a ')'
