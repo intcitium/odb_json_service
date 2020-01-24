@@ -100,6 +100,8 @@ OSINTModel = {
         OtherNames=STRING,
         Posts=INTEGER,
         DateCreated=DATETIME,
+        StartDate=DATETIME,
+        EndDate=DATETIME,
         Source=STRING,
         url=STRING,
     ),
@@ -138,6 +140,7 @@ OSINTModel = {
         Owners=STRING,
         StartDate=DATETIME,
         LastUpdate=DATETIME,
+        EndDate=DATETIME,
         CreatedBy=STRING,
         Members=STRING,
         Classification=STRING
@@ -166,7 +169,9 @@ OSINTModel = {
         source=STRING,
         type=STRING,
         revoked=STRING,
-        objective=STRING
+        objective=STRING,
+        StartDate=DATETIME,
+        EndDate=DATETIME
     ),
     "CourseOfAction": dict(
         Node,
@@ -205,7 +210,7 @@ OSINTModel = {
         type=STRING,
         revoked=STRING,
         valid_from=DATETIME,
-        valid_until=DATETIME,
+        valid_until=DATETIME
     ),
     "IntrusionSet": dict(
         Node,
@@ -222,7 +227,9 @@ OSINTModel = {
         secondary_motivations=STRING,
         source=STRING,
         type=STRING,
-        revoked=STRING
+        revoked=STRING,
+        StartDate=DATETIME,
+        EndDate=DATETIME
     ),
     "Malware": dict(
         Node,
@@ -247,7 +254,9 @@ OSINTModel = {
         objects=STRING,
         source=STRING,
         type=STRING,
-        revoked=STRING
+        revoked=STRING,
+        StartDate=DATETIME,
+        EndDate=DATETIME
     ),
     "Report": dict(
         Node,
@@ -259,7 +268,9 @@ OSINTModel = {
         published=DATETIME,
         source=STRING,
         type=STRING,
-        revoked=STRING
+        revoked=STRING,
+        StartDate=DATETIME,
+        EndDate=DATETIME
     ),
     "Sighting": dict(
         Node,
@@ -276,7 +287,9 @@ OSINTModel = {
         where_sighted_refs=STRING,
         source=STRING,
         type=STRING,
-        revoked=STRING
+        revoked=STRING,
+        StartDate=DATETIME,
+        EndDate=DATETIME
     ),
     "ThreatActor": dict(
         Node,
@@ -295,7 +308,9 @@ OSINTModel = {
         secondary_motivations=STRING,
         source=STRING,
         type=STRING,
-        revoked=STRING
+        revoked=STRING,
+        StartDate=DATETIME,
+        EndDate=DATETIME
     ),
     "Tool": dict(
         Node,
@@ -327,7 +342,9 @@ OSINTModel = {
         started=DATETIME,
         ended=DATETIME,
         pid=STRING,
-        summary=STRING
+        summary=STRING,
+        StartDate=DATETIME,
+        EndDate=DATETIME
     ),
     "Monitor": dict(
         Node,
