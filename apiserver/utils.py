@@ -147,7 +147,7 @@ def change_if_number(number_string):
 
 def date_to_standard_string(date):
     try:
-        return date.strftime("%Y-%m-%dT%H:%M:%S")
+        return date.strftime("%Y-%m-%d %H:%M:%S")
     except:
         return date
 
