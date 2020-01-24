@@ -1,18 +1,6 @@
 version: '3'
 
 services:
-  database:
-    image: orientdb:2.2.37
-    ports:
-      - "2424:2424"
-      - "2480:2480"
-    environment:
-      ORIENTDB_ROOT_PASSWORD: 'admin'
-    volumes:
-      - "/orientdb/config:/opt/orientdb/config"
-      - "/orientdb/databases:/opt/orientdb/databases"
-      - "/orientdb/backup:/opt/orientdb/backup"
-
   apiserver:
     build: "."
     command: >
@@ -28,5 +16,3 @@ services:
       - ".:/apiserver"
     ports:
       - '8000:8000'
-    depends_on:
-      - database
