@@ -356,3 +356,13 @@ def graph_etl_model():
         "data": graph,
         "filename": file["data"]
     })
+
+
+@osint.route('/osint/create_node', methods=['POST'])
+def create_node():
+    r = get_request_payload(request)
+    message = osintserver.create_node(**r)
+    return jsonify({
+        "status": 200,
+        "data": message
+    })

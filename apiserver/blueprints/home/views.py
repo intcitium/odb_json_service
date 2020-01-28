@@ -115,6 +115,7 @@ def file_to_graph():
             "filename": file["data"]
         })
 
+
 @home.route('/refresh_hier', methods=['GET'])
 def refresh_hier():
     graph = odbserver.file_to_graph("eppm_hier.xlsx")
@@ -122,6 +123,7 @@ def refresh_hier():
         "status": 200,
         "data": graph
     })
+
 
 @home.route('/get_eppm', methods=['GET'])
 def get_eppm():
