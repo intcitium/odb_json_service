@@ -366,3 +366,13 @@ def create_node():
         "status": 200,
         "data": message
     })
+
+
+@osint.route('/osint/create_edge', methods=['POST'])
+def create_edge():
+    r = get_request_payload(request)
+    message = osintserver.create_edge_new(**r)
+    return jsonify({
+        "status": 200,
+        "data": message
+    })
