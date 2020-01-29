@@ -5,6 +5,7 @@ import click
 import pandas as pd
 import numpy as np
 import os
+import csv
 import time, datetime
 import operator
 import copy
@@ -1202,6 +1203,7 @@ class ODB:
 
         return created
 
+
     def open_db(self):
         """
         Open the Database for use by establishing the client session based on the user and password. If it doesn't exist
@@ -1902,4 +1904,5 @@ class ODB:
                     ''' % (m, m)
                     self.client.command(sql)
         click.echo('[%s_home_server_create_text_indexes] Indexes complete' % (get_datetime()))
+
 

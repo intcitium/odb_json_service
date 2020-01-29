@@ -170,7 +170,7 @@ class OSINT(ODB):
         i = 0
         for m in self.models.keys():
             sql = sql + '''
-            $%s = (SELECT @rid as key, title, @class, Ext_key FROM %s WHERE [description] LUCENE "(%s)" LIMIT 10),\n
+            $%s = (SELECT @rid as key, @class, * FROM %s WHERE [description] LUCENE "(%s)" LIMIT 10),\n
             ''' % (m[0:4].lower(), m, lucene_q)
             union = union + "$%s" % m[0:4].lower()
             if i != len(self.models.keys())-1:
@@ -188,6 +188,19 @@ class OSINT(ODB):
             r = []
         suggestionItems = []
         for i in r:
+            s_item = {"ATTRIBUTES": [{}]}
+            for att in i.oRecordData:
+                if att == "key":
+                    s_item["NODE_KEY"] = i.oRecordData[att].get_hash()
+                elif att == "class":
+                    s_item["NODE_TYPE"] = i.oRecordData[att]
+                elif att == "title":
+                    s_item["NODE_NAME"] = i.oRecordData[att]
+                elif att[0:4] != "out_" and att[0:3] != "in_":
+                    s_item["ATTRIBUTES"][0][att] = i.oRecordData[att]
+
+            suggestionItems.append(s_item)
+            '''   
             try:
                 suggestionItems.append({
                     "NODE_KEY": i.oRecordData["key"].get_hash(),
@@ -207,6 +220,7 @@ class OSINT(ODB):
                         "NODE_TYPE": i.oRecordData["class"],
                         "NODE_NAME": "Unknown title for " + i.oRecordData["class"]
                     })
+                    '''
 
         return suggestionItems
 
