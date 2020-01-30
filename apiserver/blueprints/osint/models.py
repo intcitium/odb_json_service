@@ -188,15 +188,24 @@ class OSINT(ODB):
             r = []
         suggestionItems = []
         for i in r:
-            s_item = {"ATTRIBUTES": [{}]}
+            s_item = {
+                "NODE_KEY": i.oRecordData["key"].get_hash(),
+                "NODE_TYPE": i.oRecordData["class"],
+                "ATTRIBUTES": [{}]
+            }
+            if "Category" in i.oRecordData.keys():
+                s_item["NODE_NAME"] = i.oRecordData["Category"]
+            elif "FirstName" in i.oRecordData.keys() and "LastName" in i.oRecordData.keys():
+                s_item["NODE_NAME"] = i.oRecordData["FirstName"] + " " + i.oRecordData["LastName"]
+            elif "title" in i.oRecordData.keys():
+                s_item["NODE_NAME"] = i.oRecordData["title"]
+            elif "description" in i.oRecordData.keys():
+                s_item["NODE_NAME"] = i.oRecordData['description'][:24] + "..."
+            else:
+                s_item["NODE_NAME"] = i.oRecordData["NODE_TYPE"] + " " + i.oRecordData["NODE_KEY"]
             for att in i.oRecordData:
-                if att == "key":
-                    s_item["NODE_KEY"] = i.oRecordData[att].get_hash()
-                elif att == "class":
-                    s_item["NODE_TYPE"] = i.oRecordData[att]
-                elif att == "title":
-                    s_item["NODE_NAME"] = i.oRecordData[att]
-                elif att[0:4] != "out_" and att[0:3] != "in_":
+                # Ensure no edges or duplicates of key and class are ncluded
+                if att not in ["key", "class"] and att[0:4] != "out_" and att[0:3] != "in_":
                     s_item["ATTRIBUTES"][0][att] = i.oRecordData[att]
 
             suggestionItems.append(s_item)
