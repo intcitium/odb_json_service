@@ -1760,6 +1760,8 @@ class ODB:
                     pass
                 elif "id" in n.keys():
                     n["key"] = n["id"]
+                elif "node" in n.keys():
+                    n = n["node"]
                 else:
                     print(n)
                 if n['key'] not in current_nodes:
@@ -1779,6 +1781,9 @@ class ODB:
                             for a in n['attributes']:
                                 keys_to_compare.append(a['label'])
                         n['class_name'] = self.key_comparison(keys_to_compare)
+                    elif "class_name" in n.keys():
+                        if not n["class_name"]:
+                            n["class_name"] = "Object"
                     elif 'entityType' in n.keys():
                         n['class_name'] = n['entityType']
                     # Save the class name for use in the relationship since it is otherwise buried in the attributes
