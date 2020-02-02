@@ -1720,6 +1720,8 @@ class ODB:
             case = self.create_node(
                 class_name="Case",
                 Name=clean(kwargs["graphName"]),
+                title=clean(kwargs["graphName"]),
+                icon="sap-icon://work-history",
                 CreatedBy=clean(kwargs["CreatedBy"]),
                 Owners=ownersString,
                 Members=membersString,
