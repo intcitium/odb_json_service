@@ -1771,7 +1771,7 @@ class ODB:
                     except:
                         n['class_name'] = self.get_node_att(n, 'class_name')
                     # Get the class_name required for creating a node. Cases where the entityType is used replaces class_name
-                    if not n['class_name'] and not n['entityType']:
+                    if "class_name" not in n.keys() and "entityType" not in n.keys():
                         keys_to_compare = []
                         for k in n.keys():
                             keys_to_compare.append(k)
