@@ -1211,6 +1211,7 @@ class OSINT(ODB):
                                 {"label": "Image", "value": t['user']['profile_image_url_https']},
                                 {"label": "Verified", "value": t['user']['verified']},
                                 {"label": "Ext_key", "value": user_id},
+                                {"label": "url", "value": t['user']['url']},
                                 {"label": "Source", "value": "Twitter"}
                             ]
                         }
