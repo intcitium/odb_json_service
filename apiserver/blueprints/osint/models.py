@@ -1083,8 +1083,22 @@ class OSINT(ODB):
                 # Check if the tweet is in the OSINT index. If not add the record
                 twt_id = "TWT_%s" % t['id']
                 hash_tags_str = ""
+                url = None
                 if twt_id not in self.OSINT_index["Post"].keys():
                     new_tweets+=1
+                    try:
+                        if len(t['entities']['urls']) == 0:
+                            if 'retweeted_status' in t.keys():
+                                if len(t['retweeted_status']['entities']['urls']) > 0:
+                                    url = t['retweeted_status']['entities']['urls'][0]['url']
+                            elif 'extended_entities' in t.keys():
+                                url = t['extended_entities']['media'][0]['url']
+                        else:
+                            url = t['entities']['urls'][0]['url']
+                    except:
+                        click.echo(
+                            '[%s_OSINT_graph_twitter] Could not get url from %s' % (get_datetime(), t))
+
                     node = {
                         "class_name": "Post",
                         "title": "Tweet from " + t['user']['name'],
@@ -1099,7 +1113,7 @@ class OSINT(ODB):
                             {"label": "Language", "value": t['lang']},
                             {"label": "Re_message", "value": t['retweet_count']},
                             {"label": "Favorite", "value": t['favorite_count']},
-                            {"label": "URL", "value": t['source']},
+                            {"label": "url", "value": url},
                             {"label": "Geo", "value": t['coordinates']},
                             {"label": "Hashtags", "value": hash_tags_str},
                             {"label": "Screen_name", "value": t['user']['screen_name'].lower()},
