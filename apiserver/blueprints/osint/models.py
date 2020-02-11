@@ -1257,6 +1257,7 @@ class OSINT(ODB):
                         {"label": "Location", "value": kwargs['user']['location']},
                         {"label": "Image", "value": kwargs['user']['profile_image_url_https']},
                         {"label": "Verified", "value": kwargs['user']['verified']},
+                        {"label": "url", "value": kwargs['user']['url']},
                         {"label": "Ext_key", "value": user_id},
                         {"label": "Source", "value": "Twitter"}
                     ]
