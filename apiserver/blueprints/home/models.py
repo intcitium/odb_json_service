@@ -976,7 +976,10 @@ class ODB:
             if len(date_data) >= 1:
                 datetimes = []
                 for dt in date_data:
-                    datetimes.append(datetime.datetime.strptime(dt, "%Y-%m-%d %H:%M:%S"))
+                    try:
+                        datetimes.append(datetime.datetime.strptime(dt, "%Y-%m-%d %H:%M:%S"))
+                    except:
+                        datetime.datetime.strptime(get_datetime(), "%Y-%m-%d %H:%M:%S")
                 datetimes.sort()
                 if len(datetimes) == 1:
                     # Then it only has a start time, so add an end time 60 seconds later
