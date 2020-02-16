@@ -153,6 +153,20 @@ def get_suggestion_items():
     })
 
 
+@osint.route('/osint/get_shortest_path', methods=['POST'])
+def get_shortest_path():
+    '''
+    Base route for merging nodes
+    :return:
+    '''
+    r = get_request_payload(request)
+    return jsonify({
+        "status": 200,
+        "message": "Shortest path conducted",
+        "data": osintserver.get_shortest_path(**r)
+    })
+
+
 @osint.route('/osint/get_neighbors_index', methods=['POST'])
 def get_neighbors_index():
     '''

@@ -615,10 +615,17 @@ class OSINT(ODB):
 
     def create_monitor(self, searchValue="vulnerability", userName="SocAnalyst", name="Twitter", type="Search", description="hashtag"):
         '''
-
-        insert into Monitor (key, name, searchValue, type, user, description) values (sequence('idseq').next(), "Twitter", null, "Channel", "SocAnalyst", "Hashtags, User timelines, and location based search") return @this.key
-        insert into Monitor (key, name, searchValue, type, user, description) values (sequence('idseq').next(), "Twitter", "vulnerability", "Search", "SocAnalyst", "hashtag") return @this.key
-        insert into Monitor (key, name, searchValue, type, user, description) values (sequence('idseq').next(), "Twitter", "realDonaldTrump", "Search", "SocAnalyst", "user") return @this.key
+        A Monitor consists of a channel and a searchterm. For example, Twitter can be a channel and vulnerability can be
+        the search term. The Monitor is SubscribedTo by a user. When creating a monitor, the function first checks if a
+        user exists in the DB with that name. If not a representation is created of the user and then the same is checked
+        for the monitor channel. Last, the search term is checked and once all entities have been created if they didn't
+        exist already, the relations are created to ensure the user gets updates from the monitor.
+        insert into Monitor (key, name, searchValue, type, user, description) values (sequence('idseq').next(),
+            "Twitter", null, "Channel", "SocAnalyst", "Hashtags, User timelines, and location based search") return @this.key
+        insert into Monitor (key, name, searchValue, type, user, description) values (sequence('idseq').next(),
+            "Twitter", "vulnerability", "Search", "SocAnalyst", "hashtag") return @this.key
+        insert into Monitor (key, name, searchValue, type, user, description) values (sequence('idseq').next(),
+            "Twitter", "realDonaldTrump", "Search", "SocAnalyst", "user") return @this.key
 
         :param kwargs:
         :return:

@@ -1915,4 +1915,47 @@ class ODB:
                     self.client.command(sql)
         click.echo('[%s_home_server_create_text_indexes] Indexes complete' % (get_datetime()))
 
+    def get_shortest_path(self, start_node=None, target_node=None):
+        """
+        Run 2 queries. The first query get the vertecies that make up the shortest path.
+        The second query gets all the edges so the function can determine the appropriate path
+        :param start_node:
+        :param target_node:
+        :return:
+        """
+        sql = '''SELECT expand(shortestPath(%s, %s))''' % (start_node, target_node)
+        print(sql)
+        graph = {"nodes": [], "lines": [], "index": []}
+        templines = []
+        path = self.client.command(sql)
+
+        for i in path:
+            print(i.oRecordData)
+            temp = i.oRecordData
+            if "class_name" in temp.keys(): # It is a node
+                node = {"key": i._rid}
+                if node['key'] not in graph['index']:
+                    for a in temp:
+                        if a[:2] != "_in" and a[:3] != "_out" and "pyorient." not in str(type(temp[a])):
+                            node[a] = temp[a]
+                        else:
+                            if a[:2] == "_in":
+                                templines.append(a[3:])
+                            elif a[:3] == "_out":
+                                templines.append(a[4:])
+                    graph['nodes'].append(node)
+                    graph['index'].append(node['key'])
+        sNode = eNode = None
+        for i in graph['nodes']:
+            if sNode == None:
+                sNode = i['key']
+            elif sNode == i['key']:
+                print(i)
+            else:
+                eNode = i['key']
+                graph['lines'].append({"to": sNode, "from": eNode})
+                sNode = i['key']
+
+        return graph
+
 
