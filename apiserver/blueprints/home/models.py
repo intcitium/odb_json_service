@@ -1929,39 +1929,39 @@ class ODB:
         graph = {"nodes": [], "lines": [], "index": []}
         templines = []
         path = self.client.command(sql)
-        e = 1
-        sql2 = "match \n"
-        for i in path:
-            print(i.oRecordData)
-            temp = i.oRecordData
-            if "class_name" in temp.keys(): # It is a node
-                node = {"key": i._rid}
-                if node['key'] not in graph['index']:
-                    for a in temp:
-                        if a[:2] != "_in" and a[:3] != "_out" and "pyorient." not in str(type(temp[a])):
-                            node[a] = temp[a]
+        if len(path) > 1:
+            e = 1
+            sql2 = "match \n"
+            for i in path:
+                temp = i.oRecordData
+                if "class_name" in temp.keys(): # It is a node
+                    node = {"key": i._rid}
+                    if node['key'] not in graph['index']:
+                        for a in temp:
+                            if a[:2] != "_in" and a[:3] != "_out" and "pyorient." not in str(type(temp[a])):
+                                node[a] = temp[a]
+                            else:
+                                if a[:2] == "_in":
+                                    templines.append(a[3:])
+                                elif a[:3] == "_out":
+                                    templines.append(a[4:])
+                        graph['nodes'].append(node)
+                        graph['index'].append(node['key'])
+                        # Use the key to build the match statement for getting the lines
+                        if len(path) > e:
+                            sql2 = sql2 + '''{class: V, as: v%s, where: (@rid = %s)}.bothE(){as:e%s}.bothV()\n''' % (e, i._rid, e)
                         else:
-                            if a[:2] == "_in":
-                                templines.append(a[3:])
-                            elif a[:3] == "_out":
-                                templines.append(a[4:])
-                    graph['nodes'].append(node)
-                    graph['index'].append(node['key'])
-                    # Use the key to build the match statement for getting the lines
-                    if len(path) > e:
-                        sql2 = sql2 + '''{class: V, as: v%s, where: (@rid = %s)}.bothE(){as:e%s}.bothV()\n''' % (e, i._rid, e)
-                    else:
-                        sql2 = sql2 + '''{class: V, as: v%s, where: (@rid = %s)}\n return $elements''' % (e, i._rid)
-                    e+=1
-        r = self.client.command(sql2)
-        for i in r:
-            # Get all the edges...nodes already created in previous step
-            if "class_name" not in i.oRecordData.keys():
-                graph['lines'].append({
-                    "from": i.oRecordData['out'].get_hash(),
-                    "to": i.oRecordData['in'].get_hash(),
-                    "description": i._OrientRecord__o_class
-                })
+                            sql2 = sql2 + '''{class: V, as: v%s, where: (@rid = %s)}\n return $elements''' % (e, i._rid)
+                        e+=1
+            r = self.client.command(sql2)
+            for i in r:
+                # Get all the edges...nodes already created in previous step
+                if "class_name" not in i.oRecordData.keys():
+                    graph['lines'].append({
+                        "from": i.oRecordData['out'].get_hash(),
+                        "to": i.oRecordData['in'].get_hash(),
+                        "description": i._OrientRecord__o_class
+                    })
         return graph
 
 
