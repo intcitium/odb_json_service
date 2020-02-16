@@ -1917,8 +1917,9 @@ class ODB:
 
     def get_shortest_path(self, start_node=None, target_node=None):
         """
-        Run 2 queries. The first query get the vertecies that make up the shortest path.
-        The second query gets all the edges so the function can determine the appropriate path
+        Run 2 queries.
+        The first query get the vertecies that make up the shortest path.
+        The second query is a match statement built on the returned nodes' keys
         :param start_node:
         :param target_node:
         :return:
@@ -1928,7 +1929,8 @@ class ODB:
         graph = {"nodes": [], "lines": [], "index": []}
         templines = []
         path = self.client.command(sql)
-
+        e = 1
+        sql2 = "match \n"
         for i in path:
             print(i.oRecordData)
             temp = i.oRecordData
@@ -1945,17 +1947,21 @@ class ODB:
                                 templines.append(a[4:])
                     graph['nodes'].append(node)
                     graph['index'].append(node['key'])
-        sNode = eNode = None
-        for i in graph['nodes']:
-            if sNode == None:
-                sNode = i['key']
-            elif sNode == i['key']:
-                print(i)
-            else:
-                eNode = i['key']
-                graph['lines'].append({"to": sNode, "from": eNode})
-                sNode = i['key']
-
+                    # Use the key to build the match statement for getting the lines
+                    if len(path) > e:
+                        sql2 = sql2 + '''{class: V, as: v%s, where: (@rid = %s)}.bothE(){as:e%s}.bothV()\n''' % (e, i._rid, e)
+                    else:
+                        sql2 = sql2 + '''{class: V, as: v%s, where: (@rid = %s)}\n return $elements''' % (e, i._rid)
+                    e+=1
+        r = self.client.command(sql2)
+        for i in r:
+            # Get all the edges...nodes already created in previous step
+            if "class_name" not in i.oRecordData.keys():
+                graph['lines'].append({
+                    "from": i.oRecordData['out'].get_hash(),
+                    "to": i.oRecordData['in'].get_hash(),
+                    "description": i._OrientRecord__o_class
+                })
         return graph
 
 
