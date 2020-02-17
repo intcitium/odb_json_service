@@ -656,7 +656,7 @@ class OSINT(ODB):
                 self.client.command('''
                 create edge SubscribesTo from 
                 (select from User where userName = '%s') to 
-                (select from %d )
+                (select from %s )
                 ''' % (userName, monitor_channel))
             else:
                 message += "\n%s exists and user already subscribed. " % name
