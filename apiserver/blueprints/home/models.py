@@ -5,7 +5,6 @@ import click
 import pandas as pd
 import numpy as np
 import os
-import csv
 import time, datetime
 import operator
 import copy

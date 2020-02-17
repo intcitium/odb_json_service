@@ -631,23 +631,23 @@ class OSINT(ODB):
         :return:
         '''
         # Check if the user exists within OSINT
-        if len(self.client.command('''select key from User where userName = "%s"''' % userName)) == 0:
+        if len(self.client.command('''select @rid from User where userName = "%s"''' % userName)) == 0:
             self.client.command('''
-            insert into User (key, userName) values (sequence('idseq').next(), "%s") return @this.key 
+            insert into User (userName) values ("%s")
             ''' % userName)
 
         # Next check if the channel exists
         message = "%s adding channel %s with search %s." % (userName, name, searchValue)
         monitor_channel = self.client.command('''
-        select key from Monitor where type = 'Channel' and name = '%s'
+        select @rid from Monitor where type = 'Channel' and name = '%s'
         ''' % (name))
         if len(monitor_channel) > 0:
             # Set the monitor channel key for relating to the searchTerm and user
-            monitor_channel = monitor_channel[0].oRecordData["key"]
+            monitor_channel = monitor_channel[0].oRecordData["rid"]
             # Check if the monitor is subscribed to be the user
             sql = '''
             match
-            {class:Monitor, as:m, where: (name = '%s' and type = 'Channel')}.in("SubscribesTo")
+            {class:Monitor, as:m, where: (@rid = %s)}.in("SubscribesTo")
             {class:User, as:u, where: (userName = '%s')}
             return m
             ''' % (name, userName)
@@ -656,7 +656,7 @@ class OSINT(ODB):
                 self.client.command('''
                 create edge SubscribesTo from 
                 (select from User where userName = '%s') to 
-                (select from Monitor where key = %d )
+                (select from %d )
                 ''' % (userName, monitor_channel))
             else:
                 message += "\n%s exists and user already subscribed. " % name
@@ -674,14 +674,14 @@ class OSINT(ODB):
             self.client.command('''
             create edge SubscribesTo from 
             (select from User where userName = '%s') to 
-            (select from Monitor where key = %d )
+            (select from %s )
             ''' % (userName, monitor_channel))
 
         # If the monitor is a search
         if type == "Search":
             # Check if it exists
             monitor_search = self.client.command('''
-            select key from Monitor where name = "%s" and searchValue = "%s" and description = "%s"
+            select @rid from Monitor where name = "%s" and searchValue = "%s" and description = "%s"
             ''' % (name, searchValue, description))
             if len(monitor_search) == 0:
                 # If not create it and relate it to the channel
@@ -696,30 +696,30 @@ class OSINT(ODB):
                 # Relate to the channel
                 self.client.command('''
                 create edge SearchesOn from 
-                (select from Monitor where key = %d) to 
-                (select from Monitor where key = %d )
+                (select from %s) to 
+                (select from %s )
                 ''' % (monitor_channel, monitor_search))
                 # Make the user subscription relation
                 self.client.command('''
                 create edge SubscribesTo from 
                 (select from User where userName = '%s') to 
-                (select from Monitor where key = %d )
+                (select from %s)
                 ''' % (userName, monitor_search))
             else:
                 monitor_search = monitor_search[0].oRecordData["key"]
                 sql = '''
                 match
-                {class:Monitor, as:m, where: (key = %d and type = 'Search' and searchValue = '%s')}.in("SubscribesTo")
+                {class:Monitor, as:m, where: (@rid = %s)}.in("SubscribesTo")
                 {class:User, as:u, where: (userName = '%s')}
                 return m
-                ''' % (monitor_search, searchValue, userName)
+                ''' % (monitor_search, userName)
                 if len(self.client.command(sql)) == 0:
                     message += "%s is now subscribed to %s. " % (userName, searchValue)
                     # Make the user subscription relation
                     self.client.command('''
                     create edge SubscribesTo from 
                     (select from User where userName = '%s') to 
-                    (select from Monitor where key = %d )
+                    (select from %s )
                     ''' % (userName, monitor_search))
                 else:
                     message += "%s is already subcribed to %s." % (userName, searchValue)
