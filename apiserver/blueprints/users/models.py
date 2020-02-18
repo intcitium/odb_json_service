@@ -260,7 +260,7 @@ class userDB(ODB):
         for c in cOSINT:
             c = c.oRecordData
             # If linked then add the case with the role
-            caseNode = ({
+            caseNode = {
                 "key": c['rid'].get_hash(),
                 "Name": c['Name'],
                 "CreatedBy": c['CreatedBy'],
@@ -269,13 +269,18 @@ class userDB(ODB):
                 "Classification": c['Classification'],
                 "StartDate": c['StartDate'],
                 "LastUpdate": c['LastUpdate'],
-                "data": {"nodes": [], "lines": []}
-            })
+            }
             if c['Classification'] == "Unclassified":
                 cases['Unclassified']+=1
             elif c['Classification'] == "Confidential":
                 cases['Confidential']+=1
 
+            # Get all the nodes attached to the case
+            graph = osintserver.get_neighbors_index(c['rid'].get_hash())
+            caseNode["data"] = {
+                "nodes": graph["data"]["nodes"],
+                "lines": graph["data"]["lines"],
+            }
             cases['data'].append(caseNode)
         if len(cases['data']) == 1:
             c_count = "case"
