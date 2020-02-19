@@ -55,6 +55,37 @@ class OSINT(ODB):
         else:
             return "One-sided Conflict"
 
+    def fill_locations(self, locations):
+        for index, row in locations.iterrows():
+            self.create_node(
+                class_name="Location",
+                Category="City",
+                title="%s %s" % (row['city_ascii'], row['country']),
+                city=row['city_ascii'],
+                country=row['country'],
+                description="%s %s %s located at %s %s in the province %s" % (
+                    row['city_ascii'], row['country'], row['iso3'], row['lat'], row['lng'], row['province']),
+                icon=self.ICON_LOCATION,
+                iso3=row['iso3'],
+                iso2=row['iso2'],
+                population=row['pop'],
+                source="Wikipedia"
+            )
+
+    def basebook_locations_init(self):
+        if not self.basebook:
+            self.basebook = pd.ExcelFile(os.path.join(self.datapath, 'Base_Book.xlsx'))
+        locations = self.basebook.parse('Locations')
+        # Start a thread for the long running process and send a message back with the summary
+        t = threading.Thread(
+            target=self.fill_locations,
+            kwargs={
+                "locations": locations
+            })
+        t.start()
+        return "Started extracting %d locations from the Basebook" % locations['city'].size
+
+
     def monitor_merges(self):
         """
         Crawler makes queries every hour to check the database for nodes with the same Ext_ID and then perform a merge

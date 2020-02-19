@@ -375,3 +375,12 @@ def create_edge():
         "status": 200,
         "data": message
     })
+
+
+@osint.route('/osint/basebook_locations_init', methods=['GET'])
+def basebook_locations_init():
+    message = osintserver.basebook_locations_init()
+    return jsonify({
+        "status": 200,
+        "data": message
+    })
