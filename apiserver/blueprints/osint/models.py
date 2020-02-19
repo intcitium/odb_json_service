@@ -66,6 +66,8 @@ class OSINT(ODB):
                 description="%s %s %s located at %s %s in the province %s" % (
                     row['city_ascii'], row['country'], row['iso3'], row['lat'], row['lng'], row['province']),
                 icon=self.ICON_LOCATION,
+                Latitude=row['lat'],
+                Longitude=row['lng'],
                 iso3=row['iso3'],
                 iso2=row['iso2'],
                 population=row['pop'],
@@ -86,11 +88,32 @@ class OSINT(ODB):
         return "Started extracting %d locations from the Basebook" % locations['city'].size
 
     def get_location_lookup(self, location_name="Berlin"):
+        """
+        Get the location from the database or if it doesn't exist, pull from OpenStreetMap
+        :param location_name:
+        :return:
+        """
         r = self.client.command('''
         SELECT @rid as key, * FROM Location WHERE [description] LUCENE "(%s)" LIMIT 1
-        ''' % location_name)[0].oRecordData
-        r = self.format_node(**r)
-        r['key'] = r['key'].get_hash()
+        ''' % location_name)
+        if len(r) == 0:
+            url = "https://nominatim.openstreetmap.org/search/%s?format=json&addressdetails=1" % location_name
+            r = requests.request(method="GET", url=url).json()[0]
+            r = self.create_node(
+                class_name="Location",
+                Category="City",
+                title="%s %s" % (r['address']['city'], r['address']['country']),
+                city=r['address']['city'],
+                country=r['address']['country'],
+                Latitude=r['lat'],
+                Longitude=r['lon'],
+                description="%s located at %s %s" % (r['display_name'], r['lat'], r['lon']),
+                icon=self.ICON_LOCATION,
+                source="OpenStreets"
+            )['data']
+        else:
+            r = self.format_node(**r[0].oRecordData)
+            r['key'] = r['key'].get_hash()
         return r
 
     def monitor_merges(self):
