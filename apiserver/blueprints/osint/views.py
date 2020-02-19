@@ -384,3 +384,13 @@ def basebook_locations_init():
         "status": 200,
         "data": message
     })
+
+
+@osint.route('/osint/get_location_lookup', methods=['GET'])
+def get_location_lookup():
+    r = get_request_payload(request)
+    message = osintserver.get_location_lookup(**r)
+    return jsonify({
+        "status": 200,
+        "data": message
+    })

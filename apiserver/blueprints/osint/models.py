@@ -85,6 +85,13 @@ class OSINT(ODB):
         t.start()
         return "Started extracting %d locations from the Basebook" % locations['city'].size
 
+    def get_location_lookup(self, location_name="Berlin"):
+        r = self.client.command('''
+        SELECT @rid as key, * FROM Location WHERE [description] LUCENE "(%s)" LIMIT 1
+        ''' % location_name)[0].oRecordData
+        r = self.format_node(**r)
+        r['key'] = r['key'].get_hash()
+        return r
 
     def monitor_merges(self):
         """
