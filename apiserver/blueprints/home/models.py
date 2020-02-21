@@ -10,6 +10,9 @@ import operator
 import copy
 import hashlib
 from apiserver.models import Edges as EdgeModel
+from apiserver.models import Node as NodeBase
+from apiserver.models import STRING, DATETIME, INTEGER, FLOAT
+from apiserver.models import Edge as EdgeBase
 from apiserver.utils import get_datetime, HOST_IP, change_if_number, clean,\
     clean_concat, date_to_standard_string, change_if_date
 
@@ -64,6 +67,8 @@ class ODB:
         self.standard_classes = ['OFunction', 'OIdentity', 'ORestricted',
                                  'ORole', 'OSchedule', 'OSequence', 'OTriggered',
                                  'OUser', '_studio' ]
+        self.node_classes = ["V"]
+        self.edge_classes = ["E"]
 
     def get_maps(self):
         """
@@ -924,7 +929,6 @@ class ODB:
         icon = title = status = None
         mtoka = 0
         node_prep = copy.deepcopy(kwargs)
-
         if "Ext_key" not in kwargs.keys():
             for key_attribute in kwargs.keys():
                 if key_attribute in ["key", "GUID", "guid", "uid", "Key", "id"]:
@@ -945,6 +949,28 @@ class ODB:
             if "Key" in kwargs.keys():
                 node_prep.pop("Key")
             node_prep["Ext_key"] = None
+
+        '''
+        Now that attributes are extracted check if the Vertex Class exists in the database and if not, 
+        create it with standard format
+        '''
+        if kwargs["class_name"] not in self.node_classes:
+            # Base the new class on the base Node from the models
+            class_model = copy.copy(NodeBase)
+            # Get all the labels and check if any of the values are dates
+            for label in node_prep:
+                if label not in class_model.keys():
+                    isthis = change_if_date(node_prep[label])
+                    if isthis:
+                        class_model[label] = DATETIME
+                    isthis = change_if_number(node_prep[label])
+                    if isthis:
+                        class_model[label] = INTEGER
+                    else:
+                        class_model[label] = STRING
+            # Create the class and then the text
+            self.create_new_class(kwargs["class_name"], class_model)
+            self.create_text_index(kwargs["class_name"])
 
         # Check the index based in the hashkey and class_name
         hash_key, check = self.check_index_nodes(**kwargs)
@@ -1145,6 +1171,34 @@ class ODB:
         click.echo('[%s_%s_create_index] Created index with %s nodes and %s edges' % (
             get_datetime(), self.db_name, len(self.index['nodes']), len(self.index['edges'])))
 
+    def create_new_class(self, class_name, model, sql=""):
+        """
+        Create a new class as part of a loop as in setting up the database or a single use case such as when a new node
+        is created (create_node) and the class doesn't exist. Only return the sql to create the class in the case
+        it is part of a larger batch statement.
+        :param model:
+        :param sql:
+        :return:
+        """
+        try:
+            sql = sql+"create class %s extends %s;\n" % (class_name, model['class'])
+            for k in model.keys():
+                if k != 'class':
+                    sql = sql+"create property %s.%s %s;\n" % (class_name, k, model[k])
+                    # Custom rules for establishing indexing
+                    if (str(k)).lower() in ["key", "id", "uid", "userid", "hashkey", "ext_key"] \
+                            or (self.db_name == "Users" and str(k).lower == "username")\
+                            or (class_name == "Case" and k == "Name"):
+                        sql = sql + "create index %s_%s on %s (%s) UNIQUE_HASH_INDEX ;\n" % (
+                            class_name, k, class_name, k)
+                    elif (str(k)).lower() in ["category", "screen_name"]:
+                        sql = sql + "create index %s_%s on %s (%s) NOTUNIQUE_HASH_INDEX ;\n" % (
+                            class_name, k, class_name, k)
+            self.client.batch(sql);
+            self.create_text_index(class_name)
+        except Exception as e:
+            click.echo('[%s_create_db_%s] ERROR with statement build: %s' % (get_datetime(), self.db_name, str(e)))
+
     def create_db(self):
         """
         Build the schema in OrientDB using the models established in __init__
@@ -1161,31 +1215,10 @@ class ODB:
             click.echo('[%s_%s_create_db] Starting process...' % (get_datetime(), self.db_name))
             sql = ""
             for m in self.models:
-                sql = sql+"create class %s extends %s;\n" % (m, self.models[m]['class'])
-                for k in self.models[m].keys():
-                    if k != 'class':
-                        sql = sql+"create property %s.%s %s;\n" % (m, k, self.models[m][k])
-                        # Custom rules for establishing indexing
-                        if (str(k)).lower() in ["key", "id", "uid", "userid", "hashkey", "ext_key"] \
-                                or (self.db_name == "Users" and str(k).lower == "username")\
-                                or (m == "Case" and k == "Name"):
-                            sql = sql + "create index %s_%s on %s (%s) UNIQUE_HASH_INDEX ;\n" % (m, k, m, k)
-                        elif (str(k)).lower() in ["category", "screen_name"]:
-                            sql = sql + "create index %s_%s on %s (%s) NOTUNIQUE_HASH_INDEX ;\n" % (m, k, m, k)
-            sql = sql + "create sequence idseq type ordered;"
-        except Exception as e:
-            click.echo('[%s_create_db_%s] ERROR with statement build: %s' % (get_datetime(), self.db_name, str(e)))
-            created = False
-
-        if created:
-            try:
-                self.client.batch(sql)
-                click.echo('[%s_create_db_%s] Completed nodes' % (get_datetime(), self.db_name))
-                self.create_text_indexes()
-                created = True
-            except Exception as e:
-                click.echo('[%s_create_db_%s] ERROR with batch: %s: \n%s' % (get_datetime(), self.db_name, str(e), sql))
-                created = False
+                self.create_new_class(m, self.models[m])
+                click.echo('[%s_%s_create_db] Created %s' % (get_datetime(), self.db_name, m))
+            self.client.batch("create sequence idseq type ordered;")
+            click.echo('[%s_create_db_%s] Completed nodes' % (get_datetime(), self.db_name))
             try:
                 click.echo('[%s_create_db_%s] Creating Edges' % (get_datetime(), self.db_name))
                 sql = ""
@@ -1202,20 +1235,32 @@ class ODB:
                 click.echo('[%s_create_db_%s] Completed Edges' % (get_datetime(), self.db_name))
             except Exception as e:
                 click.echo('[%s_create_db_%s] ERROR: with batch %s:  \n%s' % (get_datetime(), self.db_name, str(e), sql))
+                created = False
+        except:
+            created = False
 
         return created
 
+    def fill_classes(self):
+        # Fill the class names of edges and vertices to ensure that new classes are recognized and the schema is updated
+        r = self.client.command('''SELECT expand(classes) from metadata:schema''')
+        for i in r:
+            if i.oRecordData['superClass'] == "V":
+                self.node_classes.append(i.oRecordData['name'])
+            elif i.oRecordData['superClass'] == "E":
+                self.node_classes.append(i.oRecordData['name'])
 
     def open_db(self):
         """
         Open the Database for use by establishing the client session based on the user and password. If it doesn't exist
         return a message that let's the user to know
-        TODO create system user that is saved to the configuration file
         :return:
         """
         self.client.connect(self.user, self.pswd)
         if self.client.db_exists(self.db_name):
             self.client.db_open(self.db_name, self.user, self.pswd)
+            # Fill the class names of edges and vertices
+            self.fill_classes()
             return False
         else:
             return "%s doesn't exist. Please initialize through the API."
@@ -1893,25 +1938,35 @@ class ODB:
         except:
             print(node)
 
+    def create_text_index(self, m):
+        """
+        Single query execution that can be called by the initial setup or in cases of new classes
+        :param m:
+        :return:
+        """
+        sql = '''
+        CREATE INDEX %s.search_fulltext ON %s(description) FULLTEXT ENGINE LUCENE METADATA
+                  {
+                    "default": "org.apache.lucene.analysis.standard.StandardAnalyzer",
+                    "index": "org.apache.lucene.analysis.en.EnglishAnalyzer",
+                    "query": "org.apache.lucene.analysis.standard.StandardAnalyzer",
+                    "analyzer": "org.apache.lucene.analysis.en.EnglishAnalyzer",
+                    "allowLeadingWildcard": true
+                  }
+        ''' % (m, m)
+        self.client.command(sql)
+        return
+
     def create_text_indexes(self):
-        '''
+        """
         Create text indexes on the model entities with description attributes
-        '''
+        :return:
+        """
         click.echo('[%s_home_server_create_text_indexes] Creating indexes' % (get_datetime()))
         for m in self.models:
             for k in self.models[m].keys():
                 if str(k) == "description":
-                    sql = '''
-                    CREATE INDEX %s.search_fulltext ON %s(description) FULLTEXT ENGINE LUCENE METADATA
-                              {
-                                "default": "org.apache.lucene.analysis.standard.StandardAnalyzer",
-                                "index": "org.apache.lucene.analysis.en.EnglishAnalyzer",
-                                "query": "org.apache.lucene.analysis.standard.StandardAnalyzer",
-                                "analyzer": "org.apache.lucene.analysis.en.EnglishAnalyzer",
-                                "allowLeadingWildcard": true
-                              }
-                    ''' % (m, m)
-                    self.client.command(sql)
+                    self.create_text_index(m)
         click.echo('[%s_home_server_create_text_indexes] Indexes complete' % (get_datetime()))
 
     def get_shortest_path(self, start_node=None, target_node=None):

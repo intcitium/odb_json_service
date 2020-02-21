@@ -98,19 +98,22 @@ class OSINT(ODB):
         ''' % location_name)
         if len(r) == 0:
             url = "https://nominatim.openstreetmap.org/search/%s?format=json&addressdetails=1" % location_name
-            r = requests.request(method="GET", url=url).json()[0]
-            r = self.create_node(
-                class_name="Location",
-                Category="City",
-                title="%s %s" % (r['address']['city'], r['address']['country']),
-                city=r['address']['city'],
-                country=r['address']['country'],
-                Latitude=r['lat'],
-                Longitude=r['lon'],
-                description="%s located at %s %s" % (r['display_name'], r['lat'], r['lon']),
-                icon=self.ICON_LOCATION,
-                source="OpenStreets"
-            )['data']
+            r = requests.request(method="GET", url=url).json()
+            if len(r) > 0:
+                # Get the first result TODO get the best result
+                r = r[0]
+                r = self.create_node(
+                    class_name="Location",
+                    Category="City",
+                    title="%s %s" % (r['address']['city'], r['address']['country']),
+                    city=r['address']['city'],
+                    country=r['address']['country'],
+                    Latitude=r['lat'],
+                    Longitude=r['lon'],
+                    description="%s located at %s %s" % (r['display_name'], r['lat'], r['lon']),
+                    icon=self.ICON_LOCATION,
+                    source="OpenStreets"
+                )['data']
         else:
             r = self.format_node(**r[0].oRecordData)
             r['key'] = r['key'].get_hash()
