@@ -873,6 +873,7 @@ class OSINT(ODB):
         return s.@rid as key, s.description as label, s.searchValue as value, s.name as source
         ''' % (userName)
         for i in self.client.command(sql):
+            i.oRecordData['key'] = i.oRecordData['key'].get_hash()
             monitors.append(i.oRecordData)
         message = "Retrieved %s monitored terms for %s" % (len(monitors), userName)
 
