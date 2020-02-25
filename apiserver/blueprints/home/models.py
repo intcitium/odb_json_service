@@ -1296,7 +1296,6 @@ class ODB:
 
         return {"message": "Retrieved %d neighbors for %s" % (len(graph['nodes'])-1, nodekey),  "data": graph}
 
-
     def get_node(self, class_name="V", var=None, val=None):
         """
         Return a node based on the class_name, variable of the class and value of the variable.

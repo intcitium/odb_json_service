@@ -870,7 +870,7 @@ class OSINT(ODB):
         match
         {class:User, where: (userName = '%s')}.out("SubscribesTo")
         {class:Monitor, as:s}.in("SearchesOn")
-        return s.key as key, s.description as label, s.searchValue as value, s.name as source
+        return s.@rid as key, s.description as label, s.searchValue as value, s.name as source
         ''' % (userName)
         for i in self.client.command(sql):
             monitors.append(i.oRecordData)
