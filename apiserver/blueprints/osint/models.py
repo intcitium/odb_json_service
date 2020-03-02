@@ -696,9 +696,7 @@ class OSINT(ODB):
         '''
         # Check if the user exists within OSINT
         if len(self.client.command('''select @rid from User where userName = "%s"''' % userName)) == 0:
-            self.client.command('''
-            insert into User (userName) values ("%s")
-            ''' % userName)
+            self.create_node(class_name="User", userName=userName)
 
         # Next check if the channel exists
         message = "%s adding channel %s with search %s." % (userName, name, searchValue)
@@ -745,10 +743,10 @@ class OSINT(ODB):
         if type == "Search":
             # Check if it exists
             monitor_search = self.client.command('''
-            select @rid from Monitor where name = "%s" and searchValue = "%s" and description = "%s"
+            select @rid as key from Monitor where name = "%s" and searchValue = "%s" and description = "%s"
             ''' % (name, searchValue, description))
             if len(monitor_search) == 0:
-                # If not create it and relate it to the channel
+                # If not create it and relate it to the channel and to SocAnalyst
                 message += "\n%s doesn't exist so has been created with user subscribed. " % searchValue
                 monitor_search = self.create_node(
                     class_name="Monitor",
@@ -769,8 +767,14 @@ class OSINT(ODB):
                 (select from User where userName = '%s') to 
                 (select from %s)
                 ''' % (userName, monitor_search))
+                # Make the user subscription relation
+                self.client.command('''
+                create edge SubscribesTo from 
+                (select from User where userName = 'SocAnalyst') to 
+                (select from %s)
+                ''' % (monitor_search))
             else:
-                monitor_search = monitor_search[0].oRecordData["key"]
+                monitor_search = monitor_search[0].oRecordData["key"].get_hash()
                 sql = '''
                 match
                 {class:Monitor, as:m, where: (@rid = %s)}.in("SubscribesTo")
@@ -816,15 +820,15 @@ class OSINT(ODB):
         :return:
         """
         pid = randomString(32)
-        self.create_node(
+        key = self.create_node(
             class_name="Process",
             category="Report",
             pid=pid,
             name=kwargs["name"],
             started=get_datetime(),
             summary=kwargs["summary"]
-        )
-        return pid
+        )['data']['key']
+        return key
 
     def create_update(self, **kwargs):
         """
@@ -839,13 +843,13 @@ class OSINT(ODB):
             name=kwargs["name"],
             started=get_datetime(),
             summary=kwargs["summary"]
-        )
+        )['data']['key']
 
         self.client.command('''
         create edge UpdateTo from 
-        (select from Process where key = %d) to 
-        (select from Process where pid = '%s' and category = "Report")
-        ''' % (update_key['data']['key'], kwargs['pid']))
+        (select from %s) to 
+        (select from %s)
+        ''' % (update_key, kwargs['pid']))
 
         return update_key
 
@@ -862,7 +866,7 @@ class OSINT(ODB):
             update Process set ended = '%s' where pid = '%s'
             ''' % (get_datetime(), kwargs['pid']))
 
-        return update_key["data"]["key"]
+        return update_key
 
     def get_user_monitor(self, userName="SocAnalyst"):
         monitors = []
@@ -900,7 +904,7 @@ class OSINT(ODB):
         {class:User, where: (userName = '%s')}.out("SubscribesTo")
         {class:Monitor, as:s}.in("SearchesOn")
         {class:Monitor, as:channel, where: (name = 'Twitter')}
-        return s.key, s.description, s.searchValue, s.type
+        return s.@rid as key, s.description, s.searchValue, s.type
         ''' % (user)
         monitors = self.client.command(sql)
         user_monitor = []
@@ -912,11 +916,11 @@ class OSINT(ODB):
                     locations_monitor.append(json.loads(m.oRecordData["s_searchValue"].replace("'", '"')))
                 except:
                     click.echo('[%s_OSINT_start_twitter_monitor] Error with location %s' % (
-                        get_datetime(), m.oRecordData["s_searchValue"]))
+                        get_datetime(), m))
             elif m.oRecordData["s_description"] == "hashtag":
-                hashtags_monitor.append(m.oRecordData["s_searchValue"])
+                hashtags_monitor.append(m)
             elif m.oRecordData["s_description"] == "user":
-                user_monitor.append(m.oRecordData["s_searchValue"])
+                user_monitor.append(m)
 
         r = {}
         t = threading.Thread(
@@ -950,44 +954,46 @@ class OSINT(ODB):
         name = "Twitter"
         while self.monitors["twitter"]:
             pid = self.create_report(name=name, summary="Starting")
-            update_key = self.update_report(pid=pid, summary="Getting users", name=name)
+            self.update_report(pid=pid, summary="Getting users", name=name)
             for u in kwargs["user_monitor"]:
-                graphs, message = self.get_twitter(number_of_tweets=100, username=u)
-                for g in graphs:
-                    self.process_graph(graph=g["graph"], update_key=update_key)
-
-            update_key = self.update_report(pid=pid, summary="Getting locations", name=name)
+                self.get_twitter(
+                    number_of_tweets=100,
+                    username=u.oRecordData['s_searchValue'],
+                    monitor=u.oRecordData['key'].get_hash()
+                )
+            self.update_report(pid=pid, summary="Getting locations", name=name)
             for l in kwargs["locations_monitor"]:
-                graphs, message = self.get_twitter(number_of_tweets=100, latitude=l["lat"], longitude=l["lon"])
-                for g in graphs:
-                    self.process_graph(graph=g["graph"], update_key=update_key)
-            update_key = self.update_report(pid=pid, summary="Getting hashtags", name=name)
+                self.get_twitter(
+                    number_of_tweets=100,
+                    latitude=l["lat"],
+                    longitude=l["lon"],
+                    monitor=l.oRecordData['key'].get_hash()
+                )
+            self.update_report(pid=pid, summary="Getting hashtags", name=name)
             for l in kwargs["hashtags_monitor"]:
-                graphs, message = self.get_twitter(number_of_tweets=100, hashtag=l)
-                for g in graphs:
-                    self.process_graph(graph=g["graph"], update_key=update_key)
+                self.get_twitter(
+                    number_of_tweets=100,
+                    hashtag=l,
+                    monitor=l.oRecordData['key'].get_hash()
+                )
             self.update_report(ended=True, pid=pid,
                                name=name, summary="Complete with requests. Sleeping for %d minutes" % minutes)
             time.sleep(60 * minutes)
 
-    def get_twitter(self, **kwargs):
+    def get_twitter(self, number_of_tweets=100, username=None, monitor=None, max_id=None, request=0, hashtag=None,
+                    latitude=None, longitude=None, radius=None):
         """
-        Optional uses of the Twitter API as configured in the settings. Process the tweets into a graph and then a thread
-        to process them in the back end.
-        1) statuses/user_timeline: get all the tweets by username
-        2) hashtags with options for lat long based hashtags
-        3) locations with only lat long
-        :param kwargs:
+        :param number_of_tweets:
+        :param username:
+        :param monitor:
+        :param max_id:
+        :param request:
+        :param hashtag:
+        :param latitude:
+        :param longitude:
+        :param radius:
         :return:
         """
-
-        if "max_id" not in kwargs.keys():
-            kwargs['max_id'] = None
-        if "number_of_tweets" not in kwargs.keys():
-            kwargs['number_of_tweets'] = self.default_number_of_tweets
-        if "request" not in kwargs.keys():
-            kwargs['request'] = 0
-
         client_key = self.TWITTER_AUTH['client_key']
         client_secret = self.TWITTER_AUTH['client_secret']
         token = self.TWITTER_AUTH['token']
@@ -996,52 +1002,52 @@ class OSINT(ODB):
         locationsChecked = False
         message = "Retrieved twitter API: "
 
-        if "username" in kwargs.keys():
-            if kwargs['username'] != "":
+        if username:
+            if username != "":
                 api_url  = "%s/statuses/user_timeline.json?" % self.base_twitter_url
-                api_url += "screen_name=%s&" % kwargs['username']
-                api_url += "count=%d" % kwargs['number_of_tweets']
+                api_url += "screen_name=%s&" % username
+                api_url += "count=%d" % number_of_tweets
                 click.echo('[%s_OSINT_get_twitter] Getting username with url: %s' % (get_datetime(), api_url))
-                if kwargs['max_id'] is not None:
-                    api_url += "&max_id=%d" % kwargs['max_id']
+                if max_id is not None:
+                    api_url += "&max_id=%d" % max_id
                 # send request to Twitter
                 response = requests.get(api_url, auth=oauth, verify=False) # if ssl error use verify=False
-                kwargs['request']+=1
-                tweets = self.responseHandler(response, kwargs['username'])
+                request+=1
+                tweets = self.responseHandler(response, username)
                 if response.status_code != 401:
-                    message = self.graph_twitter(tweets=tweets)
+                    message = self.graph_twitter(tweets=tweets, monitor=monitor)
                 else:
-                    message = " %s protects tweets" % kwargs['username']
+                    message = " %s protects tweets" % username
 
-        if "hashtag" in kwargs.keys():
-            if kwargs['hashtag'] != "":
+        if hashtag:
+            if hashtag != "":
                 api_url = "%s/search/tweets.json?" % self.base_twitter_url
-                api_url += "q=%%23%s&result_type=recent" % kwargs['hashtag']
-                if "latitude" in kwargs.keys() and "longitude" in kwargs.keys() and kwargs['latitude'] != "":
-                    api_url += "&geocode=%f,%f" % (float(kwargs['latitude']), float(kwargs['longitude']))
-                    if "radius" in kwargs:
-                        api_url += ",%dkm&count=%s" % (int(kwargs['radius']), kwargs['number_of_tweets'])
+                api_url += "q=%%23%s&result_type=recent" % hashtag
+                if latitude and longitude and latitude != "":
+                    api_url += "&geocode=%f,%f" % (float(latitude), float(longitude))
+                    if radius:
+                        api_url += ",%dkm&count=%s" % (int(radius), number_of_tweets)
                     else:
-                        api_url += ",5km&count=%s" % kwargs['number_of_tweets']
+                        api_url += ",5km&count=%s" % number_of_tweets
                     locationsChecked = True
                 click.echo('[%s_OSINT_get_twitter] Getting hashtag: %s' % (get_datetime(), api_url))
                 response = requests.get(api_url, auth=oauth, verify=False)
-                tweets = self.responseHandler(response, kwargs['hashtag'])
-                message = self.graph_twitter(tweets=tweets['statuses'])
+                tweets = self.responseHandler(response, hashtag)
+                message = self.graph_twitter(tweets=tweets['statuses'], monitor=monitor)
 
-        if "latitude" in kwargs.keys() and "longitude" in kwargs.keys()and not locationsChecked:
-            if kwargs['latitude'] != "" and kwargs['longitude'] != "":
+        if latitude and longitude and not locationsChecked:
+            if latitude != "" and longitude != "":
                 api_url = "https://api.twitter.com/1.1/search/tweets.json?q=&geocode=%f,%f" % (
-                    float(kwargs['latitude']), float(kwargs['longitude']))
-                if "radius" in kwargs.keys():
-                    if kwargs['radius'] != "":
-                        api_url += ",%dkm&count=%s" % (int(kwargs['radius']), kwargs['number_of_tweets'])
+                    float(latitude), float(longitude))
+                if radius:
+                    if radius != "":
+                        api_url += ",%dkm&count=%s" % (int(radius), number_of_tweets)
                     else:
-                        api_url += ",5km&count=%s" % kwargs['number_of_tweets']
+                        api_url += ",5km&count=%s" % number_of_tweets
                 click.echo('[%s_OSINT_get_twitter] Getting location with url: %s' % (get_datetime(), api_url))
                 response = requests.get(api_url, auth=oauth, verify=False)
-                tweets = self.responseHandler(response, "%s, %s" % (kwargs['latitude'], kwargs['longitude']))
-                message = self.graph_twitter(tweets=tweets['statuses'])
+                tweets = self.responseHandler(response, "%s, %s" % (latitude, longitude))
+                message = self.graph_twitter(tweets=tweets['statuses'], monitor=monitor)
         click.echo('[%s_OSINT_get_twitter] Complete with request' % (get_datetime()))
         return message
 
@@ -1222,6 +1228,8 @@ class OSINT(ODB):
                             }
                             ht_node = self.create_node(**node)["data"]["key"]
                             self.create_edge_new(edgeType="Included", toNode=ht_node, fromNode=twt_node)
+                            if kwargs['monitor']:
+                                self.create_edge_new(edgeType="References", toNode=ht_node, fromNode=kwargs['monitor'])
                     # Process Locations
                     if "place" in t.keys():
                         if t['place']:
@@ -1253,6 +1261,9 @@ class OSINT(ODB):
                                     loc_node = self.create_node(**loc_node)["data"]["key"]
                                     self.OSINT_index["Location"][loc_id] = loc_node
                                     self.create_edge_new(edgeType="TweetedFrom", toNode=loc_node, fromNode=twt_node)
+                                    if kwargs['monitor']:
+                                        self.create_edge_new(edgeType="References", toNode=loc_node,
+                                                             fromNode=kwargs['monitor'])
 
                                 else:
                                     print("Need to get that Ext_key and return the node formatted for graph")
@@ -1303,6 +1314,9 @@ class OSINT(ODB):
                     else:
                         usr_node = self.OSINT_index["Profile"][user_id]
                     self.create_edge_new(edgeType="Tweeted", toNode=twt_node, fromNode=usr_node)
+                    if kwargs['monitor']:
+                        self.create_edge_new(edgeType="References", toNode=twt_node,
+                                             fromNode=kwargs['monitor'])
 
         elif "user" in kwargs.keys():
             user_id = "TWT_%s" % kwargs['user']['id']
