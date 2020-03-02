@@ -773,7 +773,7 @@ class OSINT(ODB):
                 create edge SubscribesTo from 
                 (select from User where userName = 'SocAnalyst') to 
                 (select from %s)
-                ''' % (monitor_search))
+                ''' % (monitor_search["data"]["key"]))
             else:
                 monitor_search = monitor_search[0].oRecordData
                 monitor_search["key"] = monitor_search["key"].get_hash()
