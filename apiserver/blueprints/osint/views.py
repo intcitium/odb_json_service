@@ -272,7 +272,8 @@ def create_monitor():
         message = osintserver.create_monitor(**r)
         return jsonify({
             "status": 200,
-            "message": message
+            "message": message['message'],
+            "data": message['monitor']
         })
     else:
         return jsonify({
