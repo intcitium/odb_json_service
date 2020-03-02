@@ -1288,7 +1288,7 @@ class ODB:
                             node[a] = temp[a]
                     graph['nodes'].append(node)
                     graph['index'].append(node['key'])
-            else:  # It is an edge
+            elif "out" in temp.keys() and "in" in temp.keys():  # It is an edge
                 line_key = "%s%s%s" %(i._class, temp['out'].get_hash(), temp['in'].get_hash())
                 if line_key not in graph['index']:
                     graph['index'].append(line_key)
