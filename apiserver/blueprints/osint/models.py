@@ -1165,7 +1165,6 @@ class OSINT(ODB):
                 hash_tags_str = ""
                 url = None
                 if twt_id not in self.OSINT_index["Post"].keys():
-                    new_tweets+=1
                     try:
                         if len(t['entities']['urls']) == 0:
                             if 'retweeted_status' in t.keys():
@@ -1201,8 +1200,11 @@ class OSINT(ODB):
                             {"label": "Source", "value": "Twitter"}
                         ]
                     }
-                    twt_node = self.create_node(**node)["data"]["key"]
-                    self.OSINT_index["Post"][twt_id] = twt_node
+                    twt_node = self.create_node(**node)
+                    if "Node exists" not in twt_node["message"]:
+                        new_tweets += 1
+                        self.OSINT_index["Post"][twt_id] = twt_node["data"]["key"]
+                    twt_node = twt_node["data"]["key"]
 
                     ht_count = 0
                     # Process Hashtags by creating a string and an entity. Then create a line to the HT from the Tweet
@@ -1272,45 +1274,46 @@ class OSINT(ODB):
 
                     # Process the User by creating an entity. Then create a line from the User to the Tweet
                     user_id = "TWT_%s" % t['user']['id']
-                    if user_id not in self.OSINT_index["Profile"].keys():
-                        new_users+=1
-                        usr_node = {
-                            "class_name": "Profile",
-                            "title": t['user']['name'],
-                            "status": "Alert",
-                            "group": "Profiles",
-                            "icon": self.ICON_TWITTER_USER,
-                            "attributes": [
-                                {"label": "Screen_name", "value": t['user']['screen_name'].lower()},
-                                {"label": "Category", "value": "Profile"},
-                                {"label": "Created", "value": t['user']['created_at']},
-                                {"label": "description", "value": t['user']['description']},
-                                {"label": "Favorite", "value": t['user']['favourites_count']},
-                                {"label": "Followers", "value": t['user']['followers_count']},
-                                {"label": "Friends", "value": t['user']['friends_count']},
-                                {"label": "Following", "value": t['user']['following']},
-                                {"label": "listed_count", "value": t['user']['listed_count']},
-                                {"label": "statuses_count", "value": t['user']['statuses_count']},
-                                {"label": "Geo", "value": t['user']['geo_enabled']},
-                                {"label": "Location", "value": t['user']['location']},
-                                {"label": "Image", "value": t['user']['profile_image_url_https']},
-                                {"label": "Verified", "value": t['user']['verified']},
-                                {"label": "Ext_key", "value": user_id},
-                                {"label": "url", "value": t['user']['url']},
-                                {"label": "Source", "value": "Twitter"}
-                            ]
-                        }
-                        usr_node = self.create_node(**usr_node)["data"]["key"]
-                        self.OSINT_index["Profile"][user_id] = usr_node
-                        # Check if there is a location
-                        Location = None
-                        if t["user"]["location"] != "":
-                            Location = get_location(t["user"]["location"], self)
-                            if Location:
-                                if "key" in Location.keys():
-                                    if Location["key"] not in index:
-                                        index.append(Location["key"])
-                                    self.create_edge_new(edgeType="LocatedAt", fromNode=twt_node, toNode=Location["key"])
+                    usr_node = {
+                        "class_name": "Profile",
+                        "title": t['user']['name'],
+                        "status": "Alert",
+                        "group": "Profiles",
+                        "icon": self.ICON_TWITTER_USER,
+                        "attributes": [
+                            {"label": "Screen_name", "value": t['user']['screen_name'].lower()},
+                            {"label": "Category", "value": "Profile"},
+                            {"label": "Created", "value": t['user']['created_at']},
+                            {"label": "description", "value": t['user']['description']},
+                            {"label": "Favorite", "value": t['user']['favourites_count']},
+                            {"label": "Followers", "value": t['user']['followers_count']},
+                            {"label": "Friends", "value": t['user']['friends_count']},
+                            {"label": "Following", "value": t['user']['following']},
+                            {"label": "listed_count", "value": t['user']['listed_count']},
+                            {"label": "statuses_count", "value": t['user']['statuses_count']},
+                            {"label": "Geo", "value": t['user']['geo_enabled']},
+                            {"label": "Location", "value": t['user']['location']},
+                            {"label": "Image", "value": t['user']['profile_image_url_https']},
+                            {"label": "Verified", "value": t['user']['verified']},
+                            {"label": "Ext_key", "value": user_id},
+                            {"label": "url", "value": t['user']['url']},
+                            {"label": "Source", "value": "Twitter"}
+                        ]
+                    }
+                    usr_node = self.create_node(**usr_node)
+                    if "Node exists" not in usr_node["message"]:
+                        self.OSINT_index["Post"][twt_id] = usr_node["data"]["key"]
+                        new_users += 1
+                    usr_node = usr_node["data"]["key"]
+                    # Check if there is a location
+                    Location = None
+                    if t["user"]["location"] != "":
+                        Location = get_location(t["user"]["location"], self)
+                        if Location:
+                            if "key" in Location.keys():
+                                if Location["key"] not in index:
+                                    index.append(Location["key"])
+                                self.create_edge_new(edgeType="LocatedAt", fromNode=twt_node, toNode=Location["key"])
 
                     # Else get the user_node
                     else:
@@ -1322,36 +1325,36 @@ class OSINT(ODB):
 
         elif "user" in kwargs.keys():
             user_id = "TWT_%s" % kwargs['user']['id']
-            if user_id not in self.OSINT_index["Profile"].keys():
-                new_users+=1
-                node = ({
-                    "class_name": "Profile",
-                    "title": kwargs['user']['name'],
-                    "status": "Alert",
-                    "group": "Profiles",
-                    "icon": self.ICON_TWITTER_USER,
-                    "attributes": [
-                        {"label": "Category", "value": "Profile"},
-                        {"label": "Screen_name", "value": kwargs['user']['screen_name'].lower()},
-                        {"label": "Created", "value": kwargs['user']['created_at']},
-                        {"label": "description", "value": kwargs['user']['description']},
-                        {"label": "Favorite", "value": kwargs['user']['favourites_count']},
-                        {"label": "Followers", "value": kwargs['user']['followers_count']},
-                        {"label": "Friends", "value": kwargs['user']['friends_count']},
-                        {"label": "Following", "value": kwargs['user']['following']},
-                        {"label": "listed_count", "value": kwargs['user']['listed_count']},
-                        {"label": "statuses_count", "value": kwargs['user']['statuses_count']},
-                        {"label": "Geo", "value": kwargs['user']['geo_enabled']},
-                        {"label": "Location", "value": kwargs['user']['location']},
-                        {"label": "Image", "value": kwargs['user']['profile_image_url_https']},
-                        {"label": "Verified", "value": kwargs['user']['verified']},
-                        {"label": "url", "value": kwargs['user']['url']},
-                        {"label": "Ext_key", "value": user_id},
-                        {"label": "Source", "value": "Twitter"}
-                    ]
-                })
-                node = self.create_node(**node)["data"]["key"]
-                self.OSINT_index["Profile"][user_id] = node
+            node = ({
+                "class_name": "Profile",
+                "title": kwargs['user']['name'],
+                "status": "Alert",
+                "group": "Profiles",
+                "icon": self.ICON_TWITTER_USER,
+                "attributes": [
+                    {"label": "Category", "value": "Profile"},
+                    {"label": "Screen_name", "value": kwargs['user']['screen_name'].lower()},
+                    {"label": "Created", "value": kwargs['user']['created_at']},
+                    {"label": "description", "value": kwargs['user']['description']},
+                    {"label": "Favorite", "value": kwargs['user']['favourites_count']},
+                    {"label": "Followers", "value": kwargs['user']['followers_count']},
+                    {"label": "Friends", "value": kwargs['user']['friends_count']},
+                    {"label": "Following", "value": kwargs['user']['following']},
+                    {"label": "listed_count", "value": kwargs['user']['listed_count']},
+                    {"label": "statuses_count", "value": kwargs['user']['statuses_count']},
+                    {"label": "Geo", "value": kwargs['user']['geo_enabled']},
+                    {"label": "Location", "value": kwargs['user']['location']},
+                    {"label": "Image", "value": kwargs['user']['profile_image_url_https']},
+                    {"label": "Verified", "value": kwargs['user']['verified']},
+                    {"label": "url", "value": kwargs['user']['url']},
+                    {"label": "Ext_key", "value": user_id},
+                    {"label": "Source", "value": "Twitter"}
+                ]
+            })
+            node = self.create_node(**node)
+            if "Node exists" not in node["message"]:
+                new_users += 1
+            self.OSINT_index["Profile"][user_id] = node["data"]["key"]
         message = '[%s_OSINT_graph_twitter] Complete with %s new users and %s new tweets' % (
             get_datetime(), new_users, new_tweets)
         click.echo(message)

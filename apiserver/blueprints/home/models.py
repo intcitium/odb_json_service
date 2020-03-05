@@ -983,6 +983,10 @@ class ODB:
                 icon=icon,
                 attributes=attributes
             )
+            att_vals = []
+            for k in kwargs:
+                att_vals.append({"var": k, "val": kwargs[k]})
+            self.update_full(hash_key, att_vals)
             message = '[%s_%s_create_node] Node exists' % (get_datetime(), self.db_name)
             return {"message": message, "data": formatted_node}
         # Start the SQL based on the hashkey
@@ -1406,6 +1410,23 @@ class ODB:
         data['create_date'] = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(os.stat(filename).st_atime))
 
         return data
+
+    def update_full(self, key, att_vals):
+        sql = "update %s set" % key
+        i=0
+        for a in att_vals:
+            i+=1
+            if a["var"] not in ["description", "Text"]:
+                if not change_if_number(a["val"]):
+                    a["val"] = "'%s'" % a["val"]
+                if i == len(att_vals):
+                    sql += " %s = %s" % (a["var"], a["val"])
+                else:
+                    sql += " %s = %s," % (a["var"], a["val"])
+        try:
+            self.client.command(sql)
+        except Exception as e:
+            click.echo(str(e))
 
     def update(self, **kwargs):
 
