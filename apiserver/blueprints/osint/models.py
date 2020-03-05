@@ -445,7 +445,75 @@ class OSINT(ODB):
         :return:
         """
         data = requests.get(self.ACLED_Base_URL).json()['data']
-        return data
+        source_keys = []
+        for row in data:
+            print(row)
+            s = row['source']
+            source_node = self.create_node(
+                class_name="Organization",
+                Category="Information Source",
+                Name=s,
+                title="%s information source" % s,
+                icon=self.ICON_INFO_SOURCE,
+                description="Organization from ACLED. %s" % s,
+                Source="ACLED"
+            )
+            source_keys.append(source_node["data"]["key"])
+            StartDate = change_if_date(row['event_date'])
+            event_node = self.create_node(
+                class_name="Event",
+                icon=self.ICON_CONFLICT,
+                Category=row["event_type"],
+                Ext_key=row['data_id'],
+                title="%s %s, %s" % (row["event_type"], row['country'], row['event_date']),
+                description=("Headline: %s Article: %s" % (
+                    row['event_date'],
+                    row['notes'])).replace("'", ""),
+                StartDate=StartDate,
+                EndDate=StartDate,
+                Deaths=row['fatalities'],
+                Origin=clean(row['source']),
+                Civilians=row['fatalities'],
+                Source="ACLED"
+            )
+            self.create_edge_new(
+                edgeType="References", fromNode=source_node["data"]["key"], toNode=event_node["data"]["key"])
+            side_a_node = self.create_node(
+                class_name="Organization",
+                description="Organization %s %s" % (row['actor1'], row['assoc_actor_1']),
+                title="Organization %s" % row['actor1'],
+                Ext_key=row['actor1'],
+                Name=row['actor1'],
+                icon=self.ICON_ORGANIZATION,
+                Source="ACLED"
+            )
+            self.create_edge_new(
+                edgeType="Included", fromNode=event_node["data"]["key"], toNode=side_a_node["data"]["key"])
+            side_b_node = self.create_node(
+                class_name="Organization",
+                description="Organization %s %s" % (row['actor2'], row['assoc_actor_2']),
+                title="Organization %s" % row['actor2'],
+                Ext_key=row['actor2'],
+                Name=row['actor2'],
+                icon=self.ICON_ORGANIZATION,
+                Source="ACLED"
+            )
+            self.create_edge_new(
+                edgeType="Included", fromNode=event_node["data"]["key"], toNode=side_b_node["data"]["key"])
+            location_node = self.create_node(
+                class_name="Location",
+                Category="Conflict site",
+                description="%s %s %s %s" % (row['admin1'], row['admin2'], row['country'], row['region']),
+                Latitude=row['latitude'],
+                Longitude=row['longitude'],
+                title="%s" % row['country'],
+                country=row['country'],
+                icon=self.ICON_LOCATION
+            )
+            self.create_edge_new(
+                edgeType="LocatedAt", fromNode=event_node["data"]["key"], toNode=location_node["data"]["key"])
+
+        return "Graphed %d ACLED events" % len(data)
 
     def get_ucdp(self):
         """
@@ -1147,6 +1215,12 @@ class OSINT(ODB):
         graphs = [data]
 
         return graphs, message
+
+    def acled(self, **kwargs):
+
+
+
+        return
 
     def graph_twitter(self, **kwargs):
         """
