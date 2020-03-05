@@ -14,7 +14,7 @@ osintserver = OSINT()
 # Case where no DB has been established from which the message returned should let the user know to run the setup API
 init_required = osintserver.open_db()
 if init_required:
-    click.echo("[%s_OSINT_view_init] Setup required" % get_datetime())
+    click.echo("[%s_OSINT_view_init] %s" % (get_datetime(), init_required))
 else:
     osintserver.refresh_indexes()
     shodanserver.open_db()

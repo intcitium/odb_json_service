@@ -1256,14 +1256,19 @@ class ODB:
         return a message that let's the user to know
         :return:
         """
-        self.client.connect(self.user, self.pswd)
-        if self.client.db_exists(self.db_name):
-            self.client.db_open(self.db_name, self.user, self.pswd)
-            # Fill the class names of edges and vertices
-            self.fill_classes()
-            return False
-        else:
-            return "%s doesn't exist. Please initialize through the API."
+        try:
+            self.client.connect(self.user, self.pswd)
+            if self.client.db_exists(self.db_name):
+                self.client.db_open(self.db_name, self.user, self.pswd)
+                # Fill the class names of edges and vertices
+                self.fill_classes()
+                return False
+            else:
+                return "%s doesn't exist. Please initialize through the API." % self.db_name
+        except Exception as e:
+            if "SOCKET ERROR:" in str(e).upper():
+                message = "[%s_CRITICAL ERROR]: OrientDB not found. Should be listening on port 2424" % get_datetime()
+                return message
 
     def get_neighbors_index(self, nodekey=1):
         """

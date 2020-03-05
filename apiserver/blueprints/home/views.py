@@ -12,7 +12,7 @@ home = Blueprint('home', __name__)
 odbserver = ODB()
 init_required = odbserver.open_db()
 if init_required:
-    click.echo("[%s_Home_init] Setup required" % get_datetime())
+    click.echo("[%s_Home_init] %s" % (get_datetime(), init_required))
 
 
 @home.route('/home/db_init', methods=['GET'])

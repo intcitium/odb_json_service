@@ -13,7 +13,7 @@ CORS(users)
 odbserver = userDB()
 init_required = odbserver.open_db()
 if init_required:
-    click.echo("[%s_User_init] Setup required" % get_datetime())
+    click.echo("[%s_User_init] %s" % (get_datetime(), init_required))
 else:
     odbserver.open_db()
     click.echo('[%s_UserServer_init] Complete' % (get_datetime()))
