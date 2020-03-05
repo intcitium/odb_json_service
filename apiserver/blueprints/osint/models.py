@@ -1316,8 +1316,6 @@ class OSINT(ODB):
                                 self.create_edge_new(edgeType="LocatedAt", fromNode=twt_node, toNode=Location["key"])
 
                     # Else get the user_node
-                    else:
-                        usr_node = self.OSINT_index["Profile"][user_id]
                     self.create_edge_new(edgeType="Tweeted", toNode=twt_node, fromNode=usr_node)
                     if kwargs['monitor']:
                         self.create_edge_new(edgeType="References", toNode=twt_node,
