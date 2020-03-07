@@ -34,10 +34,25 @@ Node = {"class": "V",
 '''
 All edges or relationships that will require indexing to prevent duplicate records/connections
 '''
+
 Edges = {
-    "Discovered": Edge, "Has": Edge, "Included": Edge, "Initiated": Edge,
-    "LocatedAt": Edge, "Owns": Edge, "Received": Edge, "References": Edge,
-    "Tweeted": Edge, "TweetedFrom": Edge}
+    "AccountCreated": Edge, "ActionToSupport": Edge, "AnalysisToSupport": Edge,
+    "BornOn": Edge, "BornIn": Edge,
+    "Called": Edge, "CalledBy": Edge, "Canceled": Edge, "CanceledBy": Edge, "ChargedWith": Edge, "CollectionToSupport": Edge, "CommittedCrime": Edge, "CreatedAt": Edge, "CreatedBy": Edge, "CreatedOn": Edge,
+    "Discovered": Edge, "DocumentIn": Edge, "DocumentMentioning": Edge, "DocumentedBy": Edge,
+    "Family": Edge, "Follows": Edge, "Found": Edge, "FromFile": Edge,
+    "HasAttribute": Edge, "HasRole": Edge, "HasStatus": Edge, "HasParent": Edge, "HasSibling": Edge, "HasChild": Edge,
+    "IncludesTag": Edge, "IncludesTerm": Edge, "Involves": Edge, "Knows": Edge, "Initiated": Edge, "Included": Edge,
+    "Likes": Edge, "LivesAt": Edge, "LocatedAt": Edge,
+    "MarriedTo": Edge, "ModifiedBy": Edge, "ModifiedOn": Edge,
+    "OfType": Edge, "On": Edge, "OccurredAt": Edge, "Owns": Edge,
+    "PartOf": Edge, "PhotoOf": Edge, "ProcessedIntel": Edge, "Published": Edge, "PublishedIntel": Edge, "PublishedTask": Edge,
+    "Received": Edge, "Related": Edge, "ReportedAt": Edge, "RegisteredOn": Edge, "ReferenceLink": Edge, "Reported": Edge, "References": Edge, "RecordedBy": Edge, "ResultedIn": Edge,
+    "Searched": Edge, "SubjectOf": Edge, "SubjectofContact": Edge, "Supporting": Edge,
+    "Tagged": Edge, "TaskedTo": Edge, "TAReference": Edge, "TextAnalytics": Edge, "TweetLocation": Edge, "Tweeted": Edge, "TweetedFrom": Edge,
+    "UpdatedBy": Edge, "Witnessed": Edge, "CloseColleagueWith": Edge, "ColleagueWith": Edge, "BasedAt": Edge,
+    "EmployedBy": Edge, "CloseFriendsWith": Edge, "WorksAt": Edge, "OppositeCause": Edge, "WorksFor": Edge, "WorksWith": Edge
+}
 '''
 Attributes that should be included to create a hashkey. Since they are created in the variable's order every time, it 
 assures that any entity with the same attributes in a different order are created into a normalized hashkey.

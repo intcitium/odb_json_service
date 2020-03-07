@@ -447,7 +447,6 @@ class OSINT(ODB):
         data = requests.get(self.ACLED_Base_URL).json()['data']
         source_keys = []
         for row in data:
-            print(row)
             s = row['source']
             source_node = self.create_node(
                 class_name="Organization",
@@ -531,6 +530,7 @@ class OSINT(ODB):
 
         :return:
         """
+        click.echo()
         results = requests.get(self.UCDP_Base_URL).json()
         data = results['Result']
         graph_build = {"nodes": [], "lines": [], "groups": [{"key": "UCDP", "title": "UCDP"}]}
@@ -591,9 +591,7 @@ class OSINT(ODB):
                 self.DB['ucdp_events'][row['id']] = event_node['data']
             # Wire up the Sources as reporting on the Event
             for k in source_keys:
-                self.create_edge(
-                    fromClass="Organization",
-                    toClass="Event",
+                self.create_edge_new(
                     edgeType="ReportedOn",
                     fromNode=k,
                     toNode=event_node['data']['key']
@@ -641,20 +639,16 @@ class OSINT(ODB):
                 side_b_key = side_b_node['data']['key']
                 self.DB['ucdp_org'][row['side_b']] = side_b_node['data']
             # Wire up the Organizations with the Event
-            self.create_edge(
-                fromClass="Organization",
-                toClass="Event",
+            self.create_edge_new(
                 fromNode=side_a_key,
                 toNode=event_node['data']['key'],
-                edgeType="Involved"
+                edgeType="Involves"
             )
             graph_build['lines'].append({"from": side_a_key, "to": event_node['data']['key'], "title": "Event"})
-            self.create_edge(
-                fromClass="Organization",
-                toClass="Event",
+            self.create_edge_new(
                 fromNode=side_b_key,
                 toNode=event_node['data']['key'],
-                edgeType="Involved"
+                edgeType="Involves"
             )
             graph_build['lines'].append({"from": side_b_key, "to": event_node['data']['key'], "title": "Event"})
             # Get the Location
@@ -685,27 +679,21 @@ class OSINT(ODB):
             graph_build['nodes'].append(location_node['data'])
             location = location_node['data']['key']
             # Wire up the Event to Location (OccurredAt)
-            self.create_edge(
-                fromClass="Event",
+            self.create_edge_new(
                 fromNode=event_node['data']['key'],
-                toClass="Location",
                 toNode=location,
                 edgeType="OccurredAt"
             )
             graph_build['lines'].append({"from": event_node['data']['key'], "to": location, "title": "OccurredAt"})
             # Wire up the Organizations to the Location (ReportedAt)
-            self.create_edge(
-                fromClass="Organization",
+            self.create_edge_new(
                 fromNode=side_a_key,
-                toClass="Location",
                 toNode=location,
                 edgeType="OccurredAt"
             )
             graph_build['lines'].append({"from": side_a_key, "to": location, "title": "OccurredAt"})
-            self.create_edge(
-                fromClass="Organization",
+            self.create_edge_new(
                 fromNode=side_b_key,
-                toClass="Location",
                 toNode=location,
                 edgeType="OccurredAt"
             )
