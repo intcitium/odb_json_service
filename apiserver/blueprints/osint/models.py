@@ -117,10 +117,11 @@ class OSINT(ODB):
         sim.fill_lists()
         df = pd.read_excel(self.datapath + "\\COVID-19.xls")
         time_prog = time.time()
+        cindex = {}
         for index, row in df.iterrows():
-            cindex = {}
             if time.time() - time_prog > 20:
-                click.echo('[%s_OSINT_get_covid] Complete with %f percent' % (get_datetime(), index/len(df.index)))
+                click.echo('[%s_OSINT_get_covid] Complete with %f percent. Currently in %s' % (
+                    get_datetime(), index/len(df.index), row['CountryExp']))
                 time_prog = time.time()
             if row['NewConfCases'] > 0:
                 i = 0
@@ -189,23 +190,26 @@ class OSINT(ODB):
             if row['NewDeaths'] > 0:
                 i = 0
                 while i < row['NewDeaths']:
-                    if len(cindex[row['CountryExp'].replace(" ", "")]) > 0:
-                        person = cindex[row['CountryExp'].replace(" ", "")][0]
-                        event_message = "Case resulted in death of %s %s" % (person['FirstName'], person['LastName'])
-                        event = self.create_node(
-                            class_name="Event",
-                            Source="COVID_SIM",
-                            Category="COVID Death",
-                            description=event_message,
-                            StartDate=str(row['DateRep']),
-                            title="COVID case %s %s" % (row['DateRep'], person['LastName']),
-                            icon="sap-icon://accidental-leave",
-                            Ext_key=randomString(16) + person['FirstName'] + person['LastName']
-                        )['data']['key']
-                        self.create_edge_new(fromNode=event, toNode=person['key'], edgeType="Involves")
-                        # Remove the person who has died
-                        cindex[row['CountryExp'].replace(" ", "")].pop(0)
-                        i+=1
+                    if row['CountryExp'].replace(" ", "") in cindex.keys():
+                        if len(cindex[row['CountryExp'].replace(" ", "")]) > 0:
+                            person = cindex[row['CountryExp'].replace(" ", "")][0]
+                            event_message = "Case resulted in death of %s %s" % (person['FirstName'], person['LastName'])
+                            event = self.create_node(
+                                class_name="Event",
+                                Source="COVID_SIM",
+                                Category="COVID Death",
+                                description=event_message,
+                                StartDate=str(row['DateRep']),
+                                title="COVID case %s %s" % (row['DateRep'], person['LastName']),
+                                icon="sap-icon://accidental-leave",
+                                Ext_key=randomString(16) + person['FirstName'] + person['LastName']
+                            )['data']['key']
+                            self.create_edge_new(fromNode=event, toNode=person['key'], edgeType="Involves")
+                            # Remove the person who has died
+                            cindex[row['CountryExp'].replace(" ", "")].pop(0)
+                    else:
+                        print("hello")
+                    i+=1
 
     def get_location_lookup(self, location_name="Berlin"):
         """
