@@ -115,7 +115,7 @@ class OSINT(ODB):
         from apiserver.blueprints.simulations.models import Pole
         sim = Pole(self.client)
         sim.fill_lists()
-        df = pd.read_excel(self.datapath + "\\COVID-19.xls")
+        df = pd.read_excel(os.path.join(self.datapath, 'COVID-19.xls'))
         time_prog = time.time()
         cindex = {}
         for index, row in df.iterrows():
