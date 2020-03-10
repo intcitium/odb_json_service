@@ -34,7 +34,6 @@ def db_init():
         "message": result
     })
 
-
 @osint.route('/osint', methods=['GET'])
 def index():
 
@@ -395,3 +394,15 @@ def get_location_lookup():
         "status": 200,
         "data": message
     })
+
+@osint.route('/osint/get_covid', methods=['GET'])
+def get_covid():
+    message = osintserver.get_covid()
+    return jsonify({
+        "status": 200,
+        "data": message
+    })
+
+
+
+

@@ -986,7 +986,8 @@ class ODB:
             att_vals = []
             for k in kwargs:
                 att_vals.append({"var": k, "val": kwargs[k]})
-            self.update_full(hash_key, att_vals)
+            if kwargs['class_name'] != "Location":
+                self.update_full(hash_key, att_vals)
             message = '[%s_%s_create_node] Node exists' % (get_datetime(), self.db_name)
             return {"message": message, "data": formatted_node}
         # Start the SQL based on the hashkey

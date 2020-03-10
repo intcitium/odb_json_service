@@ -1,7 +1,9 @@
 import click, os
 import requests, json, random
 import pandas as pd
+import numpy as np
 import codecs
+import datetime
 import time
 import threading
 from OTXv2 import OTXv2
@@ -79,13 +81,131 @@ class OSINT(ODB):
             self.basebook = pd.ExcelFile(os.path.join(self.datapath, 'Base_Book.xlsx'))
         locations = self.basebook.parse('Locations')
         # Start a thread for the long running process and send a message back with the summary
+        '''
         t = threading.Thread(
             target=self.fill_locations,
             kwargs={
                 "locations": locations
             })
         t.start()
+        '''
+        self.fill_locations(locations)
+
         return "Started extracting %d locations from the Basebook" % locations['city'].size
+
+    def get_covid(self):
+        """
+        Simulate outbreak tracing with real data.
+        Sort the data by country and then by date oldest to newest. This establishes the rule that a country will likley
+        have a case before it has a death to avoid assigning a death to a person that has not caught it.
+        ALGO:
+        For each row in the data from
+        If the NewConfCases > 0, create a case for each number on the DateRep and CountryExp
+            Choose a random location from that country
+            Create an event
+            Create a person
+            Create an edge from the event to the person and the location
+        If the NewDeaths > 0, choose a person from that country and relate the event to them, then remove them from the
+        index
+            - country
+                [{key: age}...]
+
+        :return:
+        """
+        from apiserver.blueprints.simulations.models import Pole
+        sim = Pole(self.client)
+        sim.fill_lists()
+        df = pd.read_excel(self.datapath + "\\COVID-19.xls")
+        time_prog = time.time()
+        for index, row in df.iterrows():
+            cindex = {}
+            if time.time() - time_prog > 20:
+                click.echo('[%s_OSINT_get_covid] Complete with %f percent' % (get_datetime(), index/len(df.index)))
+                time_prog = time.time()
+            if row['NewConfCases'] > 0:
+                i = 0
+                while i < row['NewConfCases']:
+                    # Get the random location based on the country
+                    locations = self.client.command('''
+                    SELECT @rid as key, * FROM Location WHERE [description] LUCENE "(%s)"
+                     or country.toUpperCase() = "%s" LIMIT 50
+                    ''' % (row['CountryExp'], row['CountryExp'].upper()))
+                    if len(locations) > 0:
+                        location = random.choice(locations).oRecordData
+                    else:
+                        location = self.get_location_lookup(location_name=row['CountryExp'])
+                    # Set up the person attributes that will be used in the event creation
+                    meanCOVID = 68
+                    stdCOVID = 8.7
+                    core_age = (int(np.random.normal(loc=meanCOVID, scale=stdCOVID)) * 365
+                                + random.randint(-180, 180))
+                    Gender = random.choices(sim.ParentA_Choices, sim.ParentA_Weights)[0]
+                    if Gender == 'F':
+                        FirstName = random.choice(sim.FemaleNames)
+                    else:
+                        FirstName = random.choice(sim.MaleNames)
+                    LastName = random.choice(sim.LastNames)
+                    event_message = "Case recorded on %s in %s involving %s %s, age %d" % (
+                        row['DateRep'], location['title'], FirstName, LastName, int(core_age/365))
+                    # Create the event
+                    event = self.create_node(
+                        class_name="Event",
+                        Source="COVID_SIM",
+                        Category="COVID Case",
+                        description=event_message,
+                        StartDate=str(row['DateRep']),
+                        title="COVID case %s %s" % (row['DateRep'], LastName),
+                        icon="sap-icon://accidental-leave",
+                        Ext_key=randomString(16) + FirstName + LastName
+                    )['data']['key']
+                    # Create the person
+                    person = self.create_node(
+                        class_name="Person",
+                        Source="COVID_SIM",
+                        FirstName=FirstName,
+                        LastName=LastName,
+                        Gender=Gender,
+                        icon="sap-icon://person-placeholder",
+                        DateOfBirth=(datetime.datetime.now() - datetime.timedelta(days=core_age)).strftime(
+                            '%Y-%m-%d %H:%M:%S')
+                    )
+                    # Create the 2 edges to link the 3 entities
+                    self.create_edge_new(fromNode=event, toNode=person['data']['key'], edgeType="Involves")
+                    self.create_edge_new(fromNode=event, toNode=location['key'].get_hash(), edgeType="Involves")
+                    # Add the person to the index
+                    if row['CountryExp'].replace(" ", "") in cindex.keys():
+                        cindex[row['CountryExp'].replace(" ", "")].append({
+                            'key': person['data']['key'],
+                            'FirstName': FirstName,
+                            'LastName': LastName
+                        })
+                    else:
+                        cindex[row['CountryExp'].replace(" ", "")] = [{
+                            'key': person['data']['key'],
+                            'FirstName': FirstName,
+                            'LastName': LastName
+                        }]
+                    i+=1
+            if row['NewDeaths'] > 0:
+                i = 0
+                while i < row['NewDeaths']:
+                    if len(cindex[row['CountryExp'].replace(" ", "")]) > 0:
+                        person = cindex[row['CountryExp'].replace(" ", "")][0]
+                        event_message = "Case resulted in death of %s %s" % (person['FirstName'], person['LastName'])
+                        event = self.create_node(
+                            class_name="Event",
+                            Source="COVID_SIM",
+                            Category="COVID Death",
+                            description=event_message,
+                            StartDate=str(row['DateRep']),
+                            title="COVID case %s %s" % (row['DateRep'], person['LastName']),
+                            icon="sap-icon://accidental-leave",
+                            Ext_key=randomString(16) + person['FirstName'] + person['LastName']
+                        )['data']['key']
+                        self.create_edge_new(fromNode=event, toNode=person['key'], edgeType="Involves")
+                        # Remove the person who has died
+                        cindex[row['CountryExp'].replace(" ", "")].pop(0)
+                        i+=1
 
     def get_location_lookup(self, location_name="Berlin"):
         """

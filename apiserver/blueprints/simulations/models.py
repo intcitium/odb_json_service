@@ -41,9 +41,9 @@ class Simulation():
 
 class Pole(ODB):
 
-    def __init__(self, db_name="POLE"):
-        ODB.__init__(self, db_name)
-        self.db_name = db_name
+    def __init__(self, client="POLE"):
+        ODB.__init__(self, client)
+        self.db_name = client
         self.models = {
             "Person": {
                 "key": "integer",

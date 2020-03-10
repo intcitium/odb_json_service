@@ -94,3 +94,4 @@ def get_location_by_latlon(location, loc_string, db):
         db.update(class_name="Location", var="description", val=new_description, key=r[0].oRecordData["key"])
         # update the location
         return r
+
