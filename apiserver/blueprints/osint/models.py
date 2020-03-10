@@ -93,25 +93,8 @@ class OSINT(ODB):
 
         return "Started extracting %d locations from the Basebook" % locations['city'].size
 
-    def get_covid(self):
-        """
-        Simulate outbreak tracing with real data.
-        Sort the data by country and then by date oldest to newest. This establishes the rule that a country will likley
-        have a case before it has a death to avoid assigning a death to a person that has not caught it.
-        ALGO:
-        For each row in the data from
-        If the NewConfCases > 0, create a case for each number on the DateRep and CountryExp
-            Choose a random location from that country
-            Create an event
-            Create a person
-            Create an edge from the event to the person and the location
-        If the NewDeaths > 0, choose a person from that country and relate the event to them, then remove them from the
-        index
-            - country
-                [{key: age}...]
+    def run_covid(self):
 
-        :return:
-        """
         from apiserver.blueprints.simulations.models import Pole
         sim = Pole(self.client)
         sim.fill_lists()
@@ -210,6 +193,31 @@ class OSINT(ODB):
                     else:
                         print("hello")
                     i+=1
+
+
+    def get_covid(self):
+        """
+        Simulate outbreak tracing with real data.
+        Sort the data by country and then by date oldest to newest. This establishes the rule that a country will likley
+        have a case before it has a death to avoid assigning a death to a person that has not caught it.
+        ALGO:
+        For each row in the data from
+        If the NewConfCases > 0, create a case for each number on the DateRep and CountryExp
+            Choose a random location from that country
+            Create an event
+            Create a person
+            Create an edge from the event to the person and the location
+        If the NewDeaths > 0, choose a person from that country and relate the event to them, then remove them from the
+        index
+            - country
+                [{key: age}...]
+
+        :return:
+        """
+        t = threading.Thread(target=self.run_covid)
+        t.start()
+        return {"message": "Process started %s" % get_datetime()}
+
 
     def get_location_lookup(self, location_name="Berlin"):
         """
