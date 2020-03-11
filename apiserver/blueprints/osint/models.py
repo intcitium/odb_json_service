@@ -190,8 +190,8 @@ class OSINT(ODB):
                     else:
                         print("hello")
                     i+=1
-            click.echo('[%s_OSINT_run_covid] Complete with initial build. Starting part 2.' % get_datetime())
-            self.run_covid_part2()
+        click.echo('[%s_OSINT_run_covid] Complete with initial build. Starting part 2.' % get_datetime())
+        self.run_covid_part2()
 
     def run_covid_part2(self):
         # Create a table of the cases in order of country then city then date to establish a realtime sequence for creating
