@@ -100,10 +100,15 @@ class OSINT(ODB):
         sim.fill_lists()
         df = pd.read_excel(os.path.join(self.datapath, 'COVID-19.xls'))
         time_prog = time.time()
-        cindex = {}
+        curr_country = ""
+        cindex = []
         for index, row in df.iterrows():
+            # Set the country for the chunking process
+            if curr_country != row['CountryExp']:
+                curr_country = row['CountryExp']
+                cindex = []
             if time.time() - time_prog > 20:
-                click.echo('[%s_OSINT_get_covid] Complete with %f percent. Currently in %s' % (
+                click.echo('[%s_OSINT_run_covid] Complete with %f percent. Currently in %s' % (
                     get_datetime(), index/len(df.index), row['CountryExp']))
                 time_prog = time.time()
             if row['NewConfCases'] > 0:
@@ -155,51 +160,109 @@ class OSINT(ODB):
                     )
                     # Create the 2 edges to link the 3 entities
                     self.create_edge_new(fromNode=event, toNode=person['data']['key'], edgeType="Involves")
-                    self.create_edge_new(fromNode=event, toNode=location['key'].get_hash(), edgeType="Involves")
+                    self.create_edge_new(fromNode=event, toNode=location['key'].get_hash(), edgeType="OccurredAt")
                     # Add the person to the index
-                    if row['CountryExp'].replace(" ", "") in cindex.keys():
-                        cindex[row['CountryExp'].replace(" ", "")].append({
-                            'key': person['data']['key'],
-                            'FirstName': FirstName,
-                            'LastName': LastName
-                        })
-                    else:
-                        cindex[row['CountryExp'].replace(" ", "")] = [{
-                            'key': person['data']['key'],
-                            'FirstName': FirstName,
-                            'LastName': LastName
-                        }]
+                    cindex.append({
+                        'key': person['data']['key'],
+                        'FirstName': FirstName,
+                        'LastName': LastName,
+                    })
                     i+=1
             if row['NewDeaths'] > 0:
                 i = 0
                 while i < row['NewDeaths']:
-                    if row['CountryExp'].replace(" ", "") in cindex.keys():
-                        if len(cindex[row['CountryExp'].replace(" ", "")]) > 0:
-                            person = cindex[row['CountryExp'].replace(" ", "")][0]
-                            event_message = "Case resulted in death of %s %s" % (person['FirstName'], person['LastName'])
-                            event = self.create_node(
-                                class_name="Event",
-                                Source="COVID_SIM",
-                                Category="COVID Death",
-                                description=event_message,
-                                StartDate=str(row['DateRep']),
-                                title="COVID case %s %s" % (row['DateRep'], person['LastName']),
-                                icon="sap-icon://accidental-leave",
-                                Ext_key=randomString(16) + person['FirstName'] + person['LastName']
-                            )['data']['key']
-                            self.create_edge_new(fromNode=event, toNode=person['key'], edgeType="Involves")
-                            # Remove the person who has died
-                            cindex[row['CountryExp'].replace(" ", "")].pop(0)
+                    if len(cindex) > 0:
+                        person = cindex[0]
+                        event_message = "Case resulted in death of %s %s" % (person['FirstName'], person['LastName'])
+                        event = self.create_node(
+                            class_name="Event",
+                            Source="COVID_SIM",
+                            Category="COVID Death",
+                            description=event_message,
+                            StartDate=str(row['DateRep']),
+                            title="COVID case %s %s" % (row['DateRep'], person['LastName']),
+                            icon="sap-icon://accidental-leave",
+                            Ext_key=randomString(16) + person['FirstName'] + person['LastName']
+                        )['data']['key']
+                        self.create_edge_new(fromNode=event, toNode=person['key'], edgeType="Involves")
+                        # Remove the person who has died
+                        cindex.pop(0)
                     else:
                         print("hello")
                     i+=1
+            click.echo('[%s_OSINT_run_covid] Complete with initial build. Starting part 2.' % get_datetime())
+            self.run_covid_part2()
+
+    def run_covid_part2(self):
+        # Create a table of the cases in order of country then city then date to establish a realtime sequence for creating
+        # Transmission relations
+        click.echo('[%s_OSINT_run_covid_part2] Building table...' % get_datetime())
+        r = self.client.command('''
+            SELECT FROM (match
+                        {class:Location, as:l}.in("Involves")
+                        {class:Event, as: e, where: (Source = 'COVID_SIM')}.out("Involves")
+                        {class:Person, as:p, where: (Source = 'COVID_SIM')}
+                        return l.@rid as city_key, l.country as l_country, p.@rid as per_key, e.@rid as e_key, e.StartDate as StartDate)
+            ORDER BY country, city_key, StartDate
+        ''')
+        click.echo('[%s_OSINT_run_covid_part2] Table with %d rows ready for processing' % (get_datetime(), len(r)))
+        currentCity = None
+        currentCountry = None
+        city = country = world = per_pool = []
+        time_prog = time.time()
+        row = 0
+        for o in r:
+            if time.time() - time_prog > 20:
+                click.echo('[%s_OSINT_run_covid_part2] Complete with %f percent. Currently in %s, %s' % (
+                    get_datetime(), row/len(r), currentCity, currentCountry))
+                time_prog = time.time()
+            row+=1
+            # Simplify the syntax with capturing just oRecordData and add the person to the world as it doesn't change
+            o = o.oRecordData
+            world.append(o['per_key'])
+            # Check if the the city and country arrays need to be reset
+            if o['city_key'] == currentCity:
+                city.append(o['per_key'])
+            else:
+                currentCity = o['city_key']
+                city = [o['per_key']]
+            if o['l_country'] == currentCountry:
+                country.append(o['per_key'])
+            else:
+                currentCountry = o['l_country']
+                country = [o['per_key']]
+            # Check which pool should be taken to create relationships. Method should result in  people in cities with many people being inter related and those with small amount being regionally related
+            if len(city) > 5:
+                per_pool = city
+            elif len(country) > 10:
+                per_pool = country
+            elif len(world) > 10:
+                per_pool = world
+
+            # Set a number of rels the person can have and the iterator for creating edges
+            rels = random.randint(0, len(per_pool))
+            if rels > 60:
+                rels = random.randint(60, 100)
+            i = 0
+            # Set the array to ensure the person is not related to the same person more than once
+            rel_index = []
+            while i <= rels:
+                per_key = random.choice(per_pool)
+                if per_key not in rel_index:
+                    self.create_edge_new(
+                        fromNode=o['per_key'],
+                        toNode=per_key,
+                        edgeType=random.choice(["Knows", "Family", "EmployedBy"])
+                    )
+                    rel_index.append(per_key)
+                i += 1
 
 
     def get_covid(self):
         """
         Simulate outbreak tracing with real data.
-        Sort the data by country and then by date oldest to newest. This establishes the rule that a country will likley
-        have a case before it has a death to avoid assigning a death to a person that has not caught it.
+        Sort the data by country and then by date oldest to newest. This sets the data so that it is processed in chunks
+        and simiulate a real time process
         ALGO:
         For each row in the data from
         If the NewConfCases > 0, create a case for each number on the DateRep and CountryExp
