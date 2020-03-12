@@ -46,6 +46,19 @@ class OSINT(ODB):
                     "Indicator", "IntrusionSet", "Malware", "ObservedData",
                     "Report", "Sighting", "ThreatActor", "Tool", "Vulnerability"]
         self.OSINT_index = { "Profile": {}, "Post": {}, "Location": {}, "Tag": {}}
+        self.countries = ['germany', 'egypt', 'kenya', 'united-kingdom', 'greece', 'france', 'china', 'japan',
+                 'south-africa', 'ghana', 'libya', 'madagascar', 'austria', 'norway', 'poland', 'albania',
+                 'belgium', 'bosnia-herzegovina', 'bulgaria', 'italy', 'croatia', 'cyprus', 'czech-republic',
+                 'denmark', 'estonia', 'finland', 'hungary', 'iceland', 'ireland', 'latvia', 'liechtenstein',
+                 'lithuania', 'moldova', 'luxembourg', 'monaco', 'montenegro', 'netherlands', 'portugal',
+                 'romania', 'russia', 'serbia', 'slovakia', 'slovenia', 'spain', 'sweden', 'switzerland',
+                 'ukraine', 'vatican', 'usa', 'canada', 'mexico', 'australia', 'new-zealand', 'argentina',
+                 'brazil', 'chile', 'colombia', 'ecuador', 'french-guiana', 'paraguay', 'peru', 'suriname',
+                 'uruguay', 'venezuela', 'armenia', 'bahrain', 'bangladesh', 'bhutan', 'brunei', 'cambodia',
+                 'georgia', 'india', 'indonesia', 'iran', 'israel', 'jordan', 'kazakhstan', 'kuwait', 'lebanon',
+                 'turkey', 'thailand', 'vietnam', 'pakistan', 'nepal', 'malaysia', 'uzbekistan', 'uganda',
+                 'united-arab-emirates', 'nigeria', 'rwanda', 'senegal', 'somalia', 'sudan', 'tanzania',
+                 'zimbabwe', 'zambia', 'tunisia', 'mauritius', 'morocco', 'saudi-arabia']
 
     @staticmethod
     def ucdp_conflict_type(row):
@@ -57,19 +70,41 @@ class OSINT(ODB):
         else:
             return "One-sided Conflict"
 
+    def run_get_hospitals(self):
+        """
+        Runs the thread
+        :return:
+        """
+        click.echo('[%s_OSINT_get_hospitals] Getting hosptials...' % get_datetime())
+        for c in self.countries:
+            links = 0
+            hospitals = get_hospitals(c)
+            click.echo('[%s_OSINT_get_hospitals] Retrieved %d hospitals. Entering into database' % (
+                get_datetime(), len(hospitals)))
+            for h in hospitals:
+                hos_key = self.create_node(**h)['data']['key']
+                locations = self.client.command('''
+                select @rid as key, city from Location where Latitude > %d and Latitude < %d and Longitude > %d and Longitude < %d
+                ''' % (int(h['Latitude']), int(h['Latitude']) + 1, int(h['Longitude']), int(h['Longitude']) + 1))
+                for l in locations:
+                    if 'city' in l.oRecordData.keys():
+                        links+=1
+                        self.create_edge_new(
+                            fromNode=hos_key,
+                            toNode=l.oRecordData['key'].get_hash(),
+                            edgeType="LocatedAt"
+                        )
+            click.echo('[%s_OSINT_get_hospitals] Complete with %d hospitals with %d links ' % (
+                get_datetime(), len(hospitals), links))
+
     def get_hospitals(self):
         """
         Use the geo.py utilities to get a list of all the hospitals in node form and then create nodes for each
         :return:
         """
-        click.echo('[%s_OSINT_get_hospitals] Getting hosptials...' % get_datetime())
-        hospitals = get_hospitals()
-        click.echo('[%s_OSINT_get_hospitals] Retrieved %d hospitals. Entering into database' % (
-            get_datetime(), len(hospitals)))
-        for h in hospitals:
-            self.create_node(**h)
-        message = ('[%s_OSINT_get_hospitals] Complete with %d hospitals' % (get_datetime(), len(hospitals)))
-        return message
+        t = threading.Thread(target=self.run_get_hospitals)
+        t.start()
+        return "Running get hospitals thread. Messages will be displayed in the command line."
 
     def fill_locations(self, locations):
         for index, row in locations.iterrows():

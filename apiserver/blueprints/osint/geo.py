@@ -7,54 +7,53 @@ import hashlib
 from bs4 import BeautifulSoup as bs
 
 
-def get_hospitals():
-    countries = ['germany', 'egypt', 'kenya', 'united-kingdom', 'greece', 'france', 'china', 'japan']
+def get_hospitals(c):
+
     # array to hold the location objects representing hospitals
     h = []
     # index to hold the hashed keys to prevent redundancies
     index = []
     # iterate throught the list of countries and get each page of hospitals
-    for c in countries:
-        click.echo('[%s_GEO_get_hospitals] %s' % (get_datetime(), c))
-        page = requests.get("https://www.hospitalsworldguide.com/hospitals-in-%s/" % c)
-        soup = bs(page.content, 'html.parser')
-        r = soup.find_all('div', class_='information_linea')
-        for i in r:
-            try:
-                ExternalLink = i.find_all(href=True)[0].get('href')
-                title = i.find_all(href=True)[0].get_text()
-                address = i.find_all('div', class_='information_contenido')[0].get_text()
-                address = address[:address.find('\xa0')]
-                latlong = geo_string(address)
-                if latlong:
-                    Latitude = latlong.latitude
-                    Longitude = latlong.longitude
-                else:
-                    Latitude = 0.0
-                    Longitude = 0.0
-            except:
-                ExternalLink = "https://www.hospitalsworldguide.com"
-                title = "Hosptial in %s" % c
-                address = "Unknown address"
+    click.echo('[%s_GEO_get_hospitals] %s' % (get_datetime(), c))
+    page = requests.get("https://www.hospitalsworldguide.com/hospitals-in-%s/" % c)
+    soup = bs(page.content, 'html.parser')
+    r = soup.find_all('div', class_='information_linea')
+    for i in r:
+        try:
+            ExternalLink = i.find_all(href=True)[0].get('href')
+            title = i.find_all(href=True)[0].get_text()
+            address = i.find_all('div', class_='information_contenido')[0].get_text()
+            address = address[:address.find('\xa0')]
+            latlong = geo_string(address)
+            if latlong:
+                Latitude = latlong.latitude
+                Longitude = latlong.longitude
+            else:
                 Latitude = 0.0
                 Longitude = 0.0
-            
-            hash_str = clean_concat(str(ExternalLink + title)).replace(",", "")
-            ext_key = hashlib.md5(hash_str.encode()).hexdigest()
-            loc = {
-                "class_name": "Location",
-                "ExternalLink": ExternalLink,
-                "title": title,
-                "Ext_key": ext_key,
-                "icon": "sap-icon://building",
-                "Source": "HosptialsWorldGuide",
-                "Latitude": Latitude,
-                "Longitude": Longitude,
-                "description": "Hospital named %s located at %f, %f" % (title, Latitude, Longitude)
-            }
-            if ext_key not in index:
-                h.append(loc)
-                index.append(ext_key)
+        except:
+            ExternalLink = "https://www.hospitalsworldguide.com"
+            title = "Hosptial in %s" % c
+            address = "Unknown address"
+            Latitude = 0.0
+            Longitude = 0.0
+
+        hash_str = clean_concat(str(ExternalLink + title)).replace(",", "")
+        ext_key = hashlib.md5(hash_str.encode()).hexdigest()
+        loc = {
+            "class_name": "Location",
+            "ExternalLink": ExternalLink,
+            "title": title,
+            "Ext_key": ext_key,
+            "icon": "sap-icon://building",
+            "Source": "HosptialsWorldGuide",
+            "Latitude": Latitude,
+            "Longitude": Longitude,
+            "description": "Hospital named %s located at %f, %f" % (title, Latitude, Longitude)
+        }
+        if ext_key not in index:
+            h.append(loc)
+            index.append(ext_key)
         
     return h
         
