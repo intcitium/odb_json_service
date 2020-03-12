@@ -107,7 +107,7 @@ class Pole(ODB):
         }
         self.basebook = None
         self.ParentA_Choices = ["F", "M"]
-        self.ParentA_Weights = [.9, .1]
+        self.ParentA_Weights = [.42, .58]
         self.Parent_SameGender_Choices = [True, False]
         self.Parent_SameGender_Weights = [.05, .95]
         self.ParentA_Ages = {'mean': 40, 'stdev': 4.7}

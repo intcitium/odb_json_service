@@ -169,7 +169,7 @@ class OSINT(ODB):
                         # Get the random location based on the country
                         locations = self.client.command('''
                         SELECT @rid as key, * FROM Location WHERE [description] LUCENE "(%s)"
-                         or country.toUpperCase() = "%s" LIMIT 50
+                         or country.toUpperCase() = "%s" and population > 500000 LIMIT 10
                         ''' % (row['CountryExp'], row['CountryExp'].upper()))
                         if len(locations) > 0:
                             location = random.choice(locations).oRecordData
