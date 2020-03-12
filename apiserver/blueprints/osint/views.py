@@ -395,9 +395,10 @@ def get_location_lookup():
         "data": message
     })
 
-@osint.route('/osint/get_covid', methods=['GET'])
+@osint.route('/osint/get_covid', methods=['POST'])
 def get_covid():
-    message = osintserver.get_covid()
+    r = get_request_payload(request)
+    message = osintserver.get_covid(**r)
     return jsonify({
         "status": 200,
         "data": message

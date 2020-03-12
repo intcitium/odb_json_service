@@ -93,7 +93,7 @@ class OSINT(ODB):
 
         return "Started extracting %d locations from the Basebook" % locations['city'].size
 
-    def run_covid(self):
+    def run_covid(self, sYear, sMonth, sDay, eYear, eMonth, eDay):
 
         from apiserver.blueprints.simulations.models import Pole
         sim = Pole(self.client)
@@ -101,96 +101,103 @@ class OSINT(ODB):
         df = pd.read_excel(os.path.join(self.datapath, 'COVID-19.xls'))
         time_prog = time.time()
         curr_country = ""
-        cindex = []
+        # Need to index based on deaths and picking the first person in a country for the death label
+        cindex = {}
         for index, row in df.iterrows():
             # Set the country for the chunking process
-            if curr_country != row['CountryExp']:
-                curr_country = row['CountryExp']
-                cindex = []
-            if time.time() - time_prog > 20:
-                click.echo('[%s_OSINT_run_covid] Complete with %f percent. Currently in %s' % (
-                    get_datetime(), index/len(df.index), row['CountryExp']))
-                time_prog = time.time()
-            if row['NewConfCases'] > 0:
-                i = 0
-                while i < row['NewConfCases']:
-                    # Get the random location based on the country
-                    locations = self.client.command('''
-                    SELECT @rid as key, * FROM Location WHERE [description] LUCENE "(%s)"
-                     or country.toUpperCase() = "%s" LIMIT 50
-                    ''' % (row['CountryExp'], row['CountryExp'].upper()))
-                    if len(locations) > 0:
-                        location = random.choice(locations).oRecordData
-                    else:
-                        location = self.get_location_lookup(location_name=row['CountryExp'])
-                    # Set up the person attributes that will be used in the event creation
-                    meanCOVID = 68
-                    stdCOVID = 8.7
-                    core_age = (int(np.random.normal(loc=meanCOVID, scale=stdCOVID)) * 365
-                                + random.randint(-180, 180))
-                    Gender = random.choices(sim.ParentA_Choices, sim.ParentA_Weights)[0]
-                    if Gender == 'F':
-                        FirstName = random.choice(sim.FemaleNames)
-                    else:
-                        FirstName = random.choice(sim.MaleNames)
-                    LastName = random.choice(sim.LastNames)
-                    event_message = "Case recorded on %s in %s involving %s %s, age %d" % (
-                        row['DateRep'], location['title'], FirstName, LastName, int(core_age/365))
-                    # Create the event
-                    event = self.create_node(
-                        class_name="Event",
-                        Source="COVID_SIM",
-                        Category="COVID Case",
-                        description=event_message,
-                        StartDate=str(row['DateRep']),
-                        title="COVID case %s %s" % (row['DateRep'], LastName),
-                        icon="sap-icon://accidental-leave",
-                        Ext_key=randomString(16) + FirstName + LastName
-                    )['data']['key']
-                    # Create the person
-                    person = self.create_node(
-                        class_name="Person",
-                        Source="COVID_SIM",
-                        FirstName=FirstName,
-                        LastName=LastName,
-                        Gender=Gender,
-                        icon="sap-icon://person-placeholder",
-                        DateOfBirth=(datetime.datetime.now() - datetime.timedelta(days=core_age)).strftime(
-                            '%Y-%m-%d %H:%M:%S')
-                    )
-                    # Create the 2 edges to link the 3 entities
-                    self.create_edge_new(fromNode=event, toNode=person['data']['key'], edgeType="Involves")
-                    self.create_edge_new(fromNode=event, toNode=location['key'].get_hash(), edgeType="OccurredAt")
-                    # Add the person to the index
-                    cindex.append({
-                        'key': person['data']['key'],
-                        'FirstName': FirstName,
-                        'LastName': LastName,
-                    })
-                    i+=1
-            if row['NewDeaths'] > 0:
-                i = 0
-                while i < row['NewDeaths']:
-                    if len(cindex) > 0:
-                        person = cindex[0]
-                        event_message = "Case resulted in death of %s %s" % (person['FirstName'], person['LastName'])
+            if curr_country != row['CountryExp'].replace(" ", ""):
+                curr_country = row['CountryExp'].replace(" ", "")
+                if curr_country not in cindex.keys():
+                    cindex[curr_country] = []
+            if row['DateRep'].to_pydatetime() >= datetime.datetime(sYear, sMonth, sDay) and \
+                    row['DateRep'].to_pydatetime() <= datetime.datetime(eYear, eMonth, eDay):
+                if row['NewConfCases'] > 0:
+                    if time.time() - time_prog > 20:
+                        click.echo('[%s_OSINT_run_covid] Complete with %f percent. Currently in %s' % (
+                            get_datetime(), index / len(df.index), row['CountryExp']))
+                        time_prog = time.time()
+                    i = 0
+                    while i < row['NewConfCases']:
+                        # Get the random location based on the country
+                        locations = self.client.command('''
+                        SELECT @rid as key, * FROM Location WHERE [description] LUCENE "(%s)"
+                         or country.toUpperCase() = "%s" LIMIT 50
+                        ''' % (row['CountryExp'], row['CountryExp'].upper()))
+                        if len(locations) > 0:
+                            location = random.choice(locations).oRecordData
+                        else:
+                            location = self.get_location_lookup(location_name=row['CountryExp'])
+                        # Set up the person attributes that will be used in the event creation
+                        meanCOVID = 68
+                        stdCOVID = 8.7
+                        core_age = (int(np.random.normal(loc=meanCOVID, scale=stdCOVID)) * 365
+                                    + random.randint(-180, 180))
+                        Gender = random.choices(sim.ParentA_Choices, sim.ParentA_Weights)[0]
+                        if Gender == 'F':
+                            FirstName = random.choice(sim.FemaleNames)
+                        else:
+                            FirstName = random.choice(sim.MaleNames)
+                        LastName = random.choice(sim.LastNames)
+                        event_message = "Case recorded on %s in %s involving %s %s, age %d" % (
+                            row['DateRep'], location['title'], FirstName, LastName, int(core_age/365))
+                        # Create the event
                         event = self.create_node(
                             class_name="Event",
                             Source="COVID_SIM",
-                            Category="COVID Death",
+                            Category="COVID Case",
                             description=event_message,
                             StartDate=str(row['DateRep']),
-                            title="COVID case %s %s" % (row['DateRep'], person['LastName']),
+                            title="COVID case %s %s" % (row['DateRep'], LastName),
                             icon="sap-icon://accidental-leave",
-                            Ext_key=randomString(16) + person['FirstName'] + person['LastName']
+                            Ext_key=randomString(16) + FirstName + LastName
                         )['data']['key']
-                        self.create_edge_new(fromNode=event, toNode=person['key'], edgeType="Involves")
-                        # Remove the person who has died
-                        cindex.pop(0)
-                    else:
-                        print("hello")
-                    i+=1
-        click.echo('[%s_OSINT_run_covid] Complete with initial build. Starting part 2.' % get_datetime())
+                        # Create the person
+                        person = self.create_node(
+                            class_name="Person",
+                            Source="COVID_SIM",
+                            FirstName=FirstName,
+                            LastName=LastName,
+                            Gender=Gender,
+                            icon="sap-icon://person-placeholder",
+                            DateOfBirth=(datetime.datetime.now() - datetime.timedelta(days=core_age)).strftime(
+                                '%Y-%m-%d %H:%M:%S')
+                        )
+                        # Create the 2 edges to link the 3 entities
+                        self.create_edge_new(fromNode=event, toNode=person['data']['key'], edgeType="Involves")
+                        self.create_edge_new(fromNode=event, toNode=location['key'].get_hash(), edgeType="OccurredAt")
+                        # Add the person to the index
+                        cindex[curr_country].append({
+                            'key': person['data']['key'],
+                            'FirstName': FirstName,
+                            'LastName': LastName,
+                        })
+                        i+=1
+                if row['NewDeaths'] > 0:
+                    i = 0
+                    while i < row['NewDeaths']:
+                        if len(cindex[curr_country]) > 0:
+                            person = cindex[curr_country][0]
+                            event_message = "Case resulted in death of %s %s" % (person['FirstName'], person['LastName'])
+                            event = self.create_node(
+                                class_name="Event",
+                                Source="COVID_SIM",
+                                Category="COVID Death",
+                                description=event_message,
+                                StartDate=str(row['DateRep']),
+                                title="COVID case %s %s" % (row['DateRep'], person['LastName']),
+                                icon="sap-icon://accidental-leave",
+                                Ext_key=randomString(16) + person['FirstName'] + person['LastName']
+                            )['data']['key']
+                            self.create_edge_new(fromNode=event, toNode=person['key'], edgeType="Involves")
+                            # Remove the person who has died
+                            cindex[curr_country].pop(0)
+                        else:
+                            print("hello")
+                        i+=1
+        startDate = datetime.datetime.strftime(datetime.datetime(sYear, sMonth, sDay), "%Y-%m-%d")
+        endDate = datetime.datetime.strftime(datetime.datetime(eYear, eMonth, eDay), "%Y-%m-%d")
+        click.echo('[%s_OSINT_run_covid] Complete with build from %s to %s. Starting part 2.' % (
+            get_datetime(), startDate, endDate))
         self.run_covid_part2()
 
     def run_covid_part2(self):
@@ -199,11 +206,11 @@ class OSINT(ODB):
         click.echo('[%s_OSINT_run_covid_part2] Building table...' % get_datetime())
         r = self.client.command('''
             SELECT FROM (match
-                        {class:Location, as:l}.in("Involves")
+                        {class:Location, as:l}.in("OccurredAt")
                         {class:Event, as: e, where: (Source = 'COVID_SIM')}.out("Involves")
                         {class:Person, as:p, where: (Source = 'COVID_SIM')}
                         return l.@rid as city_key, l.country as l_country, p.@rid as per_key, e.@rid as e_key, e.StartDate as StartDate)
-            ORDER BY country, city_key, StartDate
+            ORDER BY StartDate
         ''')
         click.echo('[%s_OSINT_run_covid_part2] Table with %d rows ready for processing' % (get_datetime(), len(r)))
         currentCity = None
@@ -256,9 +263,9 @@ class OSINT(ODB):
                     )
                     rel_index.append(per_key)
                 i += 1
+        click.echo('[%s_OSINT_run_covid] Complete with part 2' % (get_datetime()))
 
-
-    def get_covid(self):
+    def get_covid(self, sYear=2019, sMonth=12, sDay=15, eYear=2020, eMonth=1, eDay=15):
         """
         Simulate outbreak tracing with real data.
         Sort the data by country and then by date oldest to newest. This sets the data so that it is processed in chunks
@@ -277,10 +284,18 @@ class OSINT(ODB):
 
         :return:
         """
-        t = threading.Thread(target=self.run_covid)
+        t = threading.Thread(
+            target=self.run_covid,
+            kwargs={
+                "sYear": int(sYear),
+                "sMonth": int(sMonth),
+                "sDay": int(sDay),
+                "eYear": int(eYear),
+                "eMonth": int(eMonth),
+                "eDay": int(eDay)
+            })
         t.start()
         return {"message": "Process started %s" % get_datetime()}
-
 
     def get_location_lookup(self, location_name="Berlin"):
         """
