@@ -311,17 +311,17 @@ class OSINT(ODB):
             # Make a spread which will determine the amount of relations the person has
             seed = random.randint(0,20)
             if seed > 18:
-                rels = sim.get_normal_rand(loc=40, scale=6)
+                rels = sim.get_normal_rand(loc=20, scale=3)
             elif seed > 15:
-                rels = sim.get_normal_rand(loc=20, scale=3)
+                rels = sim.get_normal_rand(loc=10, scale=2)
             else:
-                rels = sim.get_normal_rand(loc=20, scale=3)
+                rels = sim.get_normal_rand(loc=6, scale=1)
             if rels > len(per_pool):
                 rels = random.randint(0, len(per_pool))
             i = 0
             # Set the array to ensure the person is not related to the same person more than once
             rel_index = []
-            rel_type_dist = ["Knows", "Knows", "Knows", "Knows", "Family", "EmployedBy"]
+            rel_type_dist = ["Knows", "Related", "WorksWith", "WorksWith"]
             while i <= rels:
                 # Set if the rel is to someone in the infection pool or create a new person with the edge type
                 if random.randint(1, 3) == 1:
