@@ -69,6 +69,7 @@ class ODB:
                                  'OUser', '_studio' ]
         self.node_classes = ["V"]
         self.edge_classes = ["E"]
+        self.index = {'edges': []}
 
     def get_maps(self):
         """

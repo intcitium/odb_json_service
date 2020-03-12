@@ -10,7 +10,7 @@ from OTXv2 import OTXv2
 from apiserver.models import OSINTModel as Models
 from apiserver.utils import get_datetime, clean, change_if_date, TWITTER_AUTH, randomString
 from apiserver.blueprints.home.models import ODB
-from apiserver.blueprints.osint.geo import get_location
+from apiserver.blueprints.osint.geo import get_location, get_hospitals
 from requests_oauthlib import OAuth1
 import urllib3
 urllib3.disable_warnings()
@@ -56,6 +56,20 @@ class OSINT(ODB):
             return "Non-state Conflict"
         else:
             return "One-sided Conflict"
+
+    def get_hospitals(self):
+        """
+        Use the geo.py utilities to get a list of all the hospitals in node form and then create nodes for each
+        :return:
+        """
+        click.echo('[%s_OSINT_get_hospitals] Getting hosptials...' % get_datetime())
+        hospitals = get_hospitals()
+        click.echo('[%s_OSINT_get_hospitals] Retrieved %d hospitals. Entering into database' % (
+            get_datetime(), len(hospitals)))
+        for h in hospitals:
+            self.create_node(**h)
+        message = ('[%s_OSINT_get_hospitals] Complete with %d hospitals' % (get_datetime(), len(hospitals)))
+        return message
 
     def fill_locations(self, locations):
         for index, row in locations.iterrows():

@@ -404,6 +404,13 @@ def get_covid():
         "data": message
     })
 
+@osint.route('/osint/get_hospitals', methods=['GET'])
+def get_hospitals():
+    message = osintserver.get_hospitals()
+    return jsonify({
+        "status": 200,
+        "data": message
+    })
 
 
 
