@@ -109,8 +109,7 @@ class OSINT(ODB):
                 curr_country = row['CountryExp'].replace(" ", "")
                 if curr_country not in cindex.keys():
                     cindex[curr_country] = []
-            if row['DateRep'].to_pydatetime() >= datetime.datetime(sYear, sMonth, sDay) and \
-                    row['DateRep'].to_pydatetime() <= datetime.datetime(eYear, eMonth, eDay):
+            if row['DateRep'].to_pydatetime() >= datetime.datetime(sYear, sMonth, sDay) and row['DateRep'].to_pydatetime() <= datetime.datetime(eYear, eMonth, eDay):
                 if row['NewConfCases'] > 0:
                     if time.time() - time_prog > 20:
                         click.echo('[%s_OSINT_run_covid] Complete with %f percent. Currently in %s' % (
@@ -130,7 +129,7 @@ class OSINT(ODB):
                         # Set up the person attributes that will be used in the event creation
                         meanCOVID = 68
                         stdCOVID = 8.7
-                        core_age = (int(np.random.normal(loc=meanCOVID, scale=stdCOVID)) * 365
+                        core_age = (int(sim.get_normal_rand(loc=meanCOVID, scale=stdCOVID)) * 365
                                     + random.randint(-180, 180))
                         Gender = random.choices(sim.ParentA_Choices, sim.ParentA_Weights)[0]
                         if Gender == 'F':
@@ -156,13 +155,25 @@ class OSINT(ODB):
                             class_name="Person",
                             Source="COVID_SIM",
                             FirstName=FirstName,
+                            status="Confirmed",
                             LastName=LastName,
                             Gender=Gender,
                             icon="sap-icon://person-placeholder",
                             DateOfBirth=(datetime.datetime.now() - datetime.timedelta(days=core_age)).strftime(
                                 '%Y-%m-%d %H:%M:%S')
                         )
-                        # Create the 2 edges to link the 3 entities
+                        # Create edge for person living in the city or some other random city
+                        if random.randint(0, 20) == 20:
+                            lives_at = random.choice(locations).oRecordData['key'].get_hash()
+                            self.create_edge_new(
+                                fromNode=person['data']['key'],
+                                toNode=lives_at,
+                                edgeType="LivesAt")
+                        else:
+                            self.create_edge_new(
+                                fromNode=person['data']['key'],
+                                toNode=location['key'].get_hash(),
+                                edgeType="LivesAt")
                         self.create_edge_new(fromNode=event, toNode=person['data']['key'], edgeType="Involves")
                         self.create_edge_new(fromNode=event, toNode=location['key'].get_hash(), edgeType="OccurredAt")
                         # Add the person to the index
@@ -198,11 +209,11 @@ class OSINT(ODB):
         endDate = datetime.datetime.strftime(datetime.datetime(eYear, eMonth, eDay), "%Y-%m-%d")
         click.echo('[%s_OSINT_run_covid] Complete with build from %s to %s. Starting part 2.' % (
             get_datetime(), startDate, endDate))
-        self.run_covid_part2()
-
-    def run_covid_part2(self):
-        # Create a table of the cases in order of country then city then date to establish a realtime sequence for creating
-        # Transmission relations
+        '''
+        PART 2
+        Create a table of the cases in order of country then city then date to establish a realtime sequence for 
+        creating transmission relations
+        '''
         click.echo('[%s_OSINT_run_covid_part2] Building table...' % get_datetime())
         r = self.client.command('''
             SELECT FROM (match
@@ -238,30 +249,75 @@ class OSINT(ODB):
             else:
                 currentCountry = o['l_country']
                 country = [o['per_key']]
-            # Check which pool should be taken to create relationships. Method should result in  people in cities with many people being inter related and those with small amount being regionally related
+            '''
+            Check which pool should be taken to create relationships. Method should result in people in cities with
+            many people being inter related and those with small amount being regionally related
+            '''
             if len(city) > 5:
                 per_pool = city
             elif len(country) > 10:
                 per_pool = country
             elif len(world) > 10:
                 per_pool = world
-
-            # Set a number of rels the person can have and the iterator for creating edges
-            rels = random.randint(0, len(per_pool))
-            if rels > 60:
-                rels = random.randint(60, 100)
+            # Make a spread which will determine the amount of relations the person has
+            seed = random.randint(0,20)
+            if seed > 18:
+                rels = sim.get_normal_rand(loc=40, scale=6)
+            elif seed > 15:
+                rels = sim.get_normal_rand(loc=20, scale=3)
+            else:
+                rels = sim.get_normal_rand(loc=20, scale=3)
+            if rels > len(per_pool):
+                rels = random.randint(0, len(per_pool))
             i = 0
             # Set the array to ensure the person is not related to the same person more than once
             rel_index = []
+            rel_type_dist = ["Knows", "Knows", "Knows", "Knows", "Family", "EmployedBy"]
             while i <= rels:
-                per_key = random.choice(per_pool)
-                if per_key not in rel_index:
-                    self.create_edge_new(
-                        fromNode=o['per_key'],
-                        toNode=per_key,
-                        edgeType=random.choice(["Knows", "Family", "EmployedBy"])
-                    )
-                    rel_index.append(per_key)
+                # Set if the rel is to someone in the infection pool or create a new person with the edge type
+                if random.randint(1, 3) == 1:
+                    per_key = random.choice(per_pool)
+                    if per_key not in rel_index:
+                        self.create_edge_new(
+                            fromNode=o['per_key'],
+                            toNode=per_key,
+                            edgeType=random.choice(rel_type_dist)
+                        )
+                        rel_index.append(per_key)
+                else:
+                    # Set up the unconfirmed person
+                    meanCOVID = 40
+                    stdCOVID = 6
+                    core_age = (int(sim.get_normal_rand(loc=meanCOVID, scale=stdCOVID)) * 365
+                                + random.randint(-180, 180))
+                    Gender = random.choices(sim.ParentA_Choices, sim.ParentA_Weights)[0]
+                    if Gender == 'F':
+                        FirstName = random.choice(sim.FemaleNames)
+                    else:
+                        FirstName = random.choice(sim.MaleNames)
+                    LastName = random.choice(sim.LastNames)
+
+                    per_key = self.create_node(
+                        class_name="Person",
+                        Source="COVID_SIM",
+                        FirstName=FirstName,
+                        LastName=LastName,
+                        Gender=Gender,
+                        status="Unconfirmed",
+                        icon="sap-icon://person-placeholder",
+                        DateOfBirth=(datetime.datetime.now() - datetime.timedelta(days=core_age)).strftime(
+                            '%Y-%m-%d %H:%M:%S')
+                    )['data']['key']
+                    # Create the edge from the new un-confirmed person to the confirmed case
+                    self.create_edge_new(fromNode=o['per_key'], toNode=per_key, edgeType=random.choice(rel_type_dist))
+                    self.create_edge_new(fromNode=per_key, toNode=o['city_key'], edgeType="LivesAt")
+                    # Add the person to the index
+                    cindex[curr_country].append({
+                        'key': person['data']['key'],
+                        'FirstName': FirstName,
+                        'LastName': LastName,
+                    })
+
                 i += 1
         click.echo('[%s_OSINT_run_covid] Complete with part 2' % (get_datetime()))
 

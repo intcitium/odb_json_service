@@ -430,6 +430,9 @@ class Pole(ODB):
             City = random.choice(self.Locations)
             if "'label': 'city'" in str(City['attributes']):
                 return City
+    @staticmethod
+    def get_normal_rand(loc, scale):
+        return np.random.normal(loc=loc, scale=scale)
 
     def create_family(self, **kwargs):
         """
@@ -451,7 +454,7 @@ class Pole(ODB):
         if 'core_age' in kwargs:
             core_age = kwargs['core_age'] * 365 + (random.randint(-180, 180))
         else:
-            core_age = (int(np.random.normal(loc=self.ParentA_Ages['mean'], scale=self.ParentA_Ages['stdev'])) * 365
+            core_age = (int(self.get_normal_rand(self.ParentA_Ages['mean'], self.ParentA_Ages['stdev'])) * 365
                         + random.randint(-180, 180))
         if 'LastName' in kwargs:
             LastName = kwargs['LastName']
