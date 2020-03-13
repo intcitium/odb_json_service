@@ -149,7 +149,7 @@ class OSINT(ODB):
         sim.fill_lists()
         df = pd.read_excel(os.path.join(self.datapath, 'COVID-19.xls'))
         time_prog = time.time()
-        curr_country = ""
+        curr_country = person = ""
         # Need to index based on deaths and picking the first person in a country for the death label
         cindex = {}
         for index, row in df.iterrows():
@@ -251,8 +251,6 @@ class OSINT(ODB):
                             self.create_edge_new(fromNode=event, toNode=person['key'], edgeType="Involves")
                             # Remove the person who has died
                             cindex[curr_country].pop(0)
-                        else:
-                            print("hello")
                         i+=1
         startDate = datetime.datetime.strftime(datetime.datetime(sYear, sMonth, sDay), "%Y-%m-%d")
         endDate = datetime.datetime.strftime(datetime.datetime(eYear, eMonth, eDay), "%Y-%m-%d")
@@ -345,27 +343,30 @@ class OSINT(ODB):
                     else:
                         FirstName = random.choice(sim.MaleNames)
                     LastName = random.choice(sim.LastNames)
-
-                    per_key = self.create_node(
-                        class_name="Person",
-                        Source="COVID_SIM",
-                        FirstName=FirstName,
-                        LastName=LastName,
-                        Gender=Gender,
-                        status="Unconfirmed",
-                        icon="sap-icon://person-placeholder",
-                        DateOfBirth=(datetime.datetime.now() - datetime.timedelta(days=core_age)).strftime(
-                            '%Y-%m-%d %H:%M:%S')
-                    )['data']['key']
-                    # Create the edge from the new un-confirmed person to the confirmed case
-                    self.create_edge_new(fromNode=o['per_key'], toNode=per_key, edgeType=random.choice(rel_type_dist))
-                    self.create_edge_new(fromNode=per_key, toNode=o['city_key'], edgeType="LivesAt")
-                    # Add the person to the index
-                    cindex[curr_country].append({
-                        'key': person['data']['key'],
-                        'FirstName': FirstName,
-                        'LastName': LastName,
-                    })
+                    try:
+                        per_key = self.create_node(
+                            class_name="Person",
+                            Source="COVID_SIM",
+                            FirstName=FirstName,
+                            LastName=LastName,
+                            Gender=Gender,
+                            status="Unconfirmed",
+                            icon="sap-icon://person-placeholder",
+                            DateOfBirth=(datetime.datetime.now() - datetime.timedelta(days=core_age)).strftime(
+                                '%Y-%m-%d %H:%M:%S')
+                        )['data']['key']
+                        # Create the edge from the new un-confirmed person to the confirmed case
+                        self.create_edge_new(fromNode=o['per_key'], toNode=per_key, edgeType=random.choice(rel_type_dist))
+                        self.create_edge_new(fromNode=per_key, toNode=o['city_key'], edgeType="LivesAt")
+                        # Add the person to the index
+                        cindex[curr_country].append({
+                            'key': person['data']['key'],
+                            'FirstName': FirstName,
+                            'LastName': LastName,
+                        })
+                    except Exception as e:
+                        click.echo('[%s_OSINT_run_covid] Error creating person %s %s.' % (
+                            get_datetime(), startDate, endDate))
 
                 i += 1
         click.echo('[%s_OSINT_run_covid] Complete with part 2' % (get_datetime()))
