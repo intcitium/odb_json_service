@@ -973,6 +973,13 @@ class ODB:
             self.create_new_class(kwargs["class_name"], class_model)
             self.create_text_index(kwargs["class_name"])
 
+        # Check if person and make FirstName and LastName into a searchable index within description
+        if node_prep['class_name'].upper() == 'PERSON':
+            try:
+                node_prep['description'] = "%s %s" % (node_prep['FirstName'], node_prep['LastName'])
+            except Exception as e:
+                print(str(e))
+
         # Check the index based in the hashkey and class_name
         hash_key, check = self.check_index_nodes(**kwargs)
         if check:
