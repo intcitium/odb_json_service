@@ -10,7 +10,7 @@ from OTXv2 import OTXv2
 from apiserver.models import OSINTModel as Models
 from apiserver.utils import get_datetime, clean, change_if_date, TWITTER_AUTH, randomString
 from apiserver.blueprints.home.models import ODB
-from apiserver.blueprints.osint.geo import get_location, get_hospitals
+from apiserver.blueprints.osint.geo import get_location, geo_get_hospitals
 from requests_oauthlib import OAuth1
 import urllib3
 urllib3.disable_warnings()
@@ -72,20 +72,28 @@ class OSINT(ODB):
 
     def run_get_hospitals(self):
         """
-        Runs the thread
+        Runs the thread for loading hospitals into the database
+        Based on a list of countries which are normalized for the request calls
+        Get hospital information from the geo function
+        Find all cities within a 100km radius of the lat long and create a relation to them
+        - Latitude: 1 deg = 110.574 km
+        - Longitude: 1 deg = 111.320 * cos(latitude) km
+        Therefore the query should be
+        select locations where Latitude > h.lat - 1 and Latitude < h.lat + 1 and
+                                Longitude > h.lon * cos(h.lat) - 1 and Longitude < cos(h.lat) + 1
         :return:
         """
         click.echo('[%s_OSINT_get_hospitals] Getting hosptials...' % get_datetime())
         for c in self.countries:
             links = 0
-            hospitals = get_hospitals(c)
+            hospitals = geo_get_hospitals(c)
             click.echo('[%s_OSINT_get_hospitals] Retrieved %d hospitals. Entering into database' % (
                 get_datetime(), len(hospitals)))
             for h in hospitals:
                 hos_key = self.create_node(**h)['data']['key']
-                locations = self.client.command('''
-                select @rid as key, city from Location where Latitude > %d and Latitude < %d and Longitude > %d and Longitude < %d
-                ''' % (int(h['Latitude']), int(h['Latitude']) + 1, int(h['Longitude']), int(h['Longitude']) + 1))
+                sql = '''select @rid as key, city from Location where Latitude > %f and Latitude < %f and Longitude > %f and Longitude < %f
+                ''' % (h['Latitude'] - 1, h['Latitude'] + 1, h['Longitude'] * np.cos(h['Latitude']) - 1, h['Longitude'] * np.cos(h['Latitude']) + 1)
+                locations = self.client.command(sql)
                 for l in locations:
                     if 'city' in l.oRecordData.keys():
                         links+=1
