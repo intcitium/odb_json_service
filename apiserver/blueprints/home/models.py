@@ -1304,6 +1304,12 @@ class ODB:
                     for a in temp:
                         if a[:2] != "_in" and a[:3] != "_out" and "pyorient." not in str(type(temp[a])):
                             node[a] = temp[a]
+                    if 'title' in list(node.keys()):
+                        node['NODE_NAME'] = node['title']
+                    elif 'FirstName' in list(node.keys()) and 'LastName' in list(node.keys()):
+                        node['NODE_NAME'] = node['FirstName'] + " " + node['LastName']
+                    elif 'class_name' in list(node.keys()):
+                        node['NODE_NAME'] = node['class_name']
                     graph['nodes'].append(node)
                     graph['index'].append(node['key'])
             elif "out" in temp.keys() and "in" in temp.keys():  # It is an edge
